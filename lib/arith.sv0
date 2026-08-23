@@ -8,15 +8,17 @@
  * slice"), so this file is `module arith;`, not `module math::arith;`.
  * Consumers write `use arith::abs_i32;`, not `use math::arith::abs_i32;`.
  *
- * Only the i32 forms are implemented here. Every f64 form (abs_f64,
- * sign_f64, min_f64, max_f64, clamp_f64) is written and held in
- * ../blocked/arith_f64.sv0.blocked: BUGS.md #5 found that the native
- * compiler's C-backend type mapping has no case for f64 (or f32, or u32) at
- * all and silently falls back to `int` — so every f64 parameter, local, and
- * literal in a function body is miscompiled as a 32-bit int today. This is
- * the dominant open blocker for this library: R0.2 (trig) and R0.3
- * (polar/complex) are entirely f64-based and cannot be correctly
- * implemented until it's fixed upstream.
+ * f64 forms (abs_f64, sign_f64, min_f64, max_f64, clamp_f64) are now
+ * implemented too — BUGS.md #5 (the native compiler silently miscompiling
+ * f64 as `int`) is fixed upstream as of sv0-toolchain commit
+ * (see BUGS.md for the fix commit once landed). Verified by inspecting the
+ * emitted C for `double` end to end (params, locals, temps, call results),
+ * not just exit codes — see BUGS.md #5's verification note.
+ *
+ * C-backend only for now: the VM backend (`vm-project-compile`) still
+ * cannot type-check a non-i32/bool contract at all (BUGS.md #2, a separate,
+ * lower-priority, not-yet-fixed bug) — `abs_f64`'s `ensures(result >= 0.0)`
+ * fails to compile there. COMPAT-001/002 VM parity remains blocked on #2.
  */
 module arith;
 
@@ -41,6 +43,17 @@ fn abs_i32(x: i32) -> i32
 {
     if x < 0 {
         return 0 - x;
+    }
+    return x;
+}
+
+/* Absolute value of an f64. Total function: NaN and Infinity both have a
+ * well-defined IEEE-754 absolute value, so there is no requires clause. */
+fn abs_f64(x: f64) -> f64
+    ensures(result >= 0.0)
+{
+    if x < 0.0 {
+        return 0.0 - x;
     }
     return x;
 }
@@ -73,6 +86,24 @@ fn sign_i32(x: i32) -> i32
  * the function's actual (untested) behavior. Deferred, not implemented.
  */
 
+/* Sign of an f64: -1.0, 0.0, or 1.0. Total function; ARITH-002 pins NaN to
+ * 0.0 explicitly (documented and tested, not left as an unspecified case
+ * per CONV-005(b)). */
+fn sign_f64(x: f64) -> f64
+    ensures(result == (0.0 - 1.0) || result == 0.0 || result == 1.0)
+{
+    if x != x {
+        return 0.0;
+    }
+    if x < 0.0 {
+        return 0.0 - 1.0;
+    }
+    if x > 0.0 {
+        return 1.0;
+    }
+    return 0.0;
+}
+
 /* Smaller of two i32s. Ties return b. */
 fn min_i32(a: i32, b: i32) -> i32
     ensures(result == a || result == b)
@@ -102,4 +133,63 @@ fn clamp_i32(x: i32, lo: i32, hi: i32) -> i32
     ensures(!(lo <= x && x <= hi) || result == x)
 {
     return min_i32(max_i32(x, lo), hi);
+}
+
+/* Smaller of two f64s, propagating NaN: if either operand is NaN, that NaN
+ * is returned (checked explicitly, not left to fall out of `<` — every NaN
+ * comparison is false, so a naive `if a < b { a } else { b }` would return
+ * b whenever EITHER operand is NaN, silently discarding a NaN a). The
+ * ordering ensures below only needs to hold on the non-NaN domain — the
+ * `|| result != result` disjunct is this function's documented,
+ * CONV-005(b)-style exception for the propagated-NaN case, not a weaker
+ * contract.
+ */
+fn min_f64(a: f64, b: f64) -> f64
+    ensures(result == a || result == b)
+    ensures((result <= a && result <= b) || result != result)
+{
+    if a != a {
+        return a;
+    }
+    if b != b {
+        return b;
+    }
+    if a < b {
+        return a;
+    }
+    return b;
+}
+
+/* Larger of two f64s, propagating NaN symmetrically — see min_f64. */
+fn max_f64(a: f64, b: f64) -> f64
+    ensures(result == a || result == b)
+    ensures((result >= a && result >= b) || result != result)
+{
+    if a != a {
+        return a;
+    }
+    if b != b {
+        return b;
+    }
+    if a > b {
+        return a;
+    }
+    return b;
+}
+
+/* Clamp x into [lo, hi]. `requires(lo <= hi)` already rules out NaN lo/hi
+ * (every NaN comparison is false, so a NaN operand there fails `lo <= hi`).
+ * NaN x is in-domain and propagates through max_f64/min_f64 as they
+ * document — hence the same `|| result != result` disjunct as min_f64/
+ * max_f64, not present in SPEC.md's literal ARITH-004 wording but required
+ * for the ensures to actually hold on NaN x (this is a spec gap, not a
+ * toolchain one — this library's own contract wording, not filed in
+ * BUGS.md).
+ */
+fn clamp_f64(x: f64, lo: f64, hi: f64) -> f64
+    requires(lo <= hi)
+    ensures((result >= lo && result <= hi) || result != result)
+    ensures(!(lo <= x && x <= hi) || result == x)
+{
+    return min_f64(max_f64(x, lo), hi);
 }

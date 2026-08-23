@@ -91,7 +91,74 @@ harness — see git history) until this lands.
 
 ## 5. `f64` (and `f32`, and `u32`) silently compile as `int` in the native backend
 
-**Severity: critical — this is the dominant blocker for this library.** The
+**STATUS (2026-08-23): FIXED in `sv0-toolchain`** (uncommitted in that
+repo's working tree — commit there separately). Six sub-bugs found and
+fixed, all confirmed via `build/sv0-megatu-native`/
+`build/sv0-megatu-compiler-native` rebuild:
+
+1. `ast_ty_to_c_string` (`sv0c/lib/lowering.sv0`) — added `f32`/`f64`/`u32`.
+2. `lower_lit_to_ir_value` (`sv0c/lib/lowering.sv0`) — float literals fell
+   through to `Value::VUnit` (never implemented, not merely buggy); added a
+   `VFloat(i32)` variant (token-handle, mirroring `VString`'s pattern) to
+   `lowering.sv0` and `codegen.sv0`'s parallel `Value` enums, wired through
+   `megatu_emit_value` in `sv0c/lib/megaTU-main.sv0` to print the literal's
+   source text verbatim (already valid C double syntax).
+3. `infer_lit` (`sv0c/lib/checker.sv0`) — `lit_tag == 1` (the real parser's
+   FloatLit tag) was mapped to `TY_BOOL()`, a stale leftover from before
+   bool literals were correctly moved to tag 5. Fixed to `TY_FLOAT()`.
+4. `synth_expr`'s `ExprBinop`/`ExprUnop` cases (`sv0c/lib/checker.sv0`) —
+   computed operand types then discarded them, hardcoding `TY_INT()` for
+   every arithmetic/negation op via `binop_result_ty_tag`/
+   `unop_result_ty_tag`. Fixed to propagate the actual operand type for
+   Arith/Neg/BitNot (Cmp/Logic/Not still resolve to `TY_BOOL`).
+5. **The residual found while verifying #1-4**: every codegen-synthesized
+   temp was declared `int` unconditionally — three separate emission sites
+   in `sv0c/lib/megaTU-main.sv0`, none of which had any type information to
+   work with (`codegen_Instr`/`codegen_Expr` carry none):
+   - `codegen_Instr::Assign` — fixed by adding a minimal (handle → is_float)
+     type environment (`megatu_tyenv_push`/`_lookup_is_float`,
+     `megatu_value_is_float`, `megatu_expr_is_float`), seeded per-function
+     from parameter types (`megatu_seed_param_tyenv`) and grown as
+     `DeclNamed`/`Assign`/`Call` instructions are walked. Only arithmetic
+     ops (`+ - * / %`) and unary `Neg` propagate float-ness; comparison/
+     logical/bitwise ops always resolve `int` regardless of operand type.
+   - `codegen_Instr::DeclVar` — used for several purposes, but the one that
+     mattered here is the `ensures`-clause `result` slot; detected by name
+     (`"result"`) and typed from the enclosing function's own return type
+     (`ret_ty`, already threaded into this function) instead of a bare
+     `int` default. Other `DeclVar` uses (arithmetic-widening/tuple-helper
+     slots) are left as `int`, which is correct for them.
+   - `codegen_Instr::Call`'s untyped case (`rt_h == 0`, i.e. every ordinary
+     user-function call without an explicit typed `box_deref`) — added
+     `megatu_fn_ret_cty` (resolves the callee by source-text name match,
+     since a call-site token and the declaration-site token are different
+     positions — `megatu_find_item_by_label`'s existing raw-token-index
+     match doesn't work across that boundary) to look up the real return
+     type instead of defaulting to `int`. This was the fix that mattered
+     most in practice: `clamp_f64` calling `min_f64(max_f64(x, lo), hi)`
+     would otherwise still truncate at every call boundary.
+
+**Verified, not just exit-code-checked**: inspected the emitted C directly
+for every case — `abs_f64`, `sign_f64` (including the NaN branch and the
+`result` slot), `min_f64`/`max_f64` (including the `!= self` NaN-detection
+comparisons, confirmed typed `int` not `double`), and `clamp_f64` (nested
+calls through `min_f64(max_f64(...))`) all produce fully correct `double`
+arithmetic end to end, then actually ran the corresponding fixtures (0 =
+pass) including a fractional value (`0.5`) and a real NaN (`0.0 / 0.0`) —
+values that would have exposed the earlier `int`-truncation immediately.
+**No regression**: `sv0-mathlib`'s full current suite (i32 forms + restored
+f64 forms) still compiles/runs to exit 0, and the toolchain's own
+`scripts/pc3b6-native-project-acceptance.sh` corpus (18 fixtures, including
+`Option`- and struct-using ones, which don't go through this Assign/DeclVar
+path) is still all green after each rebuild.
+
+**Still separately blocked**: the VM backend (bug #2) — `ensures(result >=
+0.0)` on `abs_f64` still fails to type-check there; that's a different
+subsystem (SML-legacy's contract checker) untouched by this fix.
+`lib/arith.sv0`'s f64 functions are restored and compile/run correctly on
+the C backend only; see that file's header comment.
+
+**Original bug description, for the record:** The
 native compiler's C-backend type-name mapping,
 `sv0c/lib/lowering.sv0:4871` (`ast_ty_to_c_string`), enumerates
 `i32`/`bool`/`i8`/`u8`/`i16`/`u16`/`i64`/`u64`/`isize`/`usize`/`string`/
@@ -177,17 +244,22 @@ invocation even for code that's known-good.
   compiled, linked (`cc`), and run to exit `0`; the `requires` violation at
   `abs_i32(i32::MIN)` was separately confirmed to panic
   (`sv0 contract violation: requires failed in abs_i32`).
-- **VM backend now confirmed too**, for this same `i32`-only subset:
+- **VM backend confirmed too, for the `i32`-only subset**:
   `./scripts/sv0 vm-project-compile ../../sv0-mathlib` +
   `./scripts/sv0 vm-run` both produce `vm_exit:0`, matching the C backend —
-  real COMPAT-001 parity, not just a hoped-for one. This is the first
-  slice where **both backends agree** on this library's real surface.
+  real COMPAT-001 parity, not just a hoped-for one.
+- **All of `math::arith`'s f64 forms (bug #5, now fixed)** —
+  `abs_f64`/`sign_f64`/`min_f64`/`max_f64`/`clamp_f64`, on the **C backend**:
+  emitted C uses `double` throughout (params, locals, the `ensures`
+  `result` slot, comparison temps correctly staying `int`, and — the fix
+  that mattered most — call-result temps for `clamp_f64`'s nested
+  `min_f64(max_f64(...))`); compiled, linked, and run to exit `0` on a
+  fixture set that includes a fractional value and a real NaN
+  (`0.0 / 0.0`), not just integer-valued floats.
 
 ## Not yet working
 
-- **Anything f64** — blocked by bug #5, not just the VM path (bug #2 is now
-  moot for f64 specifically until #5 is fixed first; even the C backend
-  miscompiles it).
-- VM backend for anything with a non-`i32`/`bool` contract (bug #2) — not
-  re-tested since bug #5 means there's no correctly-compiling f64 code yet
-  to test it against.
+- VM backend for anything with a non-`i32`/`bool` contract (bug #2, not
+  fixed) — `abs_f64`'s `ensures(result >= 0.0)` still fails to type-check
+  under `vm-project-compile`, confirmed after bug #5 landed (so this is a
+  real, current result, not a stale one from before #5 was fixed).
