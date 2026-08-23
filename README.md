@@ -7,17 +7,18 @@ coordinates, and complex numbers, built contract-first per
 
 ## Status
 
-**F0 in progress.** `math::arith`'s i32 forms — `abs_i32`, `sign_i32`,
-`min_i32`, `max_i32`, `clamp_i32` (ARITH-001..004) — are implemented,
-contract-checked, and verified end to end on **both** the C and VM backends
-(matching exit codes, emitted C inspected for correct `int` typing, a
-`requires`-violation panic confirmed). See [BUGS.md](BUGS.md) for six
-toolchain gaps found while starting this work. One is the dominant blocker:
-**`f64` silently compiles as `int`** (bug #5) — no diagnostic, no crash,
-just a wrong answer that happens to look right on small fixtures. That
-blocks essentially everything past this library's i32-only slice: R0.1's
-f64 pieces, and all of R0.2 (trig) and R0.3 (polar/complex). Fix that one
-first.
+**F0 in progress.** `math::arith`'s i32 and f64 forms — `abs_i32`/`abs_f64`,
+`sign_i32`/`sign_f64`, `min_i32`/`min_f64`, `max_i32`/`max_f64`,
+`clamp_i32`/`clamp_f64` (ARITH-001..004) — are implemented, contract-checked,
+and verified on the **C backend** (emitted C inspected for correct
+`int`/`double` typing throughout — params, locals, contract-result slots,
+and call-result temps, not just exit codes; fixtures include a fractional
+value and a real NaN). The i32 forms are additionally verified on the **VM
+backend** (matching exit codes with the C build). See [BUGS.md](BUGS.md) for
+six toolchain gaps found while starting this work — bug #5 (`f64` silently
+compiling as `int`, the dominant blocker) is now **fixed** upstream; bug #2
+(the VM backend can't type-check a non-`i32`/`bool` contract) is not, so the
+f64 forms don't yet compile under `vm-project-compile`.
 
 ## Tier 1 / Tier 2
 
@@ -60,13 +61,14 @@ build/sv0-megatu-compiler-native --project /path/to/sv0-mathlib > /tmp/mathlib.c
 cc -std=c99 -O0 -w -I sv0c/runtime /tmp/mathlib.c sv0c/runtime/sv0_runtime.c -o /tmp/mathlib_bin
 /tmp/mathlib_bin; echo $?   # 0 = pass
 
-# VM backend — both backends agree on this library's current (i32-only) surface
+# VM backend — i32 forms only today (bug #2: f64 contracts don't type-check here yet)
 ./scripts/sv0 vm-project-compile ../../sv0-mathlib
 ./scripts/sv0 vm-run sv0c/build/vm/main.sv0b   # expect vm_exit:0
 ```
 
-Don't trust an exit code alone once `f64` is involved (see BUGS.md #5) —
-grep the emitted C for `double` where you expect it.
+When touching `f64` code, don't trust an exit code alone — grep the emitted
+C for `double` where you expect it (see BUGS.md #5's fix for exactly how
+this bit us once already).
 
 `main.sv0` currently doubles as the ARITH-001 test binary (0 = pass,
 nonzero = first failing case index) — see `main.sv0`'s comment for why the
