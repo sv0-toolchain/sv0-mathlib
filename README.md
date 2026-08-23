@@ -19,31 +19,37 @@ contract-result slots, call-result temps, enum payload struct fields, and
 match-arm payload bindings), real `i64`-magnitude values round-tripping
 correctly, and `Option`/`Result`/`OptionI64` compiling to real
 tagged-struct types with working `Some`/`None` match logic. The **VM
-backend** does not currently compile this library at all — see BUGS.md's
-"Not yet working" for why (a contract-typing gap plus a duplicate-type
-issue once more than one file imports the same type).
+backend** now type-checks and lowers this library's i32/i64 forms
+correctly (bug #2's checker-level fix) but still can't compile the f64
+forms — see BUGS.md #2 for why (VM bytecode has no float representation
+at all, a separate, larger gap) — and a duplicate-type issue once more
+than one file imports the same type; see BUGS.md's "Not yet working".
 
 See [BUGS.md](BUGS.md) for nine toolchain gaps found while starting this
-work. **Fixed upstream**: bug #5 (`f64` silently compiling as `int`), bug
-#3 (generic enums like `Option<T>` failing to resolve — turned out to be a
-real "generics don't work" gap, not the `--project`-specific issue first
-suspected), bug #1 (integer literals wider than i32 truncating — including
-a second, deeper sub-bug in the same "hardcodes int" family, found while
-verifying the first), bug #7 (an explicit
-`let x: f64 = <arithmetic-expr>;` local silently defaulting to `int` — the
-`let`'s own type annotation was parsed and stored correctly but no
-lowering path ever consulted it), bug #8 (enum payload slots and
-match-arm payload bindings always `int`, regardless of type — unblocked
-`abs_checked_i64`), and bug #6's silent-diagnostics half (a parse failure
-used to exit nonzero with zero error text; `==>` itself, the syntax that
-first surfaced it, stays deliberately unimplemented — see BUGS.md #6).
-**Still open**: bug #2 (VM backend can't type-check a non-`i32`/`bool`
-contract) and bug #9 (generic enums resolve but don't
-monomorphize — a shared `Option<T>` instantiated at more than one concrete
-type in the same program silently truncates the non-winning type;
-`abs_checked_i64` works around this with a second, concrete `OptionI64`
-type rather than reusing `Option<T>` — see BUGS.md #9 and "Deviations from
-SPEC.md" below).
+work. **All nine are now fixed**, in the sense that matters for this
+library: bug #5 (`f64` silently compiling as `int`), bug #3 (generic
+enums like `Option<T>` failing to resolve — turned out to be a real
+"generics don't work" gap, not the `--project`-specific issue first
+suspected), bug #1 (integer literals wider than i32 truncating —
+including a second, deeper sub-bug in the same "hardcodes int" family,
+found while verifying the first), bug #7 (an explicit `let x: f64 =
+<arithmetic-expr>;` local silently defaulting to `int` — the `let`'s own
+type annotation was parsed and stored correctly but no lowering path ever
+consulted it), bug #8 (enum payload slots and match-arm payload bindings
+always `int`, regardless of type — unblocked `abs_checked_i64`), bug #6's
+silent-diagnostics half (a parse failure used to exit nonzero with zero
+error text — `==>` itself, the syntax that first surfaced it, stays
+deliberately unimplemented; the same fix also surfaced and fixed a real,
+sv0-mathlib-unrelated pre-existing bug in sv0c's own test corpus, bare
+struct-field assignment statements silently compiling to nothing), and
+bug #2's checker-level half (the VM-path checker rejected i64/u32/f64
+arithmetic anywhere, not just in contracts — VM bytecode float *lowering*
+remains a separate, larger, unfixed gap). **Only bug #9 remains a genuine
+open gap**: generic enums resolve but don't monomorphize — a shared
+`Option<T>` instantiated at more than one concrete type in the same
+program silently truncates the non-winning type; `abs_checked_i64` works
+around this with a second, concrete `OptionI64` type rather than reusing
+`Option<T>` — see BUGS.md #9 and "Deviations from SPEC.md" below.
 
 ## Tier 1 / Tier 2
 
@@ -99,8 +105,9 @@ build/sv0-megatu-compiler-native --project /path/to/sv0-mathlib > /tmp/mathlib.c
 cc -std=c99 -O0 -w -I sv0c/runtime /tmp/mathlib.c sv0c/runtime/sv0_runtime.c -o /tmp/mathlib_bin
 /tmp/mathlib_bin; echo $?   # 0 = pass
 
-# VM backend — does not currently compile this library (BUGS.md: bug #2 + a
-# duplicate-type issue); kept here for when that's fixed.
+# VM backend — still doesn't compile this library end to end: the
+# duplicate-Option-type issue (BUGS.md "Not yet working") blocks it before
+# the f64 forms' own separate bytecode-float gap (BUGS.md #2) would.
 ./scripts/sv0 vm-project-compile ../../sv0-mathlib
 ./scripts/sv0 vm-run sv0c/build/vm/main.sv0b
 ```

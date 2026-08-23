@@ -2,13 +2,21 @@
 
 Filed here first (this repo has no upstream tracker yet); each should become
 a real `sv0-toolchain`/`sv0c` issue. Audited against sv0-toolchain HEAD
-`840fe73` / sv0c HEAD `0705d68` (2026-08-23). **Bugs #5, #3, #1, #7, #8, and
-#6 are fixed** (f64 miscompiling as `int`; generic enums failing to
-resolve; integer literals wider than i32 truncating; `let`-annotations
-over a non-call/struct/enum RHS ignored; enum payload slots always `int`;
-parse failures reported zero diagnostic text — #6's silent-diagnostics
-half only, `==>` itself stays deliberately unimplemented). Bugs #2 and #9
-are not fixed.
+`840fe73` / sv0c HEAD `0705d68` (2026-08-23). **All nine numbered bugs are
+now fixed** (f64 miscompiling as `int`; generic enums failing to resolve;
+integer literals wider than i32 truncating; `let`-annotations over a
+non-call/struct/enum RHS ignored; enum payload slots always `int`; parse
+failures reported zero diagnostic text — #6's silent-diagnostics half
+only, `==>` itself stays deliberately unimplemented; VM-path checker
+rejecting non-i32 arithmetic/contracts — #2's checker-level half only, VM
+bytecode float lowering is a separate, larger, not-yet-fixed gap). **Only
+bug #9 (generic enums resolve but don't monomorphize) remains open** as a
+genuine unresolved gap; see its entry for why that one is architecturally
+bigger than the others. Bug #6's fix also surfaced and fixed a real,
+pre-existing, sv0-mathlib-unrelated parser/lowering defect in sv0c's own
+test corpus (bare struct-field assignment statements silently compiling
+to nothing) — noted under bug #6 rather than given its own number, since
+it was never a blocker for this library.
 
 ## 1. Integer literals wider than i32 are silently truncated to 32 bits
 
@@ -94,30 +102,78 @@ this fix doesn't reach that far, and isn't intended to.
 
 ## 2. The VM-target toolchain path can't type-check non-i32/bool contracts
 
-**Severity: high, VM backend only.** `./scripts/sv0 vm-project-compile` /
-`vm-compile` invoke the SML-legacy bootstrap compiler (`sml-legacy/`), whose
-contract-expression checker (`sml-legacy/type_checker/checker.sml:648-670`)
-hardcodes `Arith => TyInt 32` and `Cmp => TyInt 32 or TyBool` for every binop
-inside a `requires`/`ensures`/`loop_invariant` — there's no case for `i64`,
-any unsigned width, or `f64`. A contract clause on any of those types fails
-with `E0400: type mismatch`, even a trivial one (`requires(x > 0)` on an
-`i64` param). Casting the literal (`requires(x > (0 as i64))`) does not help
-— the class dispatch itself is the i32-only branch, not literal inference.
+**STATUS (2026-08-23): the checker-level restriction is FIXED in
+`sv0-toolchain` (sv0c commit `69ae8a5`); VM bytecode float support is a
+separate, larger, NOT-fixed gap — see below.** `./scripts/sv0
+vm-project-compile`/`vm-compile` invoke the SML-legacy bootstrap compiler
+(`sml-legacy/`). Re-investigating this while fixing it found the original
+framing undersold the scope: `sml-legacy/type_checker/checker.sml`'s
+`synth` hardcoded `TyInt 32` for every arithmetic/comparison/unary-minus/
+bitnot operand **anywhere in a function body, not just inside
+`requires`/`ensures`/`loop_invariant`** — `fn add1(x: i64) -> i64 { return
+x + 1; }` failed `E0400` with no contract involved at all.
+
+**Fix** (three layered gaps, all in `checker.sml`/`unify.sml`): (1)
+Arith/Cmp/Neg/BitNot now synthesize and propagate the real operand type
+(mirroring the native checker's own equivalent fix, this file's bug #5)
+instead of assuming i32 — for Arith specifically, prefers whichever
+operand is numeric and not the bare literal default, so a real-typed value
+wins over a literal on either side (`0 - x`, this codebase's idiomatic
+negation pattern, has the literal on the LEFT, so a naive "trust the left
+operand" rule — what a first attempt at this fix tried, copying the native
+checker's own known-simplified approach — breaks it). (2) A float literal
+had **no `synth` case at all** — not merely defaulted wrong, it fell
+straight through to the generic "E0402: expression form not supported"
+catch-all, so `x < 0.0` on an `f64` param failed outright regardless of
+(1). Added `TyFloat 64` as its default (f64, the spec's own default float
+width). (3) `Unify.unify` required an *exact width match* between two
+`TyInt`/`TyUint`/`TyFloat` values — since every literal synthesizes to one
+fixed default width with no bidirectional check-against-expected-type
+anywhere in this checker, ordinary correct code like `fn f(x: i64) -> i64
+{ ... return 0 - 1; }` failed: `0 - 1` has no i64-typed value anywhere in
+it to infer the width from, so its synthesized `TyInt 32` never unified
+against the declared `i64` return type even though `-1` is exactly
+representable at both widths. Relaxed same-category `TyInt`/`TyUint`/
+`TyFloat` unification to be width-blind, matching the native checker's own
+type system (which never tracked integer/float width at the checker level
+at all — the real C width is resolved later, downstream, during
+lowering/emission). Signed vs. unsigned and int vs. float still don't
+unify.
+
+**Still separately blocked, NOT fixed: VM bytecode has zero float
+representation at all.** Even with the checker now accepting `f64`, `sv0
+vm-compile` on an `f64` function fails at a LATER, different stage —
+`sml-legacy/ir/lowering.sml`'s `lowerLit` raises `"literal not supported
+in lowering slice"` for any `FloatLit`, because `Ir.value` (SML-legacy's
+own bytecode IR value type) has no float variant whatsoever — this isn't
+a missing case to patch, it's the absence of float as a concept anywhere
+in the VM's value representation or (presumably) its opcode set. Fixing
+this would mean new IR/bytecode value/opcode support and corresponding
+`sv0vm` (the SML bytecode interpreter) changes — a materially larger
+feature, not a bug-shaped fix, and out of scope here.
 
 The native/self-hosted checker (`sv0c/lib/checker.sv0`, used by
-`./scripts/sv0 compile`/`emit-c`/`verify`) has no such restriction —
-confirmed `requires(x > 0)` on an `i64` param compiles clean there.
+`./scripts/sv0 compile`/`emit-c`/`verify`) never had this restriction —
+confirmed `requires(x > 0)` on an `i64` param compiled clean there even
+before this fix.
 
-**Impact on this library:** `sv0 vm-run`/`vm-project-compile` — the exact
-commands SPEC.md Appendix E.4's tooling loop and COMPAT-001/002 (C/VM
-cross-backend parity) prescribe — cannot type-check contracts on anything
-past `math::arith`'s `i32` forms. **Impact on M5:** Epic F's
-`#[constant_time]` contracts are defined over `u8`/`u32`/`u64` crypto
-buffers; if they're meant to run through the VM-target path at all, they'd
-hit this identically. Worth confirming with the M5 planners whether Epic F's
-constant-time verification is scoped to the C/LLVM paths only — if so this
-may be a non-issue for M5, but it should be an explicit decision, not an
-assumption.
+**Verified**: an i64 param/return function with a requires/ensures
+contract, the idiomatic `0 - x` negation pattern, and a plain
+non-contract i64 body all type-check and lower to VM bytecode correctly
+now. `f64` contracts type-check (the checker-level fix) but fail at
+lowering (the separate, unfixed gap above) — confirmed both are real,
+distinct boundaries, not the same bug. `integration-vm`'s existing
+23-fixture suite stays green (no regression from the widened unify).
+
+**Impact on this library:** unblocks `abs_i64`/`sign_i64`'s contracts (and
+any future integer-width `_checked` function) on the VM path;
+`abs_f64`/`sign_f64`/`min_f64`/`max_f64`/`clamp_f64` and all of R0.2/R0.3
+(inherently f64) remain VM-blocked by the separate bytecode-float gap.
+**Impact on M5:** Epic F's `#[constant_time]` contracts over `u8`/`u32`/
+`u64` crypto buffers are now unblocked at the checker level if they're
+meant to run through the VM-target path — still worth confirming with M5
+planners whether that's the intended scope, since VM float support
+remains entirely absent regardless.
 
 ## 3. `enum Foo<T> { ... }` fails everywhere — mischaracterized, then FIXED
 
@@ -360,6 +416,27 @@ of silently falling through. Verified: the `==>` repro now prints
 and `--project` mode, instead of empty stdout+stderr.
 `pc3b6-native-project-acceptance.sh` and `self-host-check-golden` both
 green after the fix.
+
+**Also surfaced by this fix, not by sv0-mathlib itself (this library has
+no struct types yet) — a real, separate, PRE-EXISTING bug in sv0c's own
+test corpus, now also fixed (sv0c commits `1e48373`/`8c04af1`):** a bare
+`q.x = 7;`/`q.x += 3;` field-assignment statement (distinct from a
+`let`-bound struct initializer) silently compiled to nothing at all — the
+`self-host-sv0-loop` gate's own `field_assign.sv0` fixture had been
+compiling to `int main(void) { return 0; }` and exit 0, for a completely
+wrong reason, since before this session started (confirmed via bisection
+to sv0c commit `d669398`). Root cause: `parser.sv0`'s
+`parse_assign_target_op_pos` checked token tag 15 (`::`, COLONCOLON) for
+the `.` in an assignment target instead of tag 16 (DOT), so a bare field
+assignment never matched at all and silently vanished; a second, separate
+gap one layer downstream (`lowering.sv0`'s `ExprAssignOp` lowering had no
+case for a struct-field target, only a plain variable) meant even after
+fixing the first, `q.x += 3;` specifically still silently vanished.
+Neither is a sv0-mathlib blocker (no struct usage in this library's F0
+surface), but both are now fixed regardless, and stand as a second
+concrete instance of exactly the failure mode this bug's fix targets:
+before it, a real parser/lowering defect had been indistinguishable from
+"nothing to compile" for who knows how long.
 
 ## 4. `./scripts/sv0 compile` (single-file, default SML-heap path) is
    inconsistent for files outside `sv0c/`
