@@ -20,6 +20,14 @@ use arith::max_i32;
 use arith::max_f64;
 use arith::clamp_i32;
 use arith::clamp_f64;
+use arith::floor_f64;
+use arith::ceil_f64;
+use arith::trunc_f64;
+use arith::round_f64;
+use arith::is_nan_f64;
+use arith::is_infinite_f64;
+use arith::is_finite_f64;
+use arith::lerp_f64;
 
 fn main() -> i32 {
     if abs_i32(5) != 5 { return 1; }
@@ -94,6 +102,45 @@ fn main() -> i32 {
     if clamp_f64(0.0 - 5.0, 0.0, 10.0) != 0.0 { return 35; }
     if clamp_f64(15.0, 0.0, 10.0) != 10.0 { return 36; }
     if clamp_f64(5.5, 0.0, 10.0) != 5.5 { return 37; }
+
+    if trunc_f64(3.7) != 3.0 { return 60; }
+    if trunc_f64(0.0 - 3.7) != (0.0 - 3.0) { return 61; }
+    if trunc_f64(3.0) != 3.0 { return 62; }
+    if trunc_f64(0.0) != 0.0 { return 63; }
+    if floor_f64(3.7) != 3.0 { return 64; }
+    if floor_f64(0.0 - 3.7) != (0.0 - 4.0) { return 65; }
+    if floor_f64(3.0) != 3.0 { return 66; }
+    if ceil_f64(3.2) != 4.0 { return 67; }
+    if ceil_f64(0.0 - 3.2) != (0.0 - 3.0) { return 68; }
+    if ceil_f64(3.0) != 3.0 { return 69; }
+    if round_f64(2.5) != 3.0 { return 70; }
+    if round_f64(0.0 - 2.5) != (0.0 - 3.0) { return 71; }
+    if round_f64(0.5) != 1.0 { return 72; }
+    if round_f64(0.0 - 0.5) != (0.0 - 1.0) { return 73; }
+    if round_f64(2.4) != 2.0 { return 74; }
+    if round_f64(2.6) != 3.0 { return 75; }
+    let big: f64 = 12345678901234.0;
+    if floor_f64(big) != big { return 76; }
+    if ceil_f64(big) != big { return 77; }
+    if trunc_f64(big) != big { return 78; }
+    if round_f64(big) != big { return 79; }
+
+    let nan: f64 = 0.0 / 0.0;
+    let inf: f64 = 1.0 / 0.0;
+    let ninf: f64 = 0.0 - 1.0 / 0.0;
+    if !is_nan_f64(nan) { return 80; }
+    if is_nan_f64(1.0) { return 81; }
+    if !is_infinite_f64(inf) { return 82; }
+    if !is_infinite_f64(ninf) { return 83; }
+    if is_infinite_f64(1.0) { return 84; }
+    if is_infinite_f64(nan) { return 85; }
+    if !is_finite_f64(1.0) { return 86; }
+    if is_finite_f64(inf) { return 87; }
+    if is_finite_f64(nan) { return 88; }
+
+    if lerp_f64(2.0, 10.0, 0.0) != 2.0 { return 90; }
+    if lerp_f64(2.0, 10.0, 1.0) != 10.0 { return 91; }
+    if lerp_f64(0.0, 10.0, 0.5) != 5.0 { return 92; }
 
     return 0;
 }

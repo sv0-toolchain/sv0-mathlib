@@ -232,3 +232,154 @@ fn clamp_f64(x: f64, lo: f64, hi: f64) -> f64
 {
     return min_f64(max_f64(x, lo), hi);
 }
+
+/* ── ARITH-005: floor/ceil/round/trunc ───────────────────────────────
+ *
+ * No native cast/libm is available (Tier 1: pure sv0 arithmetic only —
+ * see README's Tier 1/Tier 2 section), and an f64->i64 `as` cast was
+ * checked and found to route through the SAME "everything defaults to
+ * int" codegen category the toolchain bug-hunt kept finding all session
+ * (`x as i64` emits `int _sv0tN = (x);` — a 32-bit-int-typed intermediate,
+ * silently wrong for any value outside i32's range) — not filed as a
+ * tenth BUGS.md entry since nothing in this library's actual functions
+ * needs a numeric cast once these are written in pure f64 arithmetic
+ * instead, but worth flagging here for whoever implements a `_f64` ->
+ * integer conversion function later.
+ *
+ * `frac_floor_of_nonneg` is the shared primitive: for x >= 0.0 (and,
+ * critically, x < 2^52 — see below), it reconstructs floor(x) one bit of
+ * the integer part at a time via a bounded (53-iteration) binary search,
+ * the same "fixed, documented iteration bound, not a convergence-detecting
+ * early exit" shape SPEC.md Section 15 already establishes for
+ * `sqrt_f64`'s Newton-Raphson bound. 2^52 (4503599627370496.0) is the
+ * threshold above which an IEEE-754 double has no representable
+ * fractional part at all — every value at or beyond that magnitude IS
+ * already its own floor/ceil/round/trunc, so all four public functions
+ * below short-circuit to identity there (and this also transparently
+ * covers +-Infinity, since any comparison against a finite magnitude is
+ * true for Infinity by IEEE-754 rule — no separate is_infinite_f64 check
+ * needed). NaN and +-0.0 both short-circuit to identity too: returning
+ * the ORIGINAL `x` (not a freshly-constructed 0.0/NaN) is what preserves
+ * -0.0's sign and NaN's payload bits, matching ARITH-005's own boundary
+ * fixture list (`0.0`, `-0.0` are both explicitly required cases).
+ */
+fn frac_floor_of_nonneg(x: f64) -> f64
+    requires(x >= 0.0)
+    ensures(result <= x)
+    ensures(result > x - 1.0 || result == x)
+{
+    let mut acc: f64 = 0.0;
+    let mut bit: f64 = 4503599627370496.0;
+    /* loop_invariant: acc <= x always holds (acc only ever grows by a
+     * candidate already checked <= x), and `bit` is always an exact,
+     * strictly-halving power of two. Terminates in exactly 53 iterations
+     * (bit halves from 2^52 down past 1.0), a fixed bound independent of
+     * x — the same provable-termination shape SQRT_ITERATION_BOUND uses. */
+    while bit >= 1.0 loop_invariant(acc <= x) {
+        let cand: f64 = acc + bit;
+        if cand <= x {
+            acc = cand;
+        }
+        bit = bit / 2.0;
+    }
+    return acc;
+}
+
+fn trunc_f64(x: f64) -> f64
+    ensures(((x >= 0.0 && result <= x && result > x - 1.0) ||
+             (x < 0.0 && result >= x && result < x + 1.0) ||
+             result == x) || result != result)
+{
+    if x != x { return x; }
+    if x == 0.0 { return x; }
+    if x >= 4503599627370496.0 { return x; }
+    if x <= (0.0 - 4503599627370496.0) { return x; }
+    if x >= 0.0 { return frac_floor_of_nonneg(x); }
+    return 0.0 - frac_floor_of_nonneg(0.0 - x);
+}
+
+fn floor_f64(x: f64) -> f64
+    ensures((result <= x && result > x - 1.0) || result == x || result != result)
+{
+    if x != x { return x; }
+    if x == 0.0 { return x; }
+    if x >= 4503599627370496.0 { return x; }
+    if x <= (0.0 - 4503599627370496.0) { return x; }
+    if x >= 0.0 { return frac_floor_of_nonneg(x); }
+    let t: f64 = trunc_f64(x);
+    if t == x { return t; }
+    return t - 1.0;
+}
+
+fn ceil_f64(x: f64) -> f64
+    ensures((result >= x && result < x + 1.0) || result == x || result != result)
+{
+    if x != x { return x; }
+    if x == 0.0 { return x; }
+    if x >= 4503599627370496.0 { return x; }
+    if x <= (0.0 - 4503599627370496.0) { return x; }
+    if x <= 0.0 { return 0.0 - frac_floor_of_nonneg(0.0 - x); }
+    let t: f64 = trunc_f64(x);
+    if t == x { return t; }
+    return t + 1.0;
+}
+
+/* round-half-away-from-zero (pinned choice, per ARITH-005's requirement
+ * to pin and test one of round-half-to-even / round-half-away-from-zero
+ * explicitly): round(2.5) == 3.0, round(-2.5) == -3.0. Implemented as
+ * floor(x + 0.5) for x >= 0.0 and its negated mirror for x < 0.0 — exact
+ * for every representable x because adding 0.5 to a double is itself
+ * always exact (0.5 == 2^-1, representable with a single mantissa bit
+ * regardless of x's own exponent), so this never introduces a rounding
+ * error the way `(x + BIG) - BIG`-style tricks can. */
+fn round_f64(x: f64) -> f64
+    ensures(((result - x) >= (0.0 - 0.5) && (result - x) <= 0.5) || result != result)
+{
+    if x != x { return x; }
+    if x == 0.0 { return x; }
+    if x >= 4503599627370496.0 { return x; }
+    if x <= (0.0 - 4503599627370496.0) { return x; }
+    if x >= 0.0 { return frac_floor_of_nonneg(x + 0.5); }
+    return 0.0 - frac_floor_of_nonneg((0.0 - x) + 0.5);
+}
+
+/* ── ARITH-006: NaN/Infinity classification ──────────────────────────
+ * The library's ONLY sanctioned way to test f64 classification (CONV
+ * requirement): every other function that needs a NaN check uses
+ * `is_nan_f64`, not a bare `x != x`, from this point on in the codebase
+ * (existing functions written earlier this session — sign_f64, min_f64,
+ * max_f64 — predate this rule and keep their inline `x != x` checks
+ * rather than being churned for a naming-only change).
+ */
+fn is_nan_f64(x: f64) -> bool
+    ensures(result == (x != x))
+{
+    return x != x;
+}
+
+fn is_infinite_f64(x: f64) -> bool
+    ensures(!result || !is_nan_f64(x))
+{
+    if x != x { return false; }
+    let pos_inf: f64 = 1.0 / 0.0;
+    if x == pos_inf { return true; }
+    if x == (0.0 - pos_inf) { return true; }
+    return false;
+}
+
+fn is_finite_f64(x: f64) -> bool
+    ensures(result == (!is_nan_f64(x) && !is_infinite_f64(x)))
+{
+    if x != x { return false; }
+    return !is_infinite_f64(x);
+}
+
+/* ── ARITH-009: lerp ──────────────────────────────────────────────── */
+
+fn lerp_f64(a: f64, b: f64, t: f64) -> f64
+    requires(t >= 0.0 && t <= 1.0)
+    ensures(!(t == 0.0) || result == a)
+    ensures(!(t == 1.0) || result == b)
+{
+    return a + t * (b - a);
+}
