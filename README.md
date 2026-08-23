@@ -7,18 +7,28 @@ coordinates, and complex numbers, built contract-first per
 
 ## Status
 
-**F0 in progress.** `math::arith`'s i32 and f64 forms — `abs_i32`/`abs_f64`,
-`sign_i32`/`sign_f64`, `min_i32`/`min_f64`, `max_i32`/`max_f64`,
-`clamp_i32`/`clamp_f64` (ARITH-001..004) — are implemented, contract-checked,
-and verified on the **C backend** (emitted C inspected for correct
-`int`/`double` typing throughout — params, locals, contract-result slots,
-and call-result temps, not just exit codes; fixtures include a fractional
-value and a real NaN). The i32 forms are additionally verified on the **VM
-backend** (matching exit codes with the C build). See [BUGS.md](BUGS.md) for
-six toolchain gaps found while starting this work — bug #5 (`f64` silently
-compiling as `int`, the dominant blocker) is now **fixed** upstream; bug #2
-(the VM backend can't type-check a non-`i32`/`bool` contract) is not, so the
-f64 forms don't yet compile under `vm-project-compile`.
+**F0 nearly complete.** `math::arith`'s ARITH-001..004 are fully
+implemented and contract-checked: all i32 and f64 forms
+(`abs_i32`/`abs_f64`, `sign_i32`/`sign_f64`, `min_i32`/`min_f64`,
+`max_i32`/`max_f64`, `clamp_i32`/`clamp_f64`), plus `abs_checked_i32`
+(`Option`-returning) and the shared `prelude` (`Option`/`Result`). Verified
+on the **C backend** by inspecting the emitted C directly, not just exit
+codes — correct `int`/`double` typing throughout (params, locals,
+contract-result slots, call-result temps), and `Option`/`Result` compiling
+to real tagged-struct types with working `Some`/`None` match logic. The
+**VM backend** does not currently compile this library at all — see
+BUGS.md's "Not yet working" for why (a contract-typing gap plus a
+duplicate-type issue once more than one file imports the same type).
+
+See [BUGS.md](BUGS.md) for seven toolchain gaps found while starting this
+work. **Fixed upstream**: bug #5 (`f64` silently compiling as `int`) and
+bug #3 (generic enums like `Option<T>` failing to resolve — turned out to
+be a real "generics don't work" gap, not the `--project`-specific issue
+first suspected). **Still open**: bug #2 (VM backend can't type-check a
+non-`i32`/`bool` contract — f64 forms don't compile there yet), bug #1
+(large i64/u64 literals truncate — blocks `abs_i64`/`sign_i64`), and bug #7
+(an explicit `let x: f64 = <arithmetic-expr>;` local silently defaults to
+`int` — narrower than #5, found while verifying #3's fix).
 
 ## Tier 1 / Tier 2
 
@@ -61,9 +71,10 @@ build/sv0-megatu-compiler-native --project /path/to/sv0-mathlib > /tmp/mathlib.c
 cc -std=c99 -O0 -w -I sv0c/runtime /tmp/mathlib.c sv0c/runtime/sv0_runtime.c -o /tmp/mathlib_bin
 /tmp/mathlib_bin; echo $?   # 0 = pass
 
-# VM backend — i32 forms only today (bug #2: f64 contracts don't type-check here yet)
+# VM backend — does not currently compile this library (BUGS.md: bug #2 + a
+# duplicate-type issue); kept here for when that's fixed.
 ./scripts/sv0 vm-project-compile ../../sv0-mathlib
-./scripts/sv0 vm-run sv0c/build/vm/main.sv0b   # expect vm_exit:0
+./scripts/sv0 vm-run sv0c/build/vm/main.sv0b
 ```
 
 When touching `f64` code, don't trust an exit code alone — grep the emitted
@@ -84,8 +95,8 @@ sv0-mathlib/
 ├── BUGS.md          # toolchain gaps found during development
 ├── main.sv0         # smoke/demo entry point (also ARITH-001's test today)
 ├── lib/
-│   └── arith.sv0     # module arith — F0 arithmetic core (Section 11)
-├── blocked/          # code written+verified but not wired in — see BUGS.md
+│   ├── arith.sv0     # module arith — F0 arithmetic core (Section 11)
+│   └── prelude.sv0   # module prelude — shared Option/Result declarations
 ├── test/{unit,fixtures,property,parity}/
 └── docs/
 ```
