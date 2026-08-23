@@ -26,13 +26,14 @@ See [BUGS.md](BUGS.md) for eight toolchain gaps found while starting this
 work. **Fixed upstream**: bug #5 (`f64` silently compiling as `int`), bug
 #3 (generic enums like `Option<T>` failing to resolve — turned out to be a
 real "generics don't work" gap, not the `--project`-specific issue first
-suspected), and bug #1 (integer literals wider than i32 truncating —
-including a second, deeper sub-bug in the same "hardcodes int" family,
-found while verifying the first). **Still open**: bug #2 (VM backend can't
-type-check a non-`i32`/`bool` contract), bug #7 (an explicit
-`let x: f64 = <arithmetic-expr>;` local silently defaults to `int`), and
-bug #8 (enum payload slots are always `int`, regardless of type — blocks
-`abs_checked_i64`).
+suspected), bug #1 (integer literals wider than i32 truncating — including
+a second, deeper sub-bug in the same "hardcodes int" family, found while
+verifying the first), and bug #7 (an explicit
+`let x: f64 = <arithmetic-expr>;` local silently defaulting to `int` — the
+`let`'s own type annotation was parsed and stored correctly but no
+lowering path ever consulted it). **Still open**: bug #2 (VM backend can't
+type-check a non-`i32`/`bool` contract) and bug #8 (enum payload slots are
+always `int`, regardless of type — blocks `abs_checked_i64`).
 
 ## Tier 1 / Tier 2
 
