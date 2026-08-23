@@ -1,0 +1,77 @@
+/* abs_f64, sign_f64, min_f64, max_f64, clamp_f64 (ARITH-001..004's f64
+ * forms) — held out of lib/arith.sv0. See BUGS.md #5: the native compiler's
+ * `ast_ty_to_c_string` (sv0c/lib/lowering.sv0:4871) has no case for `f64`
+ * (or `f32`, or `u32`) and silently falls back to `int`, so a `f64`
+ * parameter, local, or literal is miscompiled as a 32-bit int with no
+ * diagnostic. abs_f64 was briefly (wrongly) reported as "verified" in an
+ * earlier commit before this was caught — its exit-code test happened to
+ * pass only because 5.0/-5.0/0.0, truncated to int, behave the same as
+ * their real double values for that specific check. Reinstate this file
+ * once f64 codegen is fixed upstream, and re-verify by inspecting the
+ * emitted C (not just the exit code) for `double`, not `int`.
+ */
+module arith;
+
+fn abs_f64(x: f64) -> f64
+    ensures(result >= 0.0)
+{
+    if x < 0.0 {
+        return 0.0 - x;
+    }
+    return x;
+}
+
+fn sign_f64(x: f64) -> f64
+    ensures(result == (0.0 - 1.0) || result == 0.0 || result == 1.0)
+{
+    if x != x {
+        return 0.0;
+    }
+    if x < 0.0 {
+        return 0.0 - 1.0;
+    }
+    if x > 0.0 {
+        return 1.0;
+    }
+    return 0.0;
+}
+
+fn min_f64(a: f64, b: f64) -> f64
+    ensures(result == a || result == b)
+    ensures((result <= a && result <= b) || result != result)
+{
+    if a != a {
+        return a;
+    }
+    if b != b {
+        return b;
+    }
+    if a < b {
+        return a;
+    }
+    return b;
+}
+
+fn max_f64(a: f64, b: f64) -> f64
+    ensures(result == a || result == b)
+    ensures((result >= a && result >= b) || result != result)
+{
+    if a != a {
+        return a;
+    }
+    if b != b {
+        return b;
+    }
+    if a > b {
+        return a;
+    }
+    return b;
+}
+
+fn clamp_f64(x: f64, lo: f64, hi: f64) -> f64
+    requires(lo <= hi)
+    ensures((result >= lo && result <= hi) || result != result)
+    ensures(!(lo <= x && x <= hi) || result == x)
+{
+    return min_f64(max_f64(x, lo), hi);
+}

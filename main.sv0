@@ -1,22 +1,35 @@
 /* sv0-mathlib smoke/demo entry point.
  * Exit code convention: 0 = pass, nonzero = first failing case index.
- *
- * abs_checked_i32's Option-returning path is NOT exercised here: `Option<T>`
- * cannot be used in a `--project` (multi-file) build today — see BUGS.md #3.
- * It IS exercised, correctly, in a single-file harness — see BUGS.md #3 for
- * the exact repro showing the logic is right and the tooling is the blocker.
+ * Covers ARITH-001..004's i32 forms only — see lib/arith.sv0 and BUGS.md
+ * for what's blocked and why.
  */
 use arith::abs_i32;
-use arith::abs_f64;
+use arith::sign_i32;
+use arith::min_i32;
+use arith::max_i32;
+use arith::clamp_i32;
 
 fn main() -> i32 {
     if abs_i32(5) != 5 { return 1; }
     if abs_i32(0 - 5) != 5 { return 2; }
     if abs_i32(0) != 0 { return 3; }
 
-    if abs_f64(5.0) != 5.0 { return 6; }
-    if abs_f64(0.0 - 5.0) != 5.0 { return 7; }
-    if abs_f64(0.0) != 0.0 { return 8; }
+    if sign_i32(5) != 1 { return 10; }
+    if sign_i32(0 - 5) != (0 - 1) { return 11; }
+    if sign_i32(0) != 0 { return 12; }
+
+    if min_i32(3, 7) != 3 { return 20; }
+    if min_i32(7, 3) != 3 { return 21; }
+    if min_i32(4, 4) != 4 { return 22; }
+    if max_i32(3, 7) != 7 { return 23; }
+    if max_i32(7, 3) != 7 { return 24; }
+    if max_i32(4, 4) != 4 { return 25; }
+
+    if clamp_i32(0 - 5, 0, 10) != 0 { return 30; }
+    if clamp_i32(15, 0, 10) != 10 { return 31; }
+    if clamp_i32(5, 0, 10) != 5 { return 32; }
+    if clamp_i32(0, 0, 10) != 0 { return 33; }
+    if clamp_i32(10, 0, 10) != 10 { return 34; }
 
     return 0;
 }

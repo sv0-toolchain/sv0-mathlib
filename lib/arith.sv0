@@ -7,6 +7,16 @@
  * compiler ("E0320: module path must be a single identifier in this
  * slice"), so this file is `module arith;`, not `module math::arith;`.
  * Consumers write `use arith::abs_i32;`, not `use math::arith::abs_i32;`.
+ *
+ * Only the i32 forms are implemented here. Every f64 form (abs_f64,
+ * sign_f64, min_f64, max_f64, clamp_f64) is written and held in
+ * ../blocked/arith_f64.sv0.blocked: BUGS.md #5 found that the native
+ * compiler's C-backend type mapping has no case for f64 (or f32, or u32) at
+ * all and silently falls back to `int` — so every f64 parameter, local, and
+ * literal in a function body is miscompiled as a 32-bit int today. This is
+ * the dominant open blocker for this library: R0.2 (trig) and R0.3
+ * (polar/complex) are entirely f64-based and cannot be correctly
+ * implemented until it's fixed upstream.
  */
 module arith;
 
@@ -43,13 +53,53 @@ fn abs_i32(x: i32) -> i32
  * as a literal today, so this pair cannot be implemented correctly yet.
  */
 
-/* Absolute value of an f64. Total function: NaN and Infinity both have a
- * well-defined IEEE-754 absolute value, so there is no requires clause. */
-fn abs_f64(x: f64) -> f64
-    ensures(result >= 0.0)
+/* Sign of a signed i32: -1, 0, or 1. Total function. */
+fn sign_i32(x: i32) -> i32
+    ensures(result == (0 - 1) || result == 0 || result == 1)
 {
-    if x < 0.0 {
-        return 0.0 - x;
+    if x < 0 {
+        return 0 - 1;
     }
-    return x;
+    if x > 0 {
+        return 1;
+    }
+    return 0;
+}
+
+/* sign_i64 (ARITH-002) is BLOCKED on the same literal-truncation gap as
+ * abs_i64 (BUGS.md #1) — nothing here needs a large literal, but there is
+ * no i64-typed 0/1/-1 that survives a `let`/`requires`/`ensures` boundary
+ * today, and mixing i32 sentinels with an i64 result would misrepresent
+ * the function's actual (untested) behavior. Deferred, not implemented.
+ */
+
+/* Smaller of two i32s. Ties return b. */
+fn min_i32(a: i32, b: i32) -> i32
+    ensures(result == a || result == b)
+    ensures(result <= a && result <= b)
+{
+    if a < b {
+        return a;
+    }
+    return b;
+}
+
+/* Larger of two i32s. Ties return b. */
+fn max_i32(a: i32, b: i32) -> i32
+    ensures(result == a || result == b)
+    ensures(result >= a && result >= b)
+{
+    if a > b {
+        return a;
+    }
+    return b;
+}
+
+/* Clamp x into [lo, hi]. */
+fn clamp_i32(x: i32, lo: i32, hi: i32) -> i32
+    requires(lo <= hi)
+    ensures(result >= lo && result <= hi)
+    ensures(!(lo <= x && x <= hi) || result == x)
+{
+    return min_i32(max_i32(x, lo), hi);
 }

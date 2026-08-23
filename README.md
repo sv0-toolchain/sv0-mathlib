@@ -7,13 +7,17 @@ coordinates, and complex numbers, built contract-first per
 
 ## Status
 
-**F0 in progress.** `math::arith`'s `abs_i32`/`abs_f64` are implemented,
-contract-checked, and verified end to end on the C backend. See
-[BUGS.md](BUGS.md) for four toolchain gaps discovered while starting this
-work — three of them (large-integer literals, VM-backend contract
-type-checking, generic enums under `--project`) block most of the rest of
-F0/R0.1 and should be resolved upstream before this library goes much
-further.
+**F0 in progress.** `math::arith`'s i32 forms — `abs_i32`, `sign_i32`,
+`min_i32`, `max_i32`, `clamp_i32` (ARITH-001..004) — are implemented,
+contract-checked, and verified end to end on **both** the C and VM backends
+(matching exit codes, emitted C inspected for correct `int` typing, a
+`requires`-violation panic confirmed). See [BUGS.md](BUGS.md) for six
+toolchain gaps found while starting this work. One is the dominant blocker:
+**`f64` silently compiles as `int`** (bug #5) — no diagnostic, no crash,
+just a wrong answer that happens to look right on small fixtures. That
+blocks essentially everything past this library's i32-only slice: R0.1's
+f64 pieces, and all of R0.2 (trig) and R0.3 (polar/complex). Fix that one
+first.
 
 ## Tier 1 / Tier 2
 
@@ -51,15 +55,18 @@ From an `sv0-toolchain` checkout, with `sv0-mathlib` checked out as a
 sibling directory:
 
 ```bash
-# C backend (native compiler, the reliable path today)
+# C backend (native compiler)
 build/sv0-megatu-compiler-native --project /path/to/sv0-mathlib > /tmp/mathlib.c
 cc -std=c99 -O0 -w -I sv0c/runtime /tmp/mathlib.c sv0c/runtime/sv0_runtime.c -o /tmp/mathlib_bin
 /tmp/mathlib_bin; echo $?   # 0 = pass
 
-# VM backend (works for pure-i32, contract-free code only — see BUGS.md)
+# VM backend — both backends agree on this library's current (i32-only) surface
 ./scripts/sv0 vm-project-compile ../../sv0-mathlib
-./scripts/sv0 vm-run sv0c/build/vm/main.sv0b
+./scripts/sv0 vm-run sv0c/build/vm/main.sv0b   # expect vm_exit:0
 ```
+
+Don't trust an exit code alone once `f64` is involved (see BUGS.md #5) —
+grep the emitted C for `double` where you expect it.
 
 `main.sv0` currently doubles as the ARITH-001 test binary (0 = pass,
 nonzero = first failing case index) — see `main.sv0`'s comment for why the
