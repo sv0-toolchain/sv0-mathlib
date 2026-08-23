@@ -19,17 +19,14 @@
  * cannot type-check a non-i32/bool contract at all (BUGS.md #2, a separate,
  * lower-priority, not-yet-fixed bug) — `abs_f64`'s `ensures(result >= 0.0)`
  * fails to compile there. COMPAT-001/002 VM parity remains blocked on #2.
+ *
+ * abs_checked_i32 (ARITH-001's Option-returning companion) is implemented
+ * too — BUGS.md #3 (generic enums like `Option<T>` failing to resolve) is
+ * fixed upstream.
  */
 module arith;
 
-/* abs_checked_i32 (ARITH-001's Option-returning companion) is written and
- * verified correct in ../blocked/arith_checked.sv0.blocked, but is not wired
- * in here: any `enum Foo<T> { ... }` — including this library's own
- * Option/Result prelude — makes the whole project fail to compile under the
- * native compiler's `--project` mode, with a spurious "unknown type" on the
- * enum's own type parameter. See BUGS.md #3. Restore lib/prelude.sv0 and
- * this function once that is fixed upstream.
- */
+use prelude::Option;
 
 /* Absolute value of a signed i32.
  *
@@ -45,6 +42,16 @@ fn abs_i32(x: i32) -> i32
         return 0 - x;
     }
     return x;
+}
+
+/* Checked absolute value: None only at i32::MIN, where abs_i32 would
+ * violate its own requires clause.
+ */
+fn abs_checked_i32(x: i32) -> Option {
+    if x == (0 - 2147483648) {
+        return Option::None;
+    }
+    return Option::Some(abs_i32(x));
 }
 
 /* Absolute value of an f64. Total function: NaN and Infinity both have a
