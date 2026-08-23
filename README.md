@@ -7,7 +7,16 @@ coordinates, and complex numbers, built contract-first per
 
 ## Status
 
-**F0 complete**, including `abs_checked_i64`. `math::arith`'s ARITH-001..004
+**F0 complete.** R0.1 in progress: `math::arith`'s ARITH-005 (rounding),
+ARITH-006 (classification), and ARITH-009 (lerp) are done, and
+`math::modular`'s MOD-001..004 (floor/Euclidean remainder, GCD/LCM,
+overflow-safe modular add/sub/mul) are done — see BUGS.md #10 for a
+toolchain bug found and fixed while adding the first of these
+(`loop_invariant` corrupting unrelated-function name resolution).
+Remaining for R0.1: ARITH-007 (`pow_i64`/`pow_checked_i64`), ARITH-008
+(wrapping/checked add/sub/mul), ARITH-010 (`fma_f64`).
+
+**F0's own surface, including `abs_checked_i64`:** `math::arith`'s ARITH-001..004
 are fully implemented and contract-checked: all i32, i64, and f64 forms
 (`abs_i32`/`abs_i64`/`abs_f64`, `sign_i32`/`sign_i64`/`sign_f64`,
 `min_i32`/`min_f64`, `max_i32`/`max_f64`, `clamp_i32`/`clamp_f64`), plus

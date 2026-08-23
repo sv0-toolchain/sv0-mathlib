@@ -1,0 +1,171 @@
+/* module::modular — floor/Euclidean remainder, GCD/LCM, modular arithmetic.
+ * Spec: sv0-mathlib SPEC.md Section 12 (MOD-001..004; MOD-005..007 are
+ * R0.2 and not implemented here).
+ *
+ * NOTE (toolchain gap, recorded in README.md "Deviations from SPEC.md"):
+ * `module math::modular;` is rejected by the current compiler (dotted
+ * module paths); this file is `module modular;`.
+ */
+module modular;
+
+use prelude::OptionU64;
+
+/* ── MOD-001: floor/Euclidean remainder ──────────────────────────────
+ * sv0's `%` is C's truncating remainder (same sign as the dividend) —
+ * CONV-006 forbids relying on that directly outside this helper. For
+ * m > 0, C's `%` already gives the right MAGNITUDE; only a negative
+ * result (when a < 0) needs correcting into [0, m) by adding m once.
+ */
+fn floor_mod_i64(a: i64, m: i64) -> i64
+    requires(m > 0)
+    ensures(result >= 0 && result < m)
+{
+    let r: i64 = a % m;
+    if r < 0 { return r + m; }
+    return r;
+}
+
+/* Alias for naming familiarity with Euclidean-division literature —
+ * identical contract and body, per MOD-001. */
+fn euclid_mod_i64(a: i64, m: i64) -> i64
+    requires(m > 0)
+    ensures(result >= 0 && result < m)
+{
+    return floor_mod_i64(a, m);
+}
+
+/* ── MOD-002: GCD ─────────────────────────────────────────────────── */
+
+fn gcd_u64(a: u64, b: u64) -> u64
+    requires(a > 0)
+    requires(b > 0)
+    ensures(result > 0)
+    ensures(a % result == 0 && b % result == 0)
+{
+    let mut x: u64 = a;
+    let mut y: u64 = b;
+    /* loop_invariant: x > 0 always holds (x only ever becomes the
+     * previous y, which was itself > 0 to enter this iteration), and
+     * gcd(x, y) == gcd(a, b) throughout (the standard Euclidean-algorithm
+     * invariant: replacing (x, y) with (y, x mod y) never changes the
+     * pair's GCD). Terminates because y strictly decreases each
+     * iteration (x mod y < y) and is bounded below by 0. */
+    while y > 0 loop_invariant(x > 0) {
+        let t: u64 = y;
+        y = x % y;
+        x = t;
+    }
+    return x;
+}
+
+/* Unchecked-precondition companion: defined at the zero boundary
+ * gcd_u64's own `requires` excludes, matching mathematical convention
+ * (gcd(0, b) = b, gcd(a, 0) = a, so gcd(0, 0) = 0).
+ */
+fn gcd_checked_u64(a: u64, b: u64) -> u64
+    ensures((a > 0 && b > 0) || result == a || result == b)
+{
+    if a == 0 { return b; }
+    if b == 0 { return a; }
+    return gcd_u64(a, b);
+}
+
+/* ── MOD-003: LCM ─────────────────────────────────────────────────── */
+
+/* Max u64 value, used only for lcm_checked_u64's overflow guard — a
+ * literal, not a `u64::MAX`-style const (no such associated-constant
+ * syntax exists in this compiler slice today).
+ */
+fn u64_max_val() -> u64 {
+    return 18446744073709551615;
+}
+
+fn lcm_u64(a: u64, b: u64) -> u64
+    requires(a > 0 && b > 0)
+    ensures(result % a == 0 && result % b == 0)
+    ensures(result > 0)
+{
+    /* Divide before multiply (per MOD-003) to reduce overflow risk:
+     * a / gcd_checked_u64(a, b) is never larger than a itself, so this
+     * intermediate can't overflow even when the final product would
+     * (that overflow case is exactly what lcm_checked_u64 exists to
+     * detect instead of silently wrapping).
+     */
+    return (a / gcd_checked_u64(a, b)) * b;
+}
+
+/* Total function (CONV-007's documented-exemption case): None for a == 0
+ * or b == 0 (outside lcm_u64's own domain) and for a q * b overflow that
+ * would otherwise wrap silently — matches abs_checked_i32/i64's existing
+ * no-`requires` style for this library's `_checked` family.
+ */
+fn lcm_checked_u64(a: u64, b: u64) -> OptionU64 {
+    if a == 0 { return OptionU64::None; }
+    if b == 0 { return OptionU64::None; }
+    let g: u64 = gcd_checked_u64(a, b);
+    let q: u64 = a / g;
+    if q > (u64_max_val() / b) {
+        return OptionU64::None;
+    }
+    return OptionU64::Some(q * b);
+}
+
+/* ── MOD-004: modular add/sub/mul, overflow-safe ─────────────────────
+ * No `u128` type exists in this compiler slice (SPEC.md's suggested
+ * `mul_mod_u64` widening strategy), so `mul_mod_u64` uses the
+ * equivalent portable technique instead: binary ("Russian peasant")
+ * multiplication, reducing modulo `m` after every add/double via the
+ * same overflow-safe add_mod_u64 this file already needs for MOD-004's
+ * own add requirement — every intermediate value stays < m, so no step
+ * can overflow regardless of a, b, m's magnitudes.
+ */
+
+fn add_mod_u64(a: u64, b: u64, m: u64) -> u64
+    requires(m > 0)
+    ensures(result < m)
+{
+    let ar: u64 = a % m;
+    let br: u64 = b % m;
+    /* ar + br can't be computed directly first (it may overflow u64
+     * when both are near m - 1 and m is near u64::MAX) — instead check
+     * whether br would push past m - ar (the room left below m) and
+     * wrap by subtracting that headroom first, so every intermediate
+     * value stays representable.
+     */
+    let headroom: u64 = m - ar;
+    if br >= headroom { return br - headroom; }
+    return ar + br;
+}
+
+fn sub_mod_u64(a: u64, b: u64, m: u64) -> u64
+    requires(m > 0)
+    ensures(result < m)
+{
+    let ar: u64 = a % m;
+    let br: u64 = b % m;
+    if ar >= br { return ar - br; }
+    return m - (br - ar);
+}
+
+fn mul_mod_u64(a: u64, b: u64, m: u64) -> u64
+    requires(m > 0)
+    ensures(result < m)
+{
+    let mut acc: u64 = 0;
+    let mut aa: u64 = a % m;
+    let mut bb: u64 = b;
+    /* loop_invariant: acc < m always holds (acc starts at 0 < m, per
+     * requires(m > 0), and every update routes through add_mod_u64,
+     * whose own ensures pins its result < m). Terminates in at most 64
+     * iterations (bb halves every step, from a u64's full range down to
+     * 0) — a fixed bound independent of a/b/m's actual values.
+     */
+    while bb > 0 loop_invariant(acc < m) {
+        if (bb % 2) == 1 {
+            acc = add_mod_u64(acc, aa, m);
+        }
+        aa = add_mod_u64(aa, aa, m);
+        bb = bb / 2;
+    }
+    return acc;
+}
