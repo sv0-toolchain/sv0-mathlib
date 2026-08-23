@@ -53,11 +53,12 @@ fn main() -> i32 {
     if sign_f64(5.0) != 1.0 { return 13; }
     if sign_f64(0.0 - 5.0) != (0.0 - 1.0) { return 14; }
     if sign_f64(0.0) != 0.0 { return 15; }
-    /* NOT `let nan: f64 = 0.0 / 0.0;` — BUGS.md #7: an explicit `let x: f64 =
-     * <arithmetic-expr>;` local silently defaults to a C `int` declaration
-     * (the annotation is never consulted; only the RHS's own shape is).
-     * Passing the NaN expression inline avoids that lowering path entirely. */
-    if sign_f64(0.0 / 0.0) != 0.0 { return 16; }
+    /* Previously written as `sign_f64(0.0 / 0.0)` (expression passed inline
+     * to a call) to dodge BUGS.md #7 — that's fixed now, so this exercises
+     * the actual pattern that used to break: an explicit annotated `let`
+     * over a non-call/struct/enum RHS. */
+    let nan: f64 = 0.0 / 0.0;
+    if sign_f64(nan) != 0.0 { return 16; }
 
     if min_i32(3, 7) != 3 { return 20; }
     if min_i32(7, 3) != 3 { return 21; }

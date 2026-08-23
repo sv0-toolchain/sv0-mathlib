@@ -2,10 +2,10 @@
 
 Filed here first (this repo has no upstream tracker yet); each should become
 a real `sv0-toolchain`/`sv0c` issue. Audited against sv0-toolchain HEAD
-`840fe73` / sv0c HEAD `0705d68` (2026-08-23). **Bugs #5, #3, and #1 are
+`840fe73` / sv0c HEAD `0705d68` (2026-08-23). **Bugs #5, #3, #1, and #7 are
 fixed** (f64 miscompiling as `int`; generic enums failing to resolve;
-integer literals wider than i32 truncating). Bugs #6, #7, #8 (found while
-verifying the others) are not fixed.
+integer literals wider than i32 truncating; `let`-annotations over a
+non-call/struct/enum RHS ignored). Bugs #2, #6, #8 are not fixed.
 
 ## 1. Integer literals wider than i32 are silently truncated to 32 bits
 
@@ -165,34 +165,53 @@ stays green after rebuild. `sv0-mathlib`'s `lib/prelude.sv0` (`Option`,
 types, `abs_checked_i32` correctly builds and matches `Some`/`None`), full
 suite runs to exit 0.
 
-## 7. An explicit `let x: f64 = <arithmetic-expr>;` local still defaults to `int`
+## 7. An explicit `let x: f64 = <arithmetic-expr>;` local silently defaulted to `int`
 
-**Severity: medium — narrower than bug #5, but the same failure shape
-(silent truncation/UB, no diagnostic), found while verifying bug #3's fix.**
-`sv0c/lib/lowering.sv0`'s `expr_init_cty` (which decides a `let` local's C
-declaration type) infers **purely from the init expression's shape** —
-struct literal, 2-segment enum-ctor path, or function call — and has no
-parameter for the `let` statement's own explicit type annotation at all.
-So `let nan: f64 = 0.0 / 0.0;` (RHS is a binop, none of the three shapes
-`expr_init_cty` recognizes) silently declares `int nan;` in the emitted C —
-worse than bug #5's Assign-temp case, because assigning a computed
-`double` (correctly computed — the division itself is fine) into that `int`
-variable is **undefined behavior** in C (double-to-int conversion of a NaN
-is UB), not just a silent wrong-but-defined truncation. Confirmed via
-`sv0-mathlib`'s own `main.sv0`, which originally used exactly this pattern
-to construct a NaN test value.
+**STATUS (2026-08-23): FIXED in `sv0-toolchain`** (uncommitted in that
+repo's working tree). Same failure shape as bug #5 (silent truncation/UB,
+no diagnostic), found while verifying bug #3's fix, and — worse than bug
+#5's Assign-temp case — genuinely undefined behavior in C (double-to-int
+conversion of a NaN), not just a defined truncation.
 
-**Not fixed** — found and worked around (`main.sv0` now passes the NaN
-expression inline as a call argument, which uses a different, unaffected
-lowering path, instead of binding it through a `let`) rather than fixed
-upstream, given the size of the remaining work already landed this session.
-A real fix needs `expr_init_cty` (or its caller) to receive and prefer the
-`let` statement's parsed annotation type when one is present, falling back
-to shape-inference only when it's absent (`let x = ...;` with no
-annotation). Any `let x: f64 = ...;` / `let x: u32 = ...;` / etc. whose RHS
-isn't a struct literal, enum constructor, or function call should be
-treated as suspect until this lands — grep for that pattern and check the
-emitted C type directly, the same lesson as bug #5.
+**Root cause**: two DUPLICATE copies of `let`-statement lowering
+(`lower_stmt` for a function's top-level body, `lower_tag_block` for
+nested `{}` blocks — same logic, maintained twice) each pick a `let`
+local's C declaration type **purely from the init expression's shape** —
+struct literal, 2-segment enum-ctor path, function call, `box_deref` — with
+no case for a plain arithmetic/literal RHS, which falls through to a bare
+`DeclVar` (always `int`). The `let` statement's own explicit type
+annotation (`sv0c/lib/parser.sv0`'s `parse_let_stmt`, `LetStmt`'s own `d2`
+field) *was* being parsed and stored correctly — a comment right next to
+it even says so (`"was a bare 0/-1 present flag, unread by consumers"`) —
+but neither lowering copy had been updated to actually read it. Textbook
+instance of this session's recurring pattern: data made available,
+consumer never revisited.
+
+**Fix**: in both `lower_stmt` and `lower_tag_block`, when none of the
+existing shape-based special cases apply, check the `let`'s own annotation
+token; if it names one of the primitives whose C type isn't the default
+`int` (`i8/u8/i16/u16/i64/u64/u32/f32/f64/isize/usize` — new helper
+`is_wide_primitive_ty_name`), defer to a `DeclNamed` using that annotation
+instead of the bare `DeclVar`. Deliberately excludes `i32`/`bool`
+(already correct via the existing default) to keep the change minimal. A
+second, necessary half of the fix: `megaTU-main.sv0`'s `megatu_ty_name`
+printed a `DeclNamed`'s type token as **raw source text** — correct for a
+struct/enum name (which *is* its own C name) but not for a primitive
+annotation (`"f64"` is valid sv0, not valid C) — so it now routes through
+a new `megatu_primitive_cty_or_raw` translation step first (mirrors
+`ast_ty_to_c_string`, but must NOT just call that directly: its own
+"unrecognized name" fallback is *also* `"int"`, which would be
+indistinguishable from a genuine `i32`/`bool` match and wrongly turn an
+unrecognized struct name into the word `"int"`).
+
+**Verified**: `let nan: f64 = 0.0 / 0.0;` now emits `double nan;`, in both
+a function's top-level body and inside a nested block; a parallel `i64`
+case (`let big: i64 = 9223372036854775807;` inside an `if` block) emits
+`int64_t big;`. Both run correctly (exit 0), not just inspected in the C.
+`sv0-mathlib`'s `main.sv0` restored the natural `let nan: f64 = 0.0/0.0;`
+pattern (previously worked around by passing the expression inline to a
+call) and passes. `pc3b6-native-project-acceptance.sh`'s 18-fixture corpus
+stays green.
 
 ## 5. `f64` (and `f32`, and `u32`) silently compile as `int` in the native backend
 
@@ -396,6 +415,10 @@ unaffected only because `i32` already fits an `int` field natively.
   (params, temps, the `requires`/`ensures` expressions), verified by
   running `abs_i64(9223372036854775807)` and its negation to exit 0, not
   just inspecting the C.
+- **`let nan: f64 = 0.0 / 0.0;` (bug #7, now fixed)** — `main.sv0`'s NaN
+  test case, previously worked around, now uses the natural pattern
+  directly and compiles to `double nan;`, verified by running the full
+  suite (exit 0).
 
 ## Not yet working
 
@@ -413,8 +436,6 @@ unaffected only because `i32` already fits an `int` field natively.
   new bug number.
 - Struct and function generics (bug #3's fix is enum-only) — untested,
   presumed still broken.
-- `let x: f64 = <arithmetic-expr>;` (bug #7, not fixed) — silently declares
-  `int`; avoid the pattern (pass the expression inline instead) until fixed.
 - `abs_checked_i64` (bug #8, not fixed) — enum payload slots are always a
   32-bit `int`; a `u64` literal near the top of its range flowing through a
   bare `Assign` temp (bug #1's residual) — neither is fixed.
