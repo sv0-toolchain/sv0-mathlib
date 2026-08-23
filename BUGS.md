@@ -2,11 +2,13 @@
 
 Filed here first (this repo has no upstream tracker yet); each should become
 a real `sv0-toolchain`/`sv0c` issue. Audited against sv0-toolchain HEAD
-`840fe73` / sv0c HEAD `0705d68` (2026-08-23). **Bugs #5, #3, #1, #7, and #8
-are fixed** (f64 miscompiling as `int`; generic enums failing to resolve;
-integer literals wider than i32 truncating; `let`-annotations over a
-non-call/struct/enum RHS ignored; enum payload slots always `int`). Bugs
-#2, #6, and #9 are not fixed.
+`840fe73` / sv0c HEAD `0705d68` (2026-08-23). **Bugs #5, #3, #1, #7, #8, and
+#6 are fixed** (f64 miscompiling as `int`; generic enums failing to
+resolve; integer literals wider than i32 truncating; `let`-annotations
+over a non-call/struct/enum RHS ignored; enum payload slots always `int`;
+parse failures reported zero diagnostic text — #6's silent-diagnostics
+half only, `==>` itself stays deliberately unimplemented). Bugs #2 and #9
+are not fixed.
 
 ## 1. Integer literals wider than i32 are silently truncated to 32 bits
 
@@ -331,18 +333,33 @@ flagged the same way — it's in the same missing-case bucket as `f64`).
 
 ## 6. The `==>` implication operator in SPEC.md's contracts doesn't parse
 
-**Severity: low, but silent.** SPEC.md's own worked examples (e.g.
-ARITH-009's `ensures(t == 0.0 ==> result == a)`) use `==>` for logical
-implication. This is not a real sv0 operator — no occurrence anywhere in
-`sv0doc` or the test corpus — and compiling a contract that uses it fails
-**silently**: `./scripts/sv0 compile` exits nonzero with **no error message
-at all** (not even a generic parse-failure line), because it invokes
-`build/sv0-megatu-native` in a mode where a parse failure just returns a
-bare nonzero exit code. Rewrite `P ==> Q` as `!(P) || (Q)` — confirmed
-working. Filed here because it's a spec/toolchain interaction that will
-silently produce empty output for anyone following SPEC.md's examples
-literally, and separately because a compiler that exits nonzero with zero
-diagnostic text on *any* parse failure is itself worth a bug report.
+**Severity: low. The silent-diagnostic half is FIXED upstream
+(2026-08-23, sv0-toolchain, uncommitted in that repo's working tree at
+filing time — see below); the syntax half is a deliberate non-fix.**
+SPEC.md's own worked examples (e.g. ARITH-009's
+`ensures(t == 0.0 ==> result == a)`) use `==>` for logical implication.
+This is not a real sv0 operator — no occurrence anywhere in `sv0doc` or
+the test corpus. Rewrite `P ==> Q` as `!(P) || (Q)` — confirmed working;
+recommending SPEC.md be corrected rather than adding new compiler syntax
+for a rarely-needed operator with a one-line rewrite, so `==>` itself
+stays unimplemented by design, not oversight.
+
+**The silent-diagnostics half, however, was a real toolchain bug and is
+fixed**: compiling a contract using `==>` (or any other genuine parse
+failure) used to exit nonzero with **no error message at all** — not even
+a generic parse-failure line — because `build/sv0-megatu-compiler-native`
+had a parse-failure path with no diagnostic-emission logic at all.
+`parser.sv0`'s `parse_program` now encodes the failing top-level item's
+own start token into its failure return value (an approximate location —
+whatever failed deeper inside that item's own parse isn't separately
+pinpointed, since the parser has no diagnostic-packing machinery of its
+own — but real, not none), and `megaTU-main.sv0`'s `main()` reports it
+through the existing diagnostic formatter (`E0100`/"syntax error") instead
+of silently falling through. Verified: the `==>` repro now prints
+`error[E0100]: syntax error` with a line/col/snippet, in both single-file
+and `--project` mode, instead of empty stdout+stderr.
+`pc3b6-native-project-acceptance.sh` and `self-host-check-golden` both
+green after the fix.
 
 ## 4. `./scripts/sv0 compile` (single-file, default SML-heap path) is
    inconsistent for files outside `sv0c/`
