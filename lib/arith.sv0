@@ -34,6 +34,9 @@ module arith;
 use prelude::Option;
 use prelude::OptionI64;
 
+fn i64_min_val() -> i64 { return 0 - 9223372036854775807 - 1; }
+fn i64_max_val() -> i64 { return 9223372036854775807; }
+
 /* Absolute value of a signed i32.
  *
  * Domain: all i32 except i32::MIN, whose absolute value (2147483648) is not
@@ -382,4 +385,125 @@ fn lerp_f64(a: f64, b: f64, t: f64) -> f64
     ensures(!(t == 1.0) || result == b)
 {
     return a + t * (b - a);
+}
+
+/* ── ARITH-007: exponentiation ────────────────────────────────────────
+ * pow_f64 is deferred to R0.2 — SPEC.md specifies it via
+ * `exp_f64(exp * ln_f64(base))`, and `exp_f64`/`ln_f64` are themselves
+ * R0.2 shared machinery (introduced for `math::trig`), not yet
+ * implemented. Only the integer form is done here.
+ */
+
+/* Pure, recursively-defined mathematical helper used only inside
+ * `pow_i64`'s own `ensures` (legal per CONV-009's purity rule) — SPEC.md
+ * Section 14.1's own algorithm sketch names this exact helper.
+ */
+fn pow_spec(base: i64, exp: u32) -> i64 {
+    if exp == 0 { return 1; }
+    return base * pow_spec(base, exp - 1);
+}
+
+/* Exponentiation by squaring, per SPEC.md Section 14.1's algorithm
+ * sketch (mirrored here almost verbatim). `requires(exp < 63 || ...)`
+ * is deliberately informal (SPEC.md's own wording) — it doesn't rule out
+ * every overflowing `(base, exp)` pair (e.g. `pow_i64(3, 40)` still
+ * overflows silently), only the pathological large-`exp` cases; callers
+ * that can't statically rule out overflow should use `pow_checked_i64`.
+ */
+fn pow_i64(base: i64, exp: u32) -> i64
+    requires(exp < 63 || base == 0 || base == 1 || base == (0 - 1))
+    ensures(result == pow_spec(base, exp))
+{
+    let mut acc: i64 = 1;
+    let mut b: i64 = base;
+    let mut e: u32 = exp;
+    /* loop_invariant (prose, per CONV-008 — not SMT-proven by this
+     * toolchain yet): acc * pow_spec(b, e) == pow_spec(base, exp) holds
+     * at the top of every iteration — the standard exponentiation-by-
+     * squaring proof obligation SPEC.md's own sketch names. Terminates
+     * because e strictly halves (toward 0) each iteration.
+     */
+    while e > 0 loop_invariant(acc * pow_spec(b, e) == pow_spec(base, exp)) {
+        if (e % 2) == 1 {
+            acc = acc * b;
+        }
+        b = b * b;
+        e = e / 2;
+    }
+    return acc;
+}
+
+/* Checked multiply: detects overflow BEFORE multiplying (computing `a *
+ * b` first and checking after is itself undefined behavior in C on
+ * signed overflow — division-based pre-checks avoid ever forming the
+ * overflowing product at all). `a == -1`/`b == -1` are handled
+ * separately since `i64::MIN / -1` is itself the one division that
+ * overflows.
+ */
+fn mul_checked_i64(a: i64, b: i64) -> OptionI64 {
+    if a == 0 { return OptionI64::Some(0); }
+    if b == 0 { return OptionI64::Some(0); }
+    if a == (0 - 1) {
+        if b == i64_min_val() { return OptionI64::None; }
+        return OptionI64::Some(0 - b);
+    }
+    if b == (0 - 1) {
+        if a == i64_min_val() { return OptionI64::None; }
+        return OptionI64::Some(0 - a);
+    }
+    if a > 0 {
+        if b > 0 {
+            if a > (i64_max_val() / b) { return OptionI64::None; }
+        } else {
+            if b < (i64_min_val() / a) { return OptionI64::None; }
+        }
+    } else {
+        if b > 0 {
+            if a < (i64_min_val() / b) { return OptionI64::None; }
+        } else {
+            if a < (i64_max_val() / b) { return OptionI64::None; }
+        }
+    }
+    return OptionI64::Some(a * b);
+}
+
+/* BUGS.md #11 (sv0-mathlib): a `match` used AS A VALUE (`let x: T =
+ * match opt { Some(v) => v, None => dflt };`) declares its own result
+ * temp as plain C `int` regardless of the arms' real type — a match
+ * bound this way silently truncates any i64/u64/f64 arm value, the same
+ * "everything defaults to int" family bug #8 fixed for the payload
+ * BINDING itself, but for the match EXPRESSION's own overall temp
+ * instead. Worked around throughout this function (and everywhere else
+ * in this library from here on) by using `match` as a bare STATEMENT
+ * that assigns into an already-correctly-typed `let mut` local instead
+ * of binding its value directly — confirmed via inspecting the emitted
+ * C that this sidesteps the bug entirely. Not fixed upstream (a real
+ * compiler gap, but a properly general fix needs an emission-time
+ * lookahead/prepass this session ran out of budget for); see BUGS.md
+ * #11 for the full repro and root-cause trace.
+ */
+fn pow_checked_i64(base: i64, exp: u32) -> OptionI64 {
+    let mut acc: i64 = 1;
+    let mut b: i64 = base;
+    let mut e: u32 = exp;
+    let mut overflowed: bool = false;
+    while e > 0 loop_invariant(true) {
+        if (e % 2) == 1 {
+            let m1: OptionI64 = mul_checked_i64(acc, b);
+            match m1 {
+                OptionI64::Some(v) => { acc = v; },
+                OptionI64::None => { overflowed = true; },
+            }
+        }
+        if e > 1 {
+            let m2: OptionI64 = mul_checked_i64(b, b);
+            match m2 {
+                OptionI64::Some(v) => { b = v; },
+                OptionI64::None => { overflowed = true; },
+            }
+        }
+        e = e / 2;
+    }
+    if overflowed { return OptionI64::None; }
+    return OptionI64::Some(acc);
 }

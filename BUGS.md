@@ -2,21 +2,15 @@
 
 Filed here first (this repo has no upstream tracker yet); each should become
 a real `sv0-toolchain`/`sv0c` issue. Audited against sv0-toolchain HEAD
-`840fe73` / sv0c HEAD `0705d68` (2026-08-23). **All nine numbered bugs are
-now fixed** (f64 miscompiling as `int`; generic enums failing to resolve;
-integer literals wider than i32 truncating; `let`-annotations over a
-non-call/struct/enum RHS ignored; enum payload slots always `int`; parse
-failures reported zero diagnostic text — #6's silent-diagnostics half
-only, `==>` itself stays deliberately unimplemented; VM-path checker
-rejecting non-i32 arithmetic/contracts — #2's checker-level half only, VM
-bytecode float lowering is a separate, larger, not-yet-fixed gap). **Only
-bug #9 (generic enums resolve but don't monomorphize) remains open** as a
-genuine unresolved gap; see its entry for why that one is architecturally
-bigger than the others. Bug #6's fix also surfaced and fixed a real,
-pre-existing, sv0-mathlib-unrelated parser/lowering defect in sv0c's own
-test corpus (bare struct-field assignment statements silently compiling
-to nothing) — noted under bug #6 rather than given its own number, since
-it was never a blocker for this library.
+`840fe73` / sv0c HEAD `0705d68` (2026-08-23), updated through R0.1 work.
+**Bugs #1, #2 (checker-level half), #3, #5, #6 (diagnostics half), #7, #8,
+#10, and #11 are fixed.** Bug #9 (generic enums resolve but don't
+monomorphize) and bug #12 (`match` used as a value mistypes its own
+result temp — workaround documented) remain open, genuine gaps. Bug #6's
+fix also surfaced and fixed a real, sv0-mathlib-unrelated parser/lowering
+defect in sv0c's own test corpus (bare struct-field assignment statements
+silently compiling to nothing) — noted under bug #6 rather than given its
+own number, since it was never a blocker for this library.
 
 ## 1. Integer literals wider than i32 are silently truncated to 32 bits
 
@@ -634,6 +628,78 @@ this). **Impact on M5**: any LLVM-backend or crypto code using
 — worth flagging to M5 planners as a real, now-fixed compiler
 correctness gap, not just a mathlib-local nuisance.
 
+## 11. `match` on a direct call result (no intermediate `let`) mistypes the payload binding
+
+**STATUS (2026-08-23): FIXED in `sv0-toolchain`** (sv0c commit `4bda54a`,
+parent `43f36bf`). Found while adding ARITH-007's `pow_checked_i64`:
+`match f() { Some(v) => ..., None => ... }` — matching directly on a
+function call's own result, with no intermediate `let` — declared `v` as
+plain `int` regardless of its real type, truncating any i64/u64/f32/f64/
+u32 payload. The `let x: T = f(); match x { ... }` form (an intermediate
+`let`) already worked correctly (bug #8's fix covers it).
+
+**Root cause**: bug #8's fix resolves a match-arm payload binding's real
+category by looking up the SCRUTINEE's own enum item in the tyenv — but
+that lookup was only ever populated for a `DeclNamed`-typed local (a
+`let x: T = ...`); a bare function-call result temp
+(`codegen_Instr::Call` in `megaTU-main.sv0`) always registered with a
+hardcoded "no enum" sentinel, even when the call's own resolved return
+type IS a known enum. Fixed by computing the enum index from the call's
+resolved return-type name, exactly as `DeclNamed` already does.
+
+**Verified**: `match f() { Some(v) => v == <i64 value>, None => false }`
+on an `OptionI64`-returning function now correctly declares
+`int64_t v = ...` and produces the right result — previously silently
+truncated with zero diagnostic. `pc3b6-native-project-acceptance.sh` and
+`self-host-check-golden` both green.
+
+## 12. `match` used AS A VALUE mistypes its own overall result temp
+
+**Severity: medium — found immediately after fixing bug #11, NOT fixed.**
+`let x: T = match opt { Some(v) => v, None => dflt };` — binding a
+match's OWN VALUE (not just a payload) — declares the match expression's
+internal result-holding temp as plain `int`, regardless of the arms'
+real type, even when every individual piece around it (the payload
+binding `v`, and the outer `let x: T = ...`'s own declaration) is
+correctly typed by bugs #8 and #11's fixes. Confirmed via inspecting the
+emitted C: `int _sv0t1; ... _sv0t1 = v; ... x = _sv0t1;` — `x` itself
+ends up `int64_t` (bug #7's fix), but the match's own intermediate temp
+truncates the value on the way there.
+
+**Root cause**: `lowering.sv0`'s `lower_tag_match` allocates the match's
+overall result via a bare, untyped `Instr::DeclVar(out)` (the same
+"declare with no type info" shape bugs #5/#8 already fixed for other
+DeclVar cases — the `ensures`-clause `result` slot, by name, and enum
+payload/scrutinee categories, by tyenv lookup) — but nothing resolves
+`out`'s real category here, because every match arm stores into it via
+`Instr::Store` (not `Assign`, which is where category inference lives),
+and `Store`'s target must already be declared by the time it runs. A
+correct general fix needs `DeclVar`'s emission to look ahead through the
+(possibly deeply nested, if/else-chain-shaped) match-arm instructions to
+find the first `Store` into this handle and infer its category from
+there — a proper prepass, not a small patch — which this session's
+remaining budget didn't cover.
+
+**Workaround, used throughout this library from here on (verified to
+fully sidestep the bug)**: never bind a `match`'s value directly when the
+arms produce a wide (non-i32/bool) type. Instead, declare an
+already-correctly-typed `let mut` local (`DeclNamed`, unaffected by this
+bug) and use `match` as a bare STATEMENT whose arms assign into it:
+```
+let mut v: i64 = 0;
+match opt {
+    OptionI64::Some(x) => { v = x; },
+    OptionI64::None => {},
+}
+```
+instead of `let v: i64 = match opt { OptionI64::Some(x) => x, ... };`.
+`pow_checked_i64` (ARITH-007) uses exactly this pattern. Boolean-valued
+match arms (this library's dominant `_checked`-function-testing idiom,
+e.g. `let ok: bool = match opt { Some(v) => v == N, None => false };`)
+are NOT affected — `bool` fits `int` correctly regardless, so only
+match-as-value bindings whose arms produce a genuinely wide type need
+the workaround.
+
 ## Working today — genuinely verified (emitted C inspected, not just exit code)
 
 - Single-file compile/verify (`./scripts/sv0 compile`, `verify`, `emit-c`)
@@ -688,6 +754,9 @@ correctness gap, not just a mathlib-local nuisance.
   new bug number.
 - Struct and function generics (bug #3's fix is enum-only) — untested,
   presumed still broken.
-- `abs_checked_i64` (bug #8, not fixed) — enum payload slots are always a
-  32-bit `int`; a `u64` literal near the top of its range flowing through a
-  bare `Assign` temp (bug #1's residual) — neither is fixed.
+- `let x: T = match { ... };` for a wide (non-i32/bool) `T` (bug #12, not
+  fixed) — the match expression's own overall result temp is always
+  `int`; use the match-as-statement workaround documented there instead.
+- A `u64` literal near the top of its range flowing through a bare
+  `Assign` temp (bug #1's residual, still not fixed — narrower than the
+  original bug, not yet hit by anything in this library).

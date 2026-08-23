@@ -28,6 +28,9 @@ use arith::is_nan_f64;
 use arith::is_infinite_f64;
 use arith::is_finite_f64;
 use arith::lerp_f64;
+use arith::pow_i64;
+use arith::pow_checked_i64;
+use arith::mul_checked_i64;
 use modular::floor_mod_i64;
 use modular::euclid_mod_i64;
 use modular::gcd_u64;
@@ -195,6 +198,27 @@ fn main() -> i32 {
     if mul_mod_u64(123456789, 987654321, 1000000007) != 259106859 { return 124; }
     let big_prime: u64 = 18446744073709551557;
     if mul_mod_u64(big_prime - 1, big_prime - 1, big_prime) != 1 { return 125; }
+
+    if pow_i64(2, 10) != 1024 { return 130; }
+    if pow_i64(3, 5) != 243 { return 131; }
+    if pow_i64(0 - 2, 3) != (0 - 8) { return 132; }
+    if pow_i64(5, 0) != 1 { return 133; }
+    if pow_i64(0, 5) != 0 { return 134; }
+    if pow_i64(1, 62) != 1 { return 135; }
+
+    let mc_ok: bool = match mul_checked_i64(6, 7) { OptionI64::Some(v) => v == 42, OptionI64::None => false };
+    if !mc_ok { return 136; }
+    let mc_ov: bool = match mul_checked_i64(1000000000000, 1000000000000) { OptionI64::Some(v) => false, OptionI64::None => true };
+    if !mc_ov { return 137; }
+
+    let pc_ok: bool = match pow_checked_i64(2, 10) { OptionI64::Some(v) => v == 1024, OptionI64::None => false };
+    if !pc_ok { return 138; }
+    let pc_ov: bool = match pow_checked_i64(2, 63) { OptionI64::Some(v) => false, OptionI64::None => true };
+    if !pc_ov { return 139; }
+    let pc_ok2: bool = match pow_checked_i64(2, 62) { OptionI64::Some(v) => v == 4611686018427387904, OptionI64::None => false };
+    if !pc_ok2 { return 140; }
+    let pc_neg: bool = match pow_checked_i64(0 - 3, 5) { OptionI64::Some(v) => v == (0 - 243), OptionI64::None => false };
+    if !pc_neg { return 141; }
 
     return 0;
 }
