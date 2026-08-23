@@ -1,14 +1,16 @@
 /* sv0-mathlib smoke/demo entry point.
  * Exit code convention: 0 = pass, nonzero = first failing case index.
- * Covers ARITH-001..004's i32 and f64 forms — see lib/arith.sv0 and
- * BUGS.md for what's still blocked and why (abs_i64/sign_i64, VM-backend
+ * Covers ARITH-001..004's i32, i64, and f64 forms — see lib/arith.sv0 and
+ * BUGS.md for what's still blocked and why (abs_checked_i64, VM-backend
  * parity).
  */
 use arith::abs_i32;
 use arith::abs_checked_i32;
+use arith::abs_i64;
 use arith::abs_f64;
 use prelude::Option;
 use arith::sign_i32;
+use arith::sign_i64;
 use arith::sign_f64;
 use arith::min_i32;
 use arith::min_f64;
@@ -24,6 +26,10 @@ fn main() -> i32 {
     if abs_f64(5.0) != 5.0 { return 4; }
     if abs_f64(0.0 - 5.0) != 5.0 { return 5; }
     if abs_f64(0.5) != 0.5 { return 6; }
+    if abs_i64(5) != 5 { return 40; }
+    if abs_i64(0 - 5) != 5 { return 41; }
+    if abs_i64(9223372036854775807) != 9223372036854775807 { return 42; }
+    if abs_i64(0 - 9223372036854775807) != 9223372036854775807 { return 43; }
 
     let some_case: Option = abs_checked_i32(0 - 5);
     let some_ok: bool = match some_case {
@@ -41,6 +47,9 @@ fn main() -> i32 {
     if sign_i32(5) != 1 { return 10; }
     if sign_i32(0 - 5) != (0 - 1) { return 11; }
     if sign_i32(0) != 0 { return 12; }
+    if sign_i64(5) != 1 { return 44; }
+    if sign_i64(0 - 5) != (0 - 1) { return 45; }
+    if sign_i64(0) != 0 { return 46; }
     if sign_f64(5.0) != 1.0 { return 13; }
     if sign_f64(0.0 - 5.0) != (0.0 - 1.0) { return 14; }
     if sign_f64(0.0) != 0.0 { return 15; }

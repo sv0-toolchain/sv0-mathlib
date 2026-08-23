@@ -7,28 +7,32 @@ coordinates, and complex numbers, built contract-first per
 
 ## Status
 
-**F0 nearly complete.** `math::arith`'s ARITH-001..004 are fully
-implemented and contract-checked: all i32 and f64 forms
-(`abs_i32`/`abs_f64`, `sign_i32`/`sign_f64`, `min_i32`/`min_f64`,
-`max_i32`/`max_f64`, `clamp_i32`/`clamp_f64`), plus `abs_checked_i32`
-(`Option`-returning) and the shared `prelude` (`Option`/`Result`). Verified
-on the **C backend** by inspecting the emitted C directly, not just exit
-codes — correct `int`/`double` typing throughout (params, locals,
-contract-result slots, call-result temps), and `Option`/`Result` compiling
-to real tagged-struct types with working `Some`/`None` match logic. The
-**VM backend** does not currently compile this library at all — see
-BUGS.md's "Not yet working" for why (a contract-typing gap plus a
-duplicate-type issue once more than one file imports the same type).
+**F0 complete except `abs_checked_i64`.** `math::arith`'s ARITH-001..004
+are fully implemented and contract-checked: all i32, i64, and f64 forms
+(`abs_i32`/`abs_i64`/`abs_f64`, `sign_i32`/`sign_i64`/`sign_f64`,
+`min_i32`/`min_f64`, `max_i32`/`max_f64`, `clamp_i32`/`clamp_f64`), plus
+`abs_checked_i32` (`Option`-returning) and the shared `prelude`
+(`Option`/`Result`). Verified on the **C backend** by inspecting the
+emitted C directly, not just exit codes — correct `int`/`int64_t`/`double`
+typing throughout (params, locals, contract-result slots, call-result
+temps), real `i64`-magnitude values round-tripping correctly, and
+`Option`/`Result` compiling to real tagged-struct types with working
+`Some`/`None` match logic. The **VM backend** does not currently compile
+this library at all — see BUGS.md's "Not yet working" for why (a
+contract-typing gap plus a duplicate-type issue once more than one file
+imports the same type).
 
-See [BUGS.md](BUGS.md) for seven toolchain gaps found while starting this
-work. **Fixed upstream**: bug #5 (`f64` silently compiling as `int`) and
-bug #3 (generic enums like `Option<T>` failing to resolve — turned out to
-be a real "generics don't work" gap, not the `--project`-specific issue
-first suspected). **Still open**: bug #2 (VM backend can't type-check a
-non-`i32`/`bool` contract — f64 forms don't compile there yet), bug #1
-(large i64/u64 literals truncate — blocks `abs_i64`/`sign_i64`), and bug #7
-(an explicit `let x: f64 = <arithmetic-expr>;` local silently defaults to
-`int` — narrower than #5, found while verifying #3's fix).
+See [BUGS.md](BUGS.md) for eight toolchain gaps found while starting this
+work. **Fixed upstream**: bug #5 (`f64` silently compiling as `int`), bug
+#3 (generic enums like `Option<T>` failing to resolve — turned out to be a
+real "generics don't work" gap, not the `--project`-specific issue first
+suspected), and bug #1 (integer literals wider than i32 truncating —
+including a second, deeper sub-bug in the same "hardcodes int" family,
+found while verifying the first). **Still open**: bug #2 (VM backend can't
+type-check a non-`i32`/`bool` contract), bug #7 (an explicit
+`let x: f64 = <arithmetic-expr>;` local silently defaults to `int`), and
+bug #8 (enum payload slots are always `int`, regardless of type — blocks
+`abs_checked_i64`).
 
 ## Tier 1 / Tier 2
 
