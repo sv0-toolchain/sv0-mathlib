@@ -23,6 +23,11 @@
  * abs_checked_i32 (ARITH-001's Option-returning companion) is implemented
  * too — BUGS.md #3 (generic enums like `Option<T>` failing to resolve) is
  * fixed upstream.
+ *
+ * abs_i64/sign_i64 are implemented too — BUGS.md #1 (integer literals wider
+ * than i32 truncating) is fixed upstream. abs_checked_i64 is still blocked,
+ * by a different, newly-found gap (BUGS.md #8: enum payload slots are
+ * always a 32-bit C `int` regardless of the payload's real type).
  */
 module arith;
 
@@ -65,12 +70,23 @@ fn abs_f64(x: f64) -> f64
     return x;
 }
 
-/* abs_i64/abs_checked_i64 (ARITH-001) are BLOCKED, not merely deferred: any
- * integer literal that does not fit in i32 (e.g. i64::MIN's magnitude,
- * 9223372036854775808) is silently truncated to 32 bits by the compiler's
- * literal representation, regardless of the let/param/requires type context
- * it appears in — see BUGS.md #1. There is no correct way to write i64::MIN
- * as a literal today, so this pair cannot be implemented correctly yet.
+/* Absolute value of a signed i64 — BUGS.md #1 is fixed upstream. */
+fn abs_i64(x: i64) -> i64
+    requires(x != (0 - 9223372036854775807 - 1))
+    ensures(result >= 0)
+{
+    if x < 0 {
+        return 0 - x;
+    }
+    return x;
+}
+
+/* abs_checked_i64 is STILL blocked, but by a different, newly-found gap
+ * (BUGS.md #8): an enum's payload slot is always emitted as a plain C
+ * `int` (32-bit) regardless of the payload's declared sv0 type, so
+ * `Option::Some(<i64 value>)` would silently truncate the exact same way
+ * abs_i64 itself did before bug #1's fix — just one layer further out. Not
+ * fixed; see BUGS.md #8.
  */
 
 /* Sign of a signed i32: -1, 0, or 1. Total function. */
@@ -86,12 +102,18 @@ fn sign_i32(x: i32) -> i32
     return 0;
 }
 
-/* sign_i64 (ARITH-002) is BLOCKED on the same literal-truncation gap as
- * abs_i64 (BUGS.md #1) — nothing here needs a large literal, but there is
- * no i64-typed 0/1/-1 that survives a `let`/`requires`/`ensures` boundary
- * today, and mixing i32 sentinels with an i64 result would misrepresent
- * the function's actual (untested) behavior. Deferred, not implemented.
- */
+/* Sign of a signed i64: -1, 0, or 1. Total function. */
+fn sign_i64(x: i64) -> i64
+    ensures(result == (0 - 1) || result == 0 || result == 1)
+{
+    if x < 0 {
+        return 0 - 1;
+    }
+    if x > 0 {
+        return 1;
+    }
+    return 0;
+}
 
 /* Sign of an f64: -1.0, 0.0, or 1.0. Total function; ARITH-002 pins NaN to
  * 0.0 explicitly (documented and tested, not left as an unspecified case

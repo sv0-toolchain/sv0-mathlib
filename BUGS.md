@@ -2,38 +2,92 @@
 
 Filed here first (this repo has no upstream tracker yet); each should become
 a real `sv0-toolchain`/`sv0c` issue. Audited against sv0-toolchain HEAD
-`840fe73` / sv0c HEAD `0705d68` (2026-08-23). **Bugs #5 and #3 are fixed**
-(f64 miscompiling as `int`; generic enums failing to resolve). Bug #7 (a
-narrower f64 residual) was found while verifying #3 and is not yet fixed.
+`840fe73` / sv0c HEAD `0705d68` (2026-08-23). **Bugs #5, #3, and #1 are
+fixed** (f64 miscompiling as `int`; generic enums failing to resolve;
+integer literals wider than i32 truncating). Bugs #6, #7, #8 (found while
+verifying the others) are not fixed.
 
 ## 1. Integer literals wider than i32 are silently truncated to 32 bits
 
-**Severity: critical.** Any integer literal that doesn't fit in `i32`
-(`> 2147483647` or `< -2147483648`) is truncated mod 2^32 at parse time,
-**regardless of the declared type it's assigned into** — `let y: i64 = 5000000000;`
-compiles to `int y; y = 705032704;` (`5000000000 mod 2^32`), and `int`, not
-`int64_t`. Root cause: `sv0c/lib/ast.sv0:9` — `IntLit(i32)` — the AST's
-integer-literal variant can only hold an `i32`, so every literal is forced
-through that width during parsing, before the surrounding type context (a
-`let`/param/`requires` annotation) is ever consulted.
+**STATUS (2026-08-23): FIXED in `sv0-toolchain`** (uncommitted in that
+repo's working tree). Any integer literal that didn't fit in `i32`
+(`> 2147483647`) was truncated mod 2^32 at parse time, **regardless of the
+declared type it was assigned into** — `let y: i64 = 5000000000;` compiled
+to `int y; y = 705032704;` (`5000000000 mod 2^32`), and `int`, not
+`int64_t`. Root cause: `sv0c/lib/lowering.sv0`'s
+`parse_decimal_i32_from_tok` (the function that turns a literal's source
+text into its `Value::VInt` payload) accumulates digits into a plain `i32`
+with no overflow guard — this is downstream of, but the same shape as,
+`sv0c/lib/ast.sv0:9`'s `Literal::IntLit(i32)` (that AST type itself turned
+out to be a vestigial/unused copy, not on the live emission path — see bug
+#5's writeup for how that was traced).
 
-Repro:
+**Fix**: rather than widen `VInt`'s payload (i32, used at ~30 call sites
+across the compiler's own internals for small values like AST tags — too
+large a blast radius to touch safely), added a new `Value::VIntWide(i32)`
+variant carrying the literal's *source token handle*, the same "print the
+original text verbatim" strategy bug #5 used for `VFloat` — a bare decimal
+integer literal is already valid C, and the C compiler infers the correct
+width itself, so there's no need to parse it into any bounded sv0 integer
+at compile time at all. `lower_lit_to_ir_value` routes to `VInt` (fits i32,
+unchanged fast path) or `VIntWide` (doesn't fit, checked via a new
+`decimal_lit_fits_i32` — pure string comparison against `"2147483647"`, no
+overflow-prone arithmetic needed to detect the overflow).
+
+**A second sub-bug found while verifying the first**: fixing the literal's
+*value* wasn't enough — the same three "hardcode int" emission sites bug
+#5 fixed for `double` (`Assign`, the `result` `DeclVar` slot, untyped
+`Call` results) *also* silently discarded int64-ness for ordinary i64
+arithmetic (not just `VIntWide` literals) — `fn abs_i64(x: i64) -> i64 { ...
+0 - x ... }` still emitted `int _sv0t = (0 - x);`, truncating right back
+down. Root cause: `x` is a real source token, and — unlike a compiler-
+synthesized `_sv0tN` temp, whose handle is a global counter and therefore
+identical at its declaration and every later use — a parameter's or local's
+*declaration* token and each of its *use-site* tokens are different
+positions in the source text. Bug #5's tyenv tracked category by raw handle
+equality, which works for temps but silently never matches for a real
+variable referenced more than once. Fixed by widening the tyenv from a
+boolean (float/not-float) to a 3-way category (int/double/int64_t) and
+falling back to a **source-text comparison** when handle equality misses,
+mirroring how `megatu_fn_ret_cty` (bug #5) already had to resolve a call
+target by text for the identical reason.
+
+Repro (now fixed):
 ```
-fn f() -> i64 {
-    let y: i64 = 9223372036854775807;  // i64::MAX
-    return y;
+fn abs_i64(x: i64) -> i64
+    requires(x != (0 - 9223372036854775807 - 1))
+    ensures(result >= 0)
+{
+    if x < 0 { return 0 - x; }
+    return x;
 }
 ```
-`./scripts/sv0 compile <file>` emits `int y; y = -1;` — both the value and
-the C type are wrong.
+now emits fully correct `int64_t` throughout (params, temps, the `result`
+slot, the boundary-literal `requires` expression), verified by running it
+against `abs_i64(9223372036854775807)` and `abs_i64(-9223372036854775807)`
+(exit 0), not just inspecting the C.
 
-**Impact on this library:** blocks `i64`/`u64`::MIN/MAX-boundary contracts
-(ARITH-001's `abs_i64`), `u64` moduli near `u64::MAX` (MOD-003/004), and any
-"cryptographic-scale" fixture MOD-005 asks for. **Impact on M5:** identical
-mechanism would corrupt any `u64`/`u128` crypto constant larger than
-`i32::MAX` — SHA round constants are u32-sized and safe, but Ed25519's field
-prime (`2^255 - 19`) and any 64-bit portion of ChaCha20/Poly1305 state built
-from a literal (not computed) would silently truncate the same way.
+**Residual, not fixed**: `u64` literals whose magnitude exceeds `i64::MAX`
+(~9.2e18, versus `u64::MAX`'s ~1.8e19) are not specifically handled —
+`VIntWide` doesn't parse or classify the literal at all (by design), so
+the *value* still prints correctly for the full `u64` range (C infers the
+type from the literal text itself), but the temp-typing category-tracking
+system only has an `int64_t` bucket, not a separate `uint64_t` one — a
+`u64` value near the top of its range flowing through a bare `Assign` temp
+would still get declared `int64_t`, which cannot represent it. Narrower
+than the original bug; not yet fixed. See also bug #8 (enum payload slots)
+for a related, separately-scoped residual found while restoring
+`abs_checked_i64`.
+
+**Impact on this library:** unblocks `i64` boundary contracts (ARITH-001's
+`abs_i64`, restored — see `lib/arith.sv0`). `abs_checked_i64` remains
+blocked by bug #8, a different root cause. **Impact on M5:** the original
+concern (Ed25519's field prime, ChaCha20/Poly1305 constants) is
+substantially de-risked for the signed/i64-range part of that surface;
+the `u64`-top-half residual above is worth flagging to M5 planners
+specifically, since Ed25519's field prime (`2^255 - 19`) is far outside
+even `u64` range and would need real bignum literal support regardless —
+this fix doesn't reach that far, and isn't intended to.
 
 ## 2. The VM-target toolchain path can't type-check non-i32/bool contracts
 
@@ -283,6 +337,32 @@ constraint: **always stage single-file compiler invocations at a path
 relative to `sv0c/`** until this is understood; don't trust an absolute-path
 invocation even for code that's known-good.
 
+## 8. Enum payload slots are always a 32-bit `int`, regardless of type
+
+**Severity: medium, narrow — found while restoring `abs_checked_i64`,
+NOT fixed.** An enum variant's payload field always compiles to plain C
+`int`, regardless of the payload's declared sv0 type:
+
+```
+enum Box64 { Wrap(i64) }
+```
+compiles to
+```c
+typedef struct { int tag; int p0; } Box64;
+```
+— `p0` is `int`, not `int64_t`. So `Box64::Wrap(9223372036854775807)`
+assigns a value outside `int`'s range into an `int` field: implementation-
+defined-at-best, likely truncating, in C. Not investigated further (root
+cause presumably lives in whatever builds the enum typedef string — same
+family as bug #5/#1's "everything defaults to int" pattern, just a fourth
+location, not chased down this session).
+
+**Impact on this library:** blocks `abs_checked_i64` (would need to store
+an `i64` payload in `Option::Some`) and, by the same mechanism, any future
+`_checked` function over `i64`/`u64`/`f64` that this spec calls for
+(`sqrt_checked_f64`, `mod_inverse_u64`, etc.) — `abs_checked_i32` is
+unaffected only because `i32` already fits an `int` field natively.
+
 ## Working today — genuinely verified (emitted C inspected, not just exit code)
 
 - Single-file compile/verify (`./scripts/sv0 compile`, `verify`, `emit-c`)
@@ -312,6 +392,10 @@ invocation even for code that's known-good.
   (`typedef struct { int tag; int p0; } Option;`), and the full
   `Some`/`None` match logic runs correctly (exit 0, both branches
   exercised).
+- **`abs_i64`/`sign_i64` (bug #1, now fixed)** — `int64_t` throughout
+  (params, temps, the `requires`/`ensures` expressions), verified by
+  running `abs_i64(9223372036854775807)` and its negation to exit 0, not
+  just inspecting the C.
 
 ## Not yet working
 
@@ -327,9 +411,10 @@ invocation even for code that's known-good.
   bug #2's existing "SML-legacy has real gaps, not planned to be
   extended" framing already covers this; noting it here rather than as a
   new bug number.
-- `abs_i64`/`sign_i64` (bug #1, not fixed) — large i64/u64 literals still
-  truncate.
 - Struct and function generics (bug #3's fix is enum-only) — untested,
   presumed still broken.
 - `let x: f64 = <arithmetic-expr>;` (bug #7, not fixed) — silently declares
   `int`; avoid the pattern (pass the expression inline instead) until fixed.
+- `abs_checked_i64` (bug #8, not fixed) — enum payload slots are always a
+  32-bit `int`; a `u64` literal near the top of its range flowing through a
+  bare `Assign` temp (bug #1's residual) — neither is fixed.
