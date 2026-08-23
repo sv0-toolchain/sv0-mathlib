@@ -32,6 +32,7 @@
 module arith;
 
 use prelude::Option;
+use prelude::OptionI64;
 
 /* Absolute value of a signed i32.
  *
@@ -81,13 +82,22 @@ fn abs_i64(x: i64) -> i64
     return x;
 }
 
-/* abs_checked_i64 is STILL blocked, but by a different, newly-found gap
- * (BUGS.md #8): an enum's payload slot is always emitted as a plain C
- * `int` (32-bit) regardless of the payload's declared sv0 type, so
- * `Option::Some(<i64 value>)` would silently truncate the exact same way
- * abs_i64 itself did before bug #1's fix — just one layer further out. Not
- * fixed; see BUGS.md #8.
+/* Checked absolute value for i64: None only at i64::MIN, where abs_i64
+ * would violate its own requires clause. BUGS.md #8 (enum payload slots
+ * always a 32-bit `int`) is fixed upstream, but returns OptionI64, a
+ * concrete companion to the shared prelude::Option<T> — NOT Option<i64> —
+ * because sv0 generics resolve without monomorphizing (BUGS.md #9): the
+ * shared Option<T>'s payload slot type is textually "T" at its
+ * declaration, never a concrete type, so bug #8's per-slot-category
+ * resolution has nothing to key off for the generic case. See BUGS.md #9
+ * and README.md's "Deviations from SPEC.md".
  */
+fn abs_checked_i64(x: i64) -> OptionI64 {
+    if x == (0 - 9223372036854775807 - 1) {
+        return OptionI64::None;
+    }
+    return OptionI64::Some(abs_i64(x));
+}
 
 /* Sign of a signed i32: -1, 0, or 1. Total function. */
 fn sign_i32(x: i32) -> i32

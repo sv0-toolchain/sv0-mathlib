@@ -7,3 +7,18 @@ module prelude;
 
 enum Option<T> { Some(T), None }
 enum Result<T, E> { Ok(T), Err(E) }
+
+/* OptionI64: a concrete, non-generic companion to Option<T>, dedicated to
+ * i64 payloads — see sv0-toolchain BUGS.md #9 (sv0-mathlib) for why this
+ * exists. sv0 generics resolve (bug #3) but don't monomorphize: there is
+ * exactly one physical struct for Option<T>, and its payload slot's C type
+ * is resolved from the DECLARATION's own payload type token, which for a
+ * generic enum is the literal parameter name "T", never a concrete type —
+ * so an i64 value constructed via the shared Option<T> above would still
+ * silently truncate through a 32-bit `int` field/binding. abs_checked_i64
+ * (and any future _checked function returning an i64 payload) uses this
+ * type instead. Not a scalable pattern past a handful of concrete _checked
+ * return types — see BUGS.md #9's "Impact on this library" for the
+ * tradeoff and when to revisit it.
+ */
+enum OptionI64 { Some(i64), None }

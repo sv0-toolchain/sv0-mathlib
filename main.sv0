@@ -6,9 +6,11 @@
  */
 use arith::abs_i32;
 use arith::abs_checked_i32;
+use arith::abs_checked_i64;
 use arith::abs_i64;
 use arith::abs_f64;
 use prelude::Option;
+use prelude::OptionI64;
 use arith::sign_i32;
 use arith::sign_i64;
 use arith::sign_f64;
@@ -43,6 +45,19 @@ fn main() -> i32 {
         Option::None => true,
     };
     if !none_ok { return 8; }
+
+    let some_case_i64: OptionI64 = abs_checked_i64(0 - 9223372036854775807);
+    let some_ok_i64: bool = match some_case_i64 {
+        OptionI64::Some(v) => v == 9223372036854775807,
+        OptionI64::None => false,
+    };
+    if !some_ok_i64 { return 50; }
+    let none_case_i64: OptionI64 = abs_checked_i64(0 - 9223372036854775807 - 1);
+    let none_ok_i64: bool = match none_case_i64 {
+        OptionI64::Some(v) => false,
+        OptionI64::None => true,
+    };
+    if !none_ok_i64 { return 51; }
 
     if sign_i32(5) != 1 { return 10; }
     if sign_i32(0 - 5) != (0 - 1) { return 11; }

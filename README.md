@@ -7,33 +7,40 @@ coordinates, and complex numbers, built contract-first per
 
 ## Status
 
-**F0 complete except `abs_checked_i64`.** `math::arith`'s ARITH-001..004
+**F0 complete**, including `abs_checked_i64`. `math::arith`'s ARITH-001..004
 are fully implemented and contract-checked: all i32, i64, and f64 forms
 (`abs_i32`/`abs_i64`/`abs_f64`, `sign_i32`/`sign_i64`/`sign_f64`,
 `min_i32`/`min_f64`, `max_i32`/`max_f64`, `clamp_i32`/`clamp_f64`), plus
-`abs_checked_i32` (`Option`-returning) and the shared `prelude`
-(`Option`/`Result`). Verified on the **C backend** by inspecting the
-emitted C directly, not just exit codes — correct `int`/`int64_t`/`double`
-typing throughout (params, locals, contract-result slots, call-result
-temps), real `i64`-magnitude values round-tripping correctly, and
-`Option`/`Result` compiling to real tagged-struct types with working
-`Some`/`None` match logic. The **VM backend** does not currently compile
-this library at all — see BUGS.md's "Not yet working" for why (a
-contract-typing gap plus a duplicate-type issue once more than one file
-imports the same type).
+`abs_checked_i32`/`abs_checked_i64` (`Option`/`OptionI64`-returning) and
+the shared `prelude` (`Option`/`Result`/`OptionI64`). Verified on the **C
+backend** by inspecting the emitted C directly, not just exit codes —
+correct `int`/`int64_t`/`double` typing throughout (params, locals,
+contract-result slots, call-result temps, enum payload struct fields, and
+match-arm payload bindings), real `i64`-magnitude values round-tripping
+correctly, and `Option`/`Result`/`OptionI64` compiling to real
+tagged-struct types with working `Some`/`None` match logic. The **VM
+backend** does not currently compile this library at all — see BUGS.md's
+"Not yet working" for why (a contract-typing gap plus a duplicate-type
+issue once more than one file imports the same type).
 
-See [BUGS.md](BUGS.md) for eight toolchain gaps found while starting this
+See [BUGS.md](BUGS.md) for nine toolchain gaps found while starting this
 work. **Fixed upstream**: bug #5 (`f64` silently compiling as `int`), bug
 #3 (generic enums like `Option<T>` failing to resolve — turned out to be a
 real "generics don't work" gap, not the `--project`-specific issue first
 suspected), bug #1 (integer literals wider than i32 truncating — including
 a second, deeper sub-bug in the same "hardcodes int" family, found while
-verifying the first), and bug #7 (an explicit
+verifying the first), bug #7 (an explicit
 `let x: f64 = <arithmetic-expr>;` local silently defaulting to `int` — the
 `let`'s own type annotation was parsed and stored correctly but no
-lowering path ever consulted it). **Still open**: bug #2 (VM backend can't
-type-check a non-`i32`/`bool` contract) and bug #8 (enum payload slots are
-always `int`, regardless of type — blocks `abs_checked_i64`).
+lowering path ever consulted it), and bug #8 (enum payload slots and
+match-arm payload bindings always `int`, regardless of type — unblocked
+`abs_checked_i64`). **Still open**: bug #2 (VM backend can't type-check a
+non-`i32`/`bool` contract) and bug #9 (generic enums resolve but don't
+monomorphize — a shared `Option<T>` instantiated at more than one concrete
+type in the same program silently truncates the non-winning type;
+`abs_checked_i64` works around this with a second, concrete `OptionI64`
+type rather than reusing `Option<T>` — see BUGS.md #9 and "Deviations from
+SPEC.md" below).
 
 ## Tier 1 / Tier 2
 
@@ -64,6 +71,19 @@ toolchain and the spec disagree — write down the deviation and why).
    and `build/sv0-megatu-compiler-native --project /path/to/sv0-mathlib`
    both work today from a `sv0-toolchain` checkout. No `sv0.toml` exists in
    the toolchain to root a project a different way.
+3. **`abs_checked_i64` returns `OptionI64`, a second concrete enum, not
+   `Option<T>` instantiated at `i64`.** sv0 generic enums resolve (BUGS.md
+   #3) but the compiler doesn't monomorphize them: there is exactly one
+   physical struct for `Option<T>`, and its payload slot's C type is
+   resolved from the *declaration's* own payload type token — for a
+   generic enum that token is the literal parameter name `T`, never a
+   concrete type. Reusing the shared `Option<T>` for an `i64` payload would
+   silently truncate it through the same 32-bit-`int` bug BUGS.md #8 fixed
+   for the non-generic case. `lib/prelude.sv0` declares `OptionI64`
+   (concrete, `Some(i64)`/`None`) as a dedicated companion instead — see
+   BUGS.md #9. Not a scalable pattern past a handful of concrete `_checked`
+   return types; worth revisiting before R0.1+'s larger `_checked` surface
+   if bug #9 isn't fixed by then.
 
 ## Build and test
 

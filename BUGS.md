@@ -2,10 +2,11 @@
 
 Filed here first (this repo has no upstream tracker yet); each should become
 a real `sv0-toolchain`/`sv0c` issue. Audited against sv0-toolchain HEAD
-`840fe73` / sv0c HEAD `0705d68` (2026-08-23). **Bugs #5, #3, #1, and #7 are
-fixed** (f64 miscompiling as `int`; generic enums failing to resolve;
+`840fe73` / sv0c HEAD `0705d68` (2026-08-23). **Bugs #5, #3, #1, #7, and #8
+are fixed** (f64 miscompiling as `int`; generic enums failing to resolve;
 integer literals wider than i32 truncating; `let`-annotations over a
-non-call/struct/enum RHS ignored). Bugs #2, #6, #8 are not fixed.
+non-call/struct/enum RHS ignored; enum payload slots always `int`). Bugs
+#2, #6, and #9 are not fixed.
 
 ## 1. Integer literals wider than i32 are silently truncated to 32 bits
 
@@ -358,29 +359,132 @@ invocation even for code that's known-good.
 
 ## 8. Enum payload slots are always a 32-bit `int`, regardless of type
 
-**Severity: medium, narrow — found while restoring `abs_checked_i64`,
-NOT fixed.** An enum variant's payload field always compiles to plain C
-`int`, regardless of the payload's declared sv0 type:
+**STATUS (2026-08-23): FIXED in `sv0-toolchain`** (uncommitted in that
+repo's working tree). Two layered sub-bugs, both in the same "everything
+numeric defaults to int" family as bugs #5/#1/#7, just a fourth and fifth
+location:
 
+**8a — the enum typedef's own field.** An enum variant's payload field
+always compiled to plain C `int`, regardless of the payload's declared sv0
+type:
 ```
 enum Box64 { Wrap(i64) }
 ```
-compiles to
-```c
-typedef struct { int tag; int p0; } Box64;
-```
-— `p0` is `int`, not `int64_t`. So `Box64::Wrap(9223372036854775807)`
-assigns a value outside `int`'s range into an `int` field: implementation-
-defined-at-best, likely truncating, in C. Not investigated further (root
-cause presumably lives in whatever builds the enum typedef string — same
-family as bug #5/#1's "everything defaults to int" pattern, just a fourth
-location, not chased down this session).
+compiled to `typedef struct { int tag; int p0; } Box64;` — `p0` was `int`,
+not `int64_t`. Root cause: `sv0c/lib/lowering.sv0`'s `emit_enum_td`
+hardcoded `int p{N};` for every payload slot; the parser had never even
+retained each variant's payload TYPE tokens to hardcode away from
+(`parse_enum_item` recorded the payload's presence/count, never its type
+name). Fix: `parse_enum_item` now also records each payload's type-name
+token (two new flat program-wide arrays,
+`enum_variant_payload_count_by_variant` / `enum_variant_payload_ty_name_tok`,
+threaded through `parse_item`/`parse_program`/`lower`/
+`collect_typedefs_str`); a new `enum_slot_ctys_for_item` resolves each
+slot's C category by scanning every variant of that enum item — since sv0
+enums compile to one flat shared struct (not a real C union), a slot's
+category is only sound if every variant that actually uses that slot
+agrees; on any conflict or if nothing recognizes it, falls back to the
+prior always-safe `int` default, so this is only ever an improvement, never
+a regression.
 
-**Impact on this library:** blocks `abs_checked_i64` (would need to store
-an `i64` payload in `Option::Some`) and, by the same mechanism, any future
-`_checked` function over `i64`/`u64`/`f64` that this spec calls for
-(`sqrt_checked_f64`, `mod_inverse_u64`, etc.) — `abs_checked_i32` is
-unaffected only because `i32` already fits an `int` field natively.
+**8b — reading the payload back out via `match`, found immediately after
+fixing 8a while testing the actual `abs_checked_i64` round-trip.** Even
+with the struct field itself now correctly `int64_t`, a match arm binding
+like `Option::Some(v) => ...` still declared `v` as plain `int`,
+truncating the value on the way back out:
+```c
+int64_t p0;           /* 8a's fix: the field itself is now correct */
+...
+int v = some_case.p0; /* 8b: reading it back out was still wrong */
+```
+Root cause: a match-arm payload bind lowers to an ordinary `Assign`
+instruction whose RHS is a `VMember` (struct-field-access) value — this
+routes through the SAME (handle → category) tyenv machinery bug #5/#1
+built for temp-typing, but `megatu_value_cty`'s `VMember` case
+(`sv0c/lib/megaTU-main.sv0`) was hardcoded to `return 0` (`int`), the
+"future work" stub left when that machinery was first written. Fixed by
+building a second, small lookup table in `main()` — reusing 8a's own
+`enum_slot_ctys_for_item` so the two can never disagree — mapping each
+enum item to its slots' categories, and extending the tyenv with a third
+parallel array tracking each handle's *enum item index* (populated
+alongside the existing category at every `DeclNamed`/parameter-seed site,
+by resolving the declared type name against the new table). `VMember`'s
+case now: decode the payload-slot sentinel handle (`fh <= -10` → slot
+`0 - 10 - fh`, the same encoding `megatu_field_name` already used to print
+`p<i>`), resolve the scrutinee's own enum item via the tyenv, and look up
+that slot's category — falling back to the prior `int` default whenever
+the scrutinee isn't a tracked enum-typed handle.
+
+**Verified**: `enum Box64 { Wrap(i64) }` now emits `int64_t p0;`
+(confirms 8a); the full `abs_checked_i64` round trip —
+```
+enum Option { Some(i64), None }
+fn abs_checked_i64(x: i64) -> Option { ... return Option::Some(abs_i64(x)); }
+...
+let ok: bool = match some_case { Option::Some(v) => v == 9223372036854775807, ... };
+```
+now emits `int64_t v = some_case.p0;` (confirms 8b) and **runs to exit 0**
+end to end — not just inspected in the C.
+`scripts/pc3b6-native-project-acceptance.sh`'s 18-fixture corpus stays
+green, and this repo's current full suite (i32 + f64 + i64 forms) still
+compiles and runs to exit 0 after rebuild.
+
+**Deliberately NOT restored via the shared generic `prelude::Option<T>`
+— see bug #9.** 8a's per-item slot-category resolution reads each payload
+slot's type-name TOKEN as it was written in the enum DECLARATION. For a
+generic `enum Option<T> { Some(T), None }`, that token is the literal text
+`"T"` — a type PARAMETER name, not a concrete type — which
+`enum_payload_ty_name_to_category` correctly doesn't recognize (it isn't
+`i64`/`u64`/`u32`/`f32`/`f64`), so it falls back to `int`, same as before
+either half of this fix. Confirmed empirically: instantiating the SAME
+shared `Option<T>` with `Option::Some(<i64>)` still truncates through `v`,
+because there is only ever one physical declaration of `Option`'s payload
+type (`T`), not a distinct one per call-site instantiation — sv0 has no
+monomorphization (see bug #9). This fix is real and correct for what it
+claims — a NON-generic (concrete) enum's payload slots and match bindings
+now honor their real declared type — it just doesn't, and structurally
+cannot, reach the generic case without bug #9 also being fixed.
+
+**Impact on this library:** `abs_checked_i64` is restored using a
+**second, concrete, non-generic** enum dedicated to the `i64` case
+(`OptionI64`) rather than the shared generic `Option<T>` — see
+`lib/prelude.sv0` and bug #9 for why, and README.md's "Deviations from
+SPEC.md" for this as a recorded, deliberate workaround, not an oversight.
+
+## 9. Generic enums have no monomorphization — one shared instantiation, not one per concrete type
+
+**Severity: high for this library's `_checked`-function pattern generally;
+NOT fixed; found while restoring `abs_checked_i64` after bug #8.** Bug #3
+made `enum Option<T> { Some(T), None }` parse and resolve at all (its `<T>`
+no longer causes an "unknown type" error); it did not make each concrete
+instantiation (`Option<i32>` vs `Option<i64>` vs `Option<f64>`) into a
+distinct type. There is exactly one physical C struct for `Option`, and
+its payload slot's category is resolved from the DECLARATION's own payload
+type token — which, for a generic enum, is the parameter name `T`, never a
+concrete type, regardless of how many different concrete types the enum is
+actually instantiated with across a program. Confirmed empirically: a
+program declaring the single shared `enum Option<T> { Some(T), None }` and
+calling `Option::Some(<large i64 value>)` still emits `int v = ...p0;` at
+the match-arm binding and silently truncates on run — the exact symptom
+bug #8 fixes, just unreachable for the generic case because 8's fix has
+nothing but the literal text `"T"` to resolve.
+
+**Impact on this library:** SPEC.md's `_checked` function family (any
+function returning `Option<T>` for `T` other than the one concrete type
+whichever single instantiation happens to "win," in practice whichever
+concrete type an `Option` value was most recently constructed with in the
+same translation unit) is not soundly usable with the SHARED
+`prelude::Option<T>` for more than one payload type per program. Worked
+around here, not fixed: `lib/prelude.sv0` additionally declares
+`OptionI64` (concrete, non-generic, `Some(i64)`/`None`) alongside the
+generic `Option<T>` used for `i32`, and `abs_checked_i64` returns
+`OptionI64` — see README.md's "Deviations from SPEC.md" for this as a
+recorded workaround. This does not scale past a handful of concrete
+`_checked` return types without either (a) real monomorphization landing
+upstream, or (b) this library hand-declaring one concrete `Option<T>`
+variant per `T` it needs (`OptionU32`, `OptionF64`, ...) — acceptable for
+F0's small surface, worth revisiting before R0.1+'s larger `_checked`
+surface if bug #9 isn't fixed by then.
 
 ## Working today — genuinely verified (emitted C inspected, not just exit code)
 
