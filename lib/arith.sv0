@@ -1,0 +1,55 @@
+/* module::arith — absolute value, sign, min/max/clamp, rounding, integer
+ * power, checked/wrapping/saturating arithmetic, interpolation, FMA.
+ * Spec: sv0-mathlib SPEC.md Section 11 (ARITH-001..010).
+ *
+ * NOTE (toolchain gap, recorded in README.md "Deviations from SPEC.md"):
+ * `module math::arith;` (a dotted module path) is rejected by the current
+ * compiler ("E0320: module path must be a single identifier in this
+ * slice"), so this file is `module arith;`, not `module math::arith;`.
+ * Consumers write `use arith::abs_i32;`, not `use math::arith::abs_i32;`.
+ */
+module arith;
+
+/* abs_checked_i32 (ARITH-001's Option-returning companion) is written and
+ * verified correct in ../blocked/arith_checked.sv0.blocked, but is not wired
+ * in here: any `enum Foo<T> { ... }` — including this library's own
+ * Option/Result prelude — makes the whole project fail to compile under the
+ * native compiler's `--project` mode, with a spurious "unknown type" on the
+ * enum's own type parameter. See BUGS.md #3. Restore lib/prelude.sv0 and
+ * this function once that is fixed upstream.
+ */
+
+/* Absolute value of a signed i32.
+ *
+ * Domain: all i32 except i32::MIN, whose absolute value (2147483648) is not
+ * representable in i32. Callers that cannot statically rule out i32::MIN
+ * should use abs_checked_i32 instead.
+ */
+fn abs_i32(x: i32) -> i32
+    requires(x != (0 - 2147483648))
+    ensures(result >= 0)
+{
+    if x < 0 {
+        return 0 - x;
+    }
+    return x;
+}
+
+/* abs_i64/abs_checked_i64 (ARITH-001) are BLOCKED, not merely deferred: any
+ * integer literal that does not fit in i32 (e.g. i64::MIN's magnitude,
+ * 9223372036854775808) is silently truncated to 32 bits by the compiler's
+ * literal representation, regardless of the let/param/requires type context
+ * it appears in — see BUGS.md #1. There is no correct way to write i64::MIN
+ * as a literal today, so this pair cannot be implemented correctly yet.
+ */
+
+/* Absolute value of an f64. Total function: NaN and Infinity both have a
+ * well-defined IEEE-754 absolute value, so there is no requires clause. */
+fn abs_f64(x: f64) -> f64
+    ensures(result >= 0.0)
+{
+    if x < 0.0 {
+        return 0.0 - x;
+    }
+    return x;
+}

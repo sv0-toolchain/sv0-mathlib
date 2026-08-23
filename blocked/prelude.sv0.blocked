@@ -1,0 +1,9 @@
+/* sv0-mathlib prelude: Option/Result are not yet shipped as a core/std type
+ * (see toolchain audit, README.md), so every consumer that needs them must
+ * declare its own copy. This module is that single declaration point —
+ * every other module in this library uses these, never a private copy.
+ */
+module prelude;
+
+enum Option<T> { Some(T), None }
+enum Result<T, E> { Ok(T), Err(E) }
