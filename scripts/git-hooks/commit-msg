@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+# sv0-mathlib commit-msg hook.
+# Rejects LLM/agent/assistant sign-offs and attributions in commit messages.
+# Installed by scripts/install-git-hooks.sh. Source of truth: scripts/git-hooks/
+# (tracked). Mirrors sv0-toolchain's own commit-msg hook.
+#
+# Bypass in an emergency with: git commit --no-verify
+# Or set SV0_SKIP_HOOKS=1 to skip all sv0-mathlib hooks.
+set -euo pipefail
+
+[[ -n "${SV0_SKIP_HOOKS:-}" ]] && exit 0
+
+msg_file="$1"
+repo_top="$(git rev-parse --show-toplevel)"
+
+exec python3 "$repo_top/scripts/verify_commit_msg_no_ai_signoff.py" "$msg_file"
