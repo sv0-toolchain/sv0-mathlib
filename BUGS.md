@@ -580,6 +580,60 @@ variant per `T` it needs (`OptionU32`, `OptionF64`, ...) — acceptable for
 F0's small surface, worth revisiting before R0.1+'s larger `_checked`
 surface if bug #9 isn't fixed by then.
 
+## 10. `loop_invariant` on a `while` loop corrupts name resolution for an unrelated, earlier function
+
+**STATUS (2026-08-23): FIXED in `sv0-toolchain`** (sv0c commit `9d0b69c`,
+parent `0aa2e59`). Found immediately on adding this library's first
+`loop_invariant` clause (R0.1's `frac_floor_of_nonneg`, an ARITH-005
+helper) to `lib/arith.sv0`, a file with several other, earlier functions:
+compiling started failing with `error[E0300]: unbound name` pointing at
+`lo` inside `clamp_i32`'s own `requires(lo <= hi)` — a completely
+unrelated, unmodified, previously-working function. The loop_invariant
+clause's actual *content* was irrelevant: even a bare
+`loop_invariant(true)` triggered it (confirmed by bisection down to a
+minimal 8-line repro); only whether one was present anywhere in the file
+mattered, and the specific earlier function it broke shifted depending on
+what else was in the file — a strong signal of an index/offset bug rather
+than anything semantically related to `loop_invariant`'s own meaning.
+
+**Root cause**: `sv0c/lib/resolver.sv0`'s and `sv0c/lib/checker.sv0`'s
+`WhileLoop` (tag 12) handling both read a loop_invariant clause's
+expression via `inv_f + ii`, treating `inv_f` (the while node's `ed3`) as
+a direct index into the `et` expression-node arena. It isn't one:
+`parser.sv0`'s `block_stmt_sidecar_push` (the same mechanism block
+statements and match arms already use to survive being non-contiguous in
+`et`) stores each loop_invariant's REAL `et` index in the shared `pp`
+pool and returns `offset + 1` into THAT pool as the handle — a
+`block_stmt_index` helper already exists specifically to decode this
+indirection back to the real `et` index, and both consumers should have
+used it, but instead used the raw `pp`-pool offset as an `et` index
+directly. Since `pp` (identifiers/paths) is typically much smaller than
+`et` (every expression node in the whole file), the wrong index landed on
+some unrelated, earlier `et` node — resolver.sv0 then resolved (and
+reported errors on) THAT node instead of the real loop_invariant
+expression; checker.sv0's `expr_references_result` (checking for illegal
+`result` references, a narrower, easy-to-miss consequence of the same
+bug) silently scanned the wrong subtree too, fixed for consistency even
+without its own failing repro.
+
+**Fix**: route both call sites through `block_stmt_index`, exactly like
+block statements and match arms already do.
+
+**Verified**: the 8-line minimal repro (an unrelated `clamp_i32`-style
+function plus a new function with a bare `while cond loop_invariant(true)
+{ }`) compiles clean; this library's actual `frac_floor_of_nonneg`
+(a real, meaningful loop_invariant, `acc <= x`) compiles and its callers
+(`trunc_f64`/`floor_f64`/`ceil_f64`/`round_f64`) all run correctly.
+`pc3b6-native-project-acceptance.sh`, `self-host-check-golden`, and
+`integration-vm` all green after the fix.
+
+**Impact on this library**: blocked ARITH-005 entirely until fixed (any
+file combining a `loop_invariant`-bearing helper with other functions hit
+this). **Impact on M5**: any LLVM-backend or crypto code using
+`loop_invariant` in a multi-function file would have hit this identically
+— worth flagging to M5 planners as a real, now-fixed compiler
+correctness gap, not just a mathlib-local nuisance.
+
 ## Working today — genuinely verified (emitted C inspected, not just exit code)
 
 - Single-file compile/verify (`./scripts/sv0 compile`, `verify`, `emit-c`)
