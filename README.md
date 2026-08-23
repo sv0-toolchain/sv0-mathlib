@@ -32,10 +32,13 @@ a second, deeper sub-bug in the same "hardcodes int" family, found while
 verifying the first), bug #7 (an explicit
 `let x: f64 = <arithmetic-expr>;` local silently defaulting to `int` — the
 `let`'s own type annotation was parsed and stored correctly but no
-lowering path ever consulted it), and bug #8 (enum payload slots and
+lowering path ever consulted it), bug #8 (enum payload slots and
 match-arm payload bindings always `int`, regardless of type — unblocked
-`abs_checked_i64`). **Still open**: bug #2 (VM backend can't type-check a
-non-`i32`/`bool` contract) and bug #9 (generic enums resolve but don't
+`abs_checked_i64`), and bug #6's silent-diagnostics half (a parse failure
+used to exit nonzero with zero error text; `==>` itself, the syntax that
+first surfaced it, stays deliberately unimplemented — see BUGS.md #6).
+**Still open**: bug #2 (VM backend can't type-check a non-`i32`/`bool`
+contract) and bug #9 (generic enums resolve but don't
 monomorphize — a shared `Option<T>` instantiated at more than one concrete
 type in the same program silently truncates the non-winning type;
 `abs_checked_i64` works around this with a second, concrete `OptionI64`
