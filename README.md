@@ -7,14 +7,18 @@ coordinates, and complex numbers, built contract-first per
 
 ## Status
 
-**F0 complete.** R0.1 in progress: `math::arith`'s ARITH-005 (rounding),
-ARITH-006 (classification), and ARITH-009 (lerp) are done, and
-`math::modular`'s MOD-001..004 (floor/Euclidean remainder, GCD/LCM,
-overflow-safe modular add/sub/mul) are done — see BUGS.md #10 for a
-toolchain bug found and fixed while adding the first of these
-(`loop_invariant` corrupting unrelated-function name resolution).
-Remaining for R0.1: ARITH-007 (`pow_i64`/`pow_checked_i64`), ARITH-008
-(wrapping/checked add/sub/mul), ARITH-010 (`fma_f64`).
+**F0 complete. R0.1 complete**: `math::arith`'s ARITH-005 (rounding),
+ARITH-006 (classification), ARITH-007 (`pow_i64`/`pow_checked_i64`),
+ARITH-008 (wrapping/checked add/sub/mul across i32/i64/u32/u64),
+ARITH-009 (lerp), and ARITH-010 (`fma_f64`, a genuine software-emulated
+single-rounding fma via Dekker's algorithm — no native fma primitive
+exists anywhere in this toolchain), plus all of `math::modular`
+(MOD-001..004: floor/Euclidean remainder, GCD/LCM, overflow-safe modular
+add/sub/mul) are all done. Found and fixed four more real toolchain bugs
+along the way (BUGS.md #10, #11) and found two more real, still-open
+gaps with documented workarounds (#12, #13) — see BUGS.md for detail.
+MOD-005..007 and every R0.2/R0.3 requirement (trig, polar, complex) are
+not yet started.
 
 **F0's own surface, including `abs_checked_i64`:** `math::arith`'s ARITH-001..004
 are fully implemented and contract-checked: all i32, i64, and f64 forms
@@ -34,31 +38,31 @@ forms — see BUGS.md #2 for why (VM bytecode has no float representation
 at all, a separate, larger gap) — and a duplicate-type issue once more
 than one file imports the same type; see BUGS.md's "Not yet working".
 
-See [BUGS.md](BUGS.md) for nine toolchain gaps found while starting this
-work. **All nine are now fixed**, in the sense that matters for this
-library: bug #5 (`f64` silently compiling as `int`), bug #3 (generic
-enums like `Option<T>` failing to resolve — turned out to be a real
-"generics don't work" gap, not the `--project`-specific issue first
-suspected), bug #1 (integer literals wider than i32 truncating —
-including a second, deeper sub-bug in the same "hardcodes int" family,
-found while verifying the first), bug #7 (an explicit `let x: f64 =
-<arithmetic-expr>;` local silently defaulting to `int` — the `let`'s own
-type annotation was parsed and stored correctly but no lowering path ever
-consulted it), bug #8 (enum payload slots and match-arm payload bindings
-always `int`, regardless of type — unblocked `abs_checked_i64`), bug #6's
-silent-diagnostics half (a parse failure used to exit nonzero with zero
-error text — `==>` itself, the syntax that first surfaced it, stays
-deliberately unimplemented; the same fix also surfaced and fixed a real,
+See [BUGS.md](BUGS.md) for thirteen toolchain gaps found across F0 and
+R0.1. **Nine are fixed**: bug #5 (`f64` silently compiling as `int`),
+bug #3 (generic enums like `Option<T>` failing to resolve), bug #1
+(integer literals wider than i32 truncating), bug #7 (an explicit
+`let x: f64 = <arithmetic-expr>;` local silently defaulting to `int`),
+bug #8 (enum payload slots and match-arm payload bindings always `int`),
+bug #6's silent-diagnostics half (a parse failure used to exit nonzero
+with zero error text — the same fix also surfaced and fixed a real,
 sv0-mathlib-unrelated pre-existing bug in sv0c's own test corpus, bare
-struct-field assignment statements silently compiling to nothing), and
-bug #2's checker-level half (the VM-path checker rejected i64/u32/f64
-arithmetic anywhere, not just in contracts — VM bytecode float *lowering*
-remains a separate, larger, unfixed gap). **Only bug #9 remains a genuine
-open gap**: generic enums resolve but don't monomorphize — a shared
-`Option<T>` instantiated at more than one concrete type in the same
-program silently truncates the non-winning type; `abs_checked_i64` works
-around this with a second, concrete `OptionI64` type rather than reusing
-`Option<T>` — see BUGS.md #9 and "Deviations from SPEC.md" below.
+struct-field assignment statements silently compiling to nothing), bug
+#2's checker-level half (the VM-path checker rejected i64/u32/f64
+arithmetic anywhere, not just in contracts — VM bytecode float
+*lowering* remains a separate, larger, unfixed gap), bug #10
+(`loop_invariant` anywhere in a file corrupting name resolution for an
+unrelated earlier function), and bug #11 (`match` on a direct call
+result, no intermediate `let`, mistyping the payload binding). **Four
+remain genuine open gaps, each with a documented, verified workaround
+this library uses instead**: bug #9 (generic enums resolve but don't
+monomorphize — `abs_checked_i64` uses a concrete `OptionI64` instead of
+the shared `Option<T>`), bug #12 (`match` used as a value mistypes its
+own result temp — worked around via match-as-statement, used throughout
+`pow_checked_i64` onward), bug #13 (a binop directly on a struct field
+access mistypes its own temp — worked around by copying fields into
+locals first, used throughout `fma_f64`'s Dekker-splitting
+implementation), and the VM bytecode float-lowering gap noted above.
 
 ## Tier 1 / Tier 2
 

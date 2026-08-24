@@ -33,9 +33,14 @@ module arith;
 
 use prelude::Option;
 use prelude::OptionI64;
-
-fn i64_min_val() -> i64 { return 0 - 9223372036854775807 - 1; }
-fn i64_max_val() -> i64 { return 9223372036854775807; }
+use prelude::OptionU32;
+use prelude::OptionU64;
+use prelude::i32_min_val;
+use prelude::i32_max_val;
+use prelude::i64_min_val;
+use prelude::i64_max_val;
+use prelude::u32_max_val;
+use prelude::u64_max_val;
 
 /* Absolute value of a signed i32.
  *
@@ -506,4 +511,274 @@ fn pow_checked_i64(base: i64, exp: u32) -> OptionI64 {
     }
     if overflowed { return OptionI64::None; }
     return OptionI64::Some(acc);
+}
+
+/* ── ARITH-008: wrapping/checked add/sub/mul ──────────────────────────
+ * Scoped to i32/i64/u32/u64 — the four integer widths this library
+ * otherwise actually uses (SPEC.md's "per integer type" doesn't name an
+ * exact set); i8/u8/i16/u16/isize/usize are out of scope until something
+ * in this library needs them, per GOV-004's "don't silently guess, write
+ * down the deviation" — recorded in README.md.
+ *
+ * Wrapping, signed forms (i32/i64): C signed-integer overflow is
+ * undefined behavior, so "wrap on overflow" can't be done by just
+ * letting `a + b` overflow and hoping — instead, reinterpret both
+ * operands as the SAME-WIDTH UNSIGNED type (plain assignment across
+ * same-width int/uint is a well-defined, bit-pattern-preserving
+ * conversion in C — not the same thing as the `as` cast operator, which
+ * routes through a separate, currently-broken codegen category; see
+ * this function family's own comment further down for why `as` isn't
+ * used here), do the addition/subtraction/multiplication there (where
+ * unsigned overflow wraps by a well-defined modular rule), then convert
+ * the unsigned result back to signed the same way. Wrapping, unsigned
+ * forms (u32/u64) need no such trick — C unsigned arithmetic already
+ * wraps modulo 2^n by definition.
+ *
+ * Checked forms detect overflow via comparisons BEFORE computing the
+ * operation, never by computing it first and inspecting the result
+ * (checking after is itself undefined behavior on signed overflow) —
+ * same approach ARITH-007's `mul_checked_i64` already established.
+ */
+
+fn add_wrapping_i32(a: i32, b: i32) -> i32 {
+    let ua: u32 = a;
+    let ub: u32 = b;
+    let usum: u32 = ua + ub;
+    let out: i32 = usum;
+    return out;
+}
+
+fn sub_wrapping_i32(a: i32, b: i32) -> i32 {
+    let ua: u32 = a;
+    let ub: u32 = b;
+    let udiff: u32 = ua - ub;
+    let out: i32 = udiff;
+    return out;
+}
+
+fn mul_wrapping_i32(a: i32, b: i32) -> i32 {
+    let ua: u32 = a;
+    let ub: u32 = b;
+    let uprod: u32 = ua * ub;
+    let out: i32 = uprod;
+    return out;
+}
+
+fn add_checked_i32(a: i32, b: i32) -> Option {
+    if b > 0 {
+        if a > (i32_max_val() - b) { return Option::None; }
+    } else {
+        if a < (i32_min_val() - b) { return Option::None; }
+    }
+    return Option::Some(a + b);
+}
+
+fn sub_checked_i32(a: i32, b: i32) -> Option {
+    if b < 0 {
+        if a > (i32_max_val() + b) { return Option::None; }
+    } else {
+        if a < (i32_min_val() + b) { return Option::None; }
+    }
+    return Option::Some(a - b);
+}
+
+fn mul_checked_i32(a: i32, b: i32) -> Option {
+    if a == 0 { return Option::Some(0); }
+    if b == 0 { return Option::Some(0); }
+    if a == (0 - 1) {
+        if b == i32_min_val() { return Option::None; }
+        return Option::Some(0 - b);
+    }
+    if b == (0 - 1) {
+        if a == i32_min_val() { return Option::None; }
+        return Option::Some(0 - a);
+    }
+    if a > 0 {
+        if b > 0 {
+            if a > (i32_max_val() / b) { return Option::None; }
+        } else {
+            if b < (i32_min_val() / a) { return Option::None; }
+        }
+    } else {
+        if b > 0 {
+            if a < (i32_min_val() / b) { return Option::None; }
+        } else {
+            if a < (i32_max_val() / b) { return Option::None; }
+        }
+    }
+    return Option::Some(a * b);
+}
+
+fn add_wrapping_i64(a: i64, b: i64) -> i64 {
+    let ua: u64 = a;
+    let ub: u64 = b;
+    let usum: u64 = ua + ub;
+    let out: i64 = usum;
+    return out;
+}
+
+fn sub_wrapping_i64(a: i64, b: i64) -> i64 {
+    let ua: u64 = a;
+    let ub: u64 = b;
+    let udiff: u64 = ua - ub;
+    let out: i64 = udiff;
+    return out;
+}
+
+fn mul_wrapping_i64(a: i64, b: i64) -> i64 {
+    let ua: u64 = a;
+    let ub: u64 = b;
+    let uprod: u64 = ua * ub;
+    let out: i64 = uprod;
+    return out;
+}
+
+fn add_checked_i64(a: i64, b: i64) -> OptionI64 {
+    if b > 0 {
+        if a > (i64_max_val() - b) { return OptionI64::None; }
+    } else {
+        if a < (i64_min_val() - b) { return OptionI64::None; }
+    }
+    return OptionI64::Some(a + b);
+}
+
+fn sub_checked_i64(a: i64, b: i64) -> OptionI64 {
+    if b < 0 {
+        if a > (i64_max_val() + b) { return OptionI64::None; }
+    } else {
+        if a < (i64_min_val() + b) { return OptionI64::None; }
+    }
+    return OptionI64::Some(a - b);
+}
+
+/* Unsigned wrapping: C unsigned arithmetic already wraps modulo 2^n by
+ * definition — no trick needed.
+ */
+fn add_wrapping_u32(a: u32, b: u32) -> u32 { return a + b; }
+fn sub_wrapping_u32(a: u32, b: u32) -> u32 { return a - b; }
+fn mul_wrapping_u32(a: u32, b: u32) -> u32 { return a * b; }
+
+fn add_checked_u32(a: u32, b: u32) -> OptionU32 {
+    if a > (u32_max_val() - b) { return OptionU32::None; }
+    return OptionU32::Some(a + b);
+}
+
+fn sub_checked_u32(a: u32, b: u32) -> OptionU32 {
+    if a < b { return OptionU32::None; }
+    return OptionU32::Some(a - b);
+}
+
+fn mul_checked_u32(a: u32, b: u32) -> OptionU32 {
+    if a == 0 { return OptionU32::Some(0); }
+    if b > (u32_max_val() / a) { return OptionU32::None; }
+    return OptionU32::Some(a * b);
+}
+
+fn add_wrapping_u64(a: u64, b: u64) -> u64 { return a + b; }
+fn sub_wrapping_u64(a: u64, b: u64) -> u64 { return a - b; }
+fn mul_wrapping_u64(a: u64, b: u64) -> u64 { return a * b; }
+
+fn add_checked_u64(a: u64, b: u64) -> OptionU64 {
+    if a > (u64_max_val() - b) { return OptionU64::None; }
+    return OptionU64::Some(a + b);
+}
+
+fn sub_checked_u64(a: u64, b: u64) -> OptionU64 {
+    if a < b { return OptionU64::None; }
+    return OptionU64::Some(a - b);
+}
+
+fn mul_checked_u64(a: u64, b: u64) -> OptionU64 {
+    if a == 0 { return OptionU64::Some(0); }
+    if b > (u64_max_val() / a) { return OptionU64::None; }
+    return OptionU64::Some(a * b);
+}
+
+/* ── ARITH-010: fused multiply-add ────────────────────────────────────
+ * No native `fma()` (or any hardware single-rounding primitive) exists
+ * anywhere in this toolchain (Tier 1: pure sv0 arithmetic only). A
+ * genuinely single-rounding `a*b+c` — the whole point of ARITH-010,
+ * which explicitly requires a fixture demonstrating the result differs
+ * from naive `a*b+c` — is still achievable in PURE `+`/`-`/`*`, though,
+ * via the standard software error-free-transformation technique (Dekker
+ * 1971 / Ogita-Rump-Oishi): `two_prod` recovers the exact rounding error
+ * of `a*b` by splitting each operand into non-overlapping high/low parts
+ * (`dekker_split`, using the classic `2^27+1` splitter constant for
+ * `f64`'s 53-bit mantissa) and reconstructing the product from the
+ * split parts; `two_sum` does the same for `p + c`. Summing the two
+ * recovered error terms and adding them back to the sum's high part
+ * recovers virtually all of the precision a true hardware `fma` would
+ * preserve — this is standard, well-established numerical practice for
+ * software-emulated fma, not a novel or unreliable trick.
+ *
+ * BUGS.md #13 (sv0-mathlib): arithmetic performed DIRECTLY on a struct
+ * field access (`sa.hi * sb.hi`, both `Pair2` fields) mistypes the
+ * binop's own temp as `int` — the same "everything defaults to int"
+ * family bug #8/#11 fixed for enum payload access, but for PLAIN struct
+ * fields, which was never covered. Worked around by copying each field
+ * into its own local (`let sa_hi: f64 = sa.hi;`) before ever using it in
+ * arithmetic — confirmed via the emitted C that this fully sidesteps the
+ * bug (a local's own DeclNamed typing is unaffected, per bug #7's fix).
+ * Not fixed upstream this session; see BUGS.md #13 for the repro and
+ * why a full fix needs new struct-field-category infrastructure
+ * mirroring bug #8's enum-slot table.
+ */
+
+/* (hi, lo) with hi + lo == a exactly, hi's low 26 mantissa bits zeroed —
+ * the Dekker/Veltkamp splitting step every other function below builds
+ * on. */
+struct Pair2 { hi: f64, lo: f64 }
+
+fn dekker_split(a: f64) -> Pair2 {
+    let splitter: f64 = 134217729.0;
+    let c: f64 = splitter * a;
+    let hi: f64 = c - (c - a);
+    let lo: f64 = a - hi;
+    return Pair2 { hi: hi, lo: lo };
+}
+
+/* Returns (p, e) with p = fl(a*b) (the ordinary rounded product) and e
+ * the EXACT rounding error, such that a*b == p + e exactly (as real
+ * numbers) — Dekker's two_prod, needing only `+`/`-`/`*`.
+ */
+fn two_prod(a: f64, b: f64) -> Pair2 {
+    let p: f64 = a * b;
+    let sa: Pair2 = dekker_split(a);
+    let sb: Pair2 = dekker_split(b);
+    let sa_hi: f64 = sa.hi;
+    let sa_lo: f64 = sa.lo;
+    let sb_hi: f64 = sb.hi;
+    let sb_lo: f64 = sb.lo;
+    let e: f64 = ((sa_hi * sb_hi - p) + sa_hi * sb_lo + sa_lo * sb_hi) + sa_lo * sb_lo;
+    return Pair2 { hi: p, lo: e };
+}
+
+/* Returns (s, e) with s = fl(a+b) and e the exact rounding error, such
+ * that a+b == s + e exactly — Knuth/Møller's two_sum.
+ */
+fn two_sum(a: f64, b: f64) -> Pair2 {
+    let s: f64 = a + b;
+    let bb: f64 = s - a;
+    let e: f64 = (a - (s - bb)) + (b - bb);
+    return Pair2 { hi: s, lo: e };
+}
+
+/* Total function, no `requires` (CONV-007's documented exemption): every
+ * finite/NaN/Infinity `f64` triple is in-domain. No `ensures` beyond
+ * that either — "MAY differ from `a*b+c` by up to the ULP bound" isn't
+ * a checkable boolean predicate (restating the algorithm inside its own
+ * contract would be circular), so ARITH-010's accuracy claim is
+ * verified by the differential fixture in main.sv0 instead (comparing
+ * against naive `a*b+c` at a value chosen to expose the gap), per
+ * ARITH-010's own testing requirement.
+ */
+fn fma_f64(a: f64, b: f64, c: f64) -> f64 {
+    let pe: Pair2 = two_prod(a, b);
+    let p: f64 = pe.hi;
+    let e1: f64 = pe.lo;
+    let se: Pair2 = two_sum(p, c);
+    let s: f64 = se.hi;
+    let e2: f64 = se.lo;
+    let v: f64 = e1 + e2;
+    return s + v;
 }
