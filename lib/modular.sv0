@@ -9,6 +9,7 @@
 module modular;
 
 use prelude::OptionU64;
+use prelude::u64_max_val;
 
 /* ── MOD-001: floor/Euclidean remainder ──────────────────────────────
  * sv0's `%` is C's truncating remainder (same sign as the dividend) —
@@ -71,14 +72,6 @@ fn gcd_checked_u64(a: u64, b: u64) -> u64
 }
 
 /* ── MOD-003: LCM ─────────────────────────────────────────────────── */
-
-/* Max u64 value, used only for lcm_checked_u64's overflow guard — a
- * literal, not a `u64::MAX`-style const (no such associated-constant
- * syntax exists in this compiler slice today).
- */
-fn u64_max_val() -> u64 {
-    return 18446744073709551615;
-}
 
 fn lcm_u64(a: u64, b: u64) -> u64
     requires(a > 0 && b > 0)

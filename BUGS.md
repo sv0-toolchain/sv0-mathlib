@@ -5,12 +5,14 @@ a real `sv0-toolchain`/`sv0c` issue. Audited against sv0-toolchain HEAD
 `840fe73` / sv0c HEAD `0705d68` (2026-08-23), updated through R0.1 work.
 **Bugs #1, #2 (checker-level half), #3, #5, #6 (diagnostics half), #7, #8,
 #10, and #11 are fixed.** Bug #9 (generic enums resolve but don't
-monomorphize) and bug #12 (`match` used as a value mistypes its own
-result temp — workaround documented) remain open, genuine gaps. Bug #6's
-fix also surfaced and fixed a real, sv0-mathlib-unrelated parser/lowering
-defect in sv0c's own test corpus (bare struct-field assignment statements
-silently compiling to nothing) — noted under bug #6 rather than given its
-own number, since it was never a blocker for this library.
+monomorphize), #12 (`match` used as a value mistypes its own result
+temp), and #13 (a binop directly on a struct field access mistypes its
+own temp) remain open, genuine gaps — each has a documented, verified
+workaround this library uses instead. Bug #6's fix also surfaced and
+fixed a real, sv0-mathlib-unrelated parser/lowering defect in sv0c's own
+test corpus (bare struct-field assignment statements silently compiling
+to nothing) — noted under bug #6 rather than given its own number, since
+it was never a blocker for this library.
 
 ## 1. Integer literals wider than i32 are silently truncated to 32 bits
 
@@ -699,6 +701,45 @@ e.g. `let ok: bool = match opt { Some(v) => v == N, None => false };`)
 are NOT affected — `bool` fits `int` correctly regardless, so only
 match-as-value bindings whose arms produce a genuinely wide type need
 the workaround.
+
+## 13. A binop performed directly on a struct field access mistypes its own temp
+
+**Severity: medium — found while implementing ARITH-010 (`fma_f64`), NOT
+fixed.** `sa.hi * sb.hi` — a binary operator applied DIRECTLY to two
+struct field accesses (`sa`/`sb: Pair2 { hi: f64, lo: f64 }`) — declares
+its own result temp as plain C `int`, silently truncating the product of
+two `f64` fields. Confirmed via inspecting the emitted C:
+`int _sv0t2 = (sa.hi * sb.hi);`. The exact same "everything numeric
+defaults to int" family as bugs #5/#8/#11, but for a PLAIN struct field
+(a `codegen_Value::VMember` whose field handle is an ordinary field-name
+token) rather than an enum payload slot — bug #8/#11's fix only extended
+`megatu_value_cty`'s `VMember` case to resolve ENUM payload slot
+categories via the tyenv's enum-item tracking; a struct field access
+still falls through that same function's default `return 0;` (`int`)
+unconditionally, since no equivalent "which struct type, which field"
+lookup table exists for structs the way one now does for enums.
+
+**Root cause**: `megatu_value_cty`'s `VMember` case in `megaTU-main.sv0`
+only special-cases the enum-payload-slot sentinel range (`fh <= -10`); a
+positive field-name token (the shape every ordinary struct field access
+uses) has no corresponding lookup at all. A correct general fix needs new
+infrastructure mirroring bug #8's enum-slot table, but keyed by struct
+item + field NAME rather than enum item + slot INDEX (structs don't use
+the same payload-slot-index encoding enums do) — scoped but not attempted
+this session.
+
+**Workaround (verified to fully sidestep it, used throughout `fma_f64`'s
+Dekker-splitting implementation)**: never perform arithmetic directly on
+a struct field access when the field is a wide (non-i32/bool) type.
+Instead, copy each field into its own local first (`let sa_hi: f64 =
+sa.hi;`), then do arithmetic on the LOCALS — a local's own `DeclNamed`
+typing is unaffected by this bug (bug #7's fix covers it independently),
+so `sa_hi * sb_hi` (both plain variables) resolves correctly.
+
+**Impact on this library**: blocked `fma_f64` (ARITH-010) until worked
+around; will recur for R0.2/R0.3's `Complex`/`Polar` struct types, which
+are entirely `f64`-field structs — worth fixing upstream before that work
+starts, rather than re-discovering the same workaround repeatedly.
 
 ## Working today — genuinely verified (emitted C inspected, not just exit code)
 

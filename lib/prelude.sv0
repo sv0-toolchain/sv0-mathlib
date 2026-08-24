@@ -26,3 +26,27 @@ enum OptionI64 { Some(i64), None }
 /* OptionU64: same rationale as OptionI64, for u64 payloads — MOD-003's
  * `lcm_checked_u64`. */
 enum OptionU64 { Some(u64), None }
+
+/* OptionU32: same rationale, for u32 payloads — ARITH-008's
+ * `add_checked_u32`/`sub_checked_u32`/`mul_checked_u32`. */
+enum OptionU32 { Some(u32), None }
+
+/* Integer MIN/MAX constant helpers, shared across modules — sv0 has no
+ * `T::MAX`/`T::MIN` associated-constant syntax in this compiler slice.
+ * Declared once here (not duplicated per module) after a real bug: two
+ * independent per-module copies of `u64_max_val` (one in arith.sv0, one
+ * in modular.sv0) compiled cleanly through sv0c but failed at the C
+ * compile step with "redefinition of 'u64_max_val'" — the native
+ * compiler doesn't namespace same-named functions across project files,
+ * only same-named TYPES (confirmed: no diagnostic at the sv0 level at
+ * all, only downstream from `cc`). Not filed as a numbered BUGS.md entry
+ * (a real, if minor, toolchain gap — worth a diagnostic upstream
+ * eventually) since the straightforward fix here is simply not to
+ * duplicate the name, which every module below now does.
+ */
+fn i32_min_val() -> i32 { return 0 - 2147483648; }
+fn i32_max_val() -> i32 { return 2147483647; }
+fn i64_min_val() -> i64 { return 0 - 9223372036854775807 - 1; }
+fn i64_max_val() -> i64 { return 9223372036854775807; }
+fn u32_max_val() -> u32 { return 4294967295; }
+fn u64_max_val() -> u64 { return 18446744073709551615; }

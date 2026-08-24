@@ -31,6 +31,37 @@ use arith::lerp_f64;
 use arith::pow_i64;
 use arith::pow_checked_i64;
 use arith::mul_checked_i64;
+use arith::add_wrapping_i32;
+use arith::sub_wrapping_i32;
+use arith::mul_wrapping_i32;
+use arith::add_checked_i32;
+use arith::sub_checked_i32;
+use arith::mul_checked_i32;
+use arith::add_wrapping_i64;
+use arith::sub_wrapping_i64;
+use arith::mul_wrapping_i64;
+use arith::add_checked_i64;
+use arith::sub_checked_i64;
+use arith::add_wrapping_u32;
+use arith::sub_wrapping_u32;
+use arith::mul_wrapping_u32;
+use arith::add_checked_u32;
+use arith::sub_checked_u32;
+use arith::mul_checked_u32;
+use arith::add_wrapping_u64;
+use arith::sub_wrapping_u64;
+use arith::mul_wrapping_u64;
+use arith::add_checked_u64;
+use arith::sub_checked_u64;
+use arith::mul_checked_u64;
+use arith::fma_f64;
+use prelude::i32_min_val;
+use prelude::i32_max_val;
+use prelude::i64_min_val;
+use prelude::i64_max_val;
+use prelude::u32_max_val;
+use prelude::u64_max_val;
+use prelude::OptionU32;
 use modular::floor_mod_i64;
 use modular::euclid_mod_i64;
 use modular::gcd_u64;
@@ -219,6 +250,80 @@ fn main() -> i32 {
     if !pc_ok2 { return 140; }
     let pc_neg: bool = match pow_checked_i64(0 - 3, 5) { OptionI64::Some(v) => v == (0 - 243), OptionI64::None => false };
     if !pc_neg { return 141; }
+
+    if add_wrapping_i32(2147483647, 1) != (0 - 2147483648) { return 150; }
+    if add_wrapping_i32(5, 3) != 8 { return 151; }
+    if sub_wrapping_i32(i32_min_val(), 1) != i32_max_val() { return 152; }
+    if mul_wrapping_i32(2147483647, 2) != (0 - 2) { return 153; }
+
+    let ac1: bool = match add_checked_i32(2147483647, 1) { Option::Some(v) => false, Option::None => true };
+    if !ac1 { return 154; }
+    let ac2: bool = match add_checked_i32(5, 3) { Option::Some(v) => v == 8, Option::None => false };
+    if !ac2 { return 155; }
+    let sc1: bool = match sub_checked_i32(i32_min_val(), 1) { Option::Some(v) => false, Option::None => true };
+    if !sc1 { return 156; }
+    let sc2: bool = match sub_checked_i32(10, 3) { Option::Some(v) => v == 7, Option::None => false };
+    if !sc2 { return 157; }
+    let mc1: bool = match mul_checked_i32(2147483647, 2) { Option::Some(v) => false, Option::None => true };
+    if !mc1 { return 158; }
+    let mc2: bool = match mul_checked_i32(6, 7) { Option::Some(v) => v == 42, Option::None => false };
+    if !mc2 { return 159; }
+    let mc3: bool = match mul_checked_i32(i32_min_val(), 0 - 1) { Option::Some(v) => false, Option::None => true };
+    if !mc3 { return 160; }
+
+    if add_wrapping_i64(9223372036854775807, 1) != i64_min_val() { return 161; }
+    if sub_wrapping_i64(i64_min_val(), 1) != i64_max_val() { return 162; }
+    if mul_wrapping_i64(9223372036854775807, 2) != (0 - 2) { return 163; }
+    let ac3: bool = match add_checked_i64(9223372036854775807, 1) { OptionI64::Some(v) => false, OptionI64::None => true };
+    if !ac3 { return 164; }
+    let sc3: bool = match sub_checked_i64(i64_min_val(), 1) { OptionI64::Some(v) => false, OptionI64::None => true };
+    if !sc3 { return 165; }
+    let sc4: bool = match sub_checked_i64(10, 3) { OptionI64::Some(v) => v == 7, OptionI64::None => false };
+    if !sc4 { return 166; }
+
+    if add_wrapping_u32(u32_max_val(), 1) != 0 { return 167; }
+    if sub_wrapping_u32(0, 1) != u32_max_val() { return 168; }
+    if mul_wrapping_u32(u32_max_val(), 2) != (u32_max_val() - 1) { return 169; }
+    let auc1: bool = match add_checked_u32(u32_max_val(), 1) { OptionU32::Some(v) => false, OptionU32::None => true };
+    if !auc1 { return 170; }
+    let suc1: bool = match sub_checked_u32(0, 1) { OptionU32::Some(v) => false, OptionU32::None => true };
+    if !suc1 { return 171; }
+    let muc1: bool = match mul_checked_u32(u32_max_val(), 2) { OptionU32::Some(v) => false, OptionU32::None => true };
+    if !muc1 { return 172; }
+    let muc2: bool = match mul_checked_u32(6, 7) { OptionU32::Some(v) => v == 42, OptionU32::None => false };
+    if !muc2 { return 173; }
+
+    if add_wrapping_u64(u64_max_val(), 1) != 0 { return 174; }
+    if sub_wrapping_u64(0, 1) != u64_max_val() { return 175; }
+    let auc2: bool = match add_checked_u64(u64_max_val(), 1) { OptionU64::Some(v) => false, OptionU64::None => true };
+    if !auc2 { return 176; }
+    let suc2: bool = match sub_checked_u64(0, 1) { OptionU64::Some(v) => false, OptionU64::None => true };
+    if !suc2 { return 177; }
+    let muc3: bool = match mul_checked_u64(u64_max_val(), 2) { OptionU64::Some(v) => false, OptionU64::None => true };
+    if !muc3 { return 178; }
+    let muc4: bool = match mul_checked_u64(6, 7) { OptionU64::Some(v) => v == 42, OptionU64::None => false };
+    if !muc4 { return 179; }
+
+    if fma_f64(2.0, 3.0, 4.0) != 10.0 { return 180; }
+    if fma_f64(0.0, 5.0, 7.0) != 7.0 { return 181; }
+    if fma_f64(0.0 - 2.0, 3.0, 1.0) != (0.0 - 5.0) { return 182; }
+    /* ARITH-010's own differential requirement: fma_f64 SHALL differ
+     * from naive `a*b+c` at a value chosen to expose double rounding.
+     * a = 1e16 (exactly representable), b perturbed by the smallest
+     * representable double-precision epsilon above 1.0, c = -a: naive
+     * rounds a*b to the nearest double BEFORE adding c, losing the tiny
+     * perturbation entirely (a*b rounds back to exactly a, so naive
+     * gives 2.0 from an unrelated smaller rounding error); fma_f64
+     * preserves it through the single logical rounding.
+     */
+    let big: f64 = 10000000000000000.0;
+    let one_plus_eps: f64 = 1.0000000000000002;
+    let naive: f64 = big * one_plus_eps + (0.0 - big);
+    let precise: f64 = fma_f64(big, one_plus_eps, 0.0 - big);
+    if naive != 2.0 { return 183; }
+    if precise <= 2.2 { return 184; }
+    if precise >= 2.3 { return 185; }
+    if naive == precise { return 186; }
 
     return 0;
 }
