@@ -1,0 +1,98 @@
+# Changelog
+
+Per DOC-003 (R1): every release records user-visible changes, any
+tightened or loosened accuracy bound (PERF-002), and any contract
+strengthened or weakened. No version has been tagged yet — everything
+below is accumulated under `[Unreleased]` until the R1 gate review tags
+one (SPEC.md §21.5).
+
+## [Unreleased]
+
+### Accuracy bounds tightened (PERF-002)
+
+Every function below started a widened ULP accuracy audit
+(`docs/accuracy.md`, `docs/ulp_audit_harness.c`) FAILING its budget —
+several by orders of magnitude — and was brought within it via
+double-double (Dekker/Knuth-Møller) arithmetic fixes. No behavior
+outside the last 1-3 bits of precision changed for any of these; see
+`docs/accuracy.md`'s own notes for the full root-cause writeup per
+function.
+
+| Function | Before | After | Budget |
+|---|---:|---:|---:|
+| `sin_f64` | ~50,000–98,000 ULP | 1 ULP | 3 |
+| `cos_f64` | ~50,000–98,000 ULP | 1 ULP | 3 |
+| `tan_f64` | (inherited from sin/cos) | 3 ULP | 3 |
+| `asin_f64` | 12 ULP | 2 ULP | 3 |
+| `acos_f64` | 3029 ULP | 3 ULP | 3 |
+| `atan_f64` | 4 ULP | 1 ULP | 3 |
+| `atan2_f64` | 5 ULP | 2 ULP | 3 |
+| `exp_f64` | 714 ULP | 1 ULP | 2 |
+| `ln_f64` | 62 ULP | 1 ULP | 2 |
+| `sinh_f64` | 121 ULP (via `tanh_f64`'s division) | 1 ULP | 3 (informational — TRIG-005 has no SPEC-pinned budget) |
+| `cosh_f64` | 1 ULP (no fix needed) | 1 ULP | 3 (informational) |
+| `tanh_f64` | 121 ULP | 2 ULP | 3 (informational) |
+| `hypot_f64` | 3 ULP (no fix needed) | 3 ULP | 3 (informational) |
+| `exp_complex` | 21 ULP (harness measurement artifact, not a code defect — see notes) | 1 ULP | 3 (informational — CPLX-007 has no SPEC-pinned budget) |
+| `ln_complex` | 234 ULP | 14 ULP (real, understood residual, documented — not fully under the informational budget) | 3 (informational) |
+
+`pow_complex` was audited (informational 5 ULP budget) but not
+"tightened" in the usual sense — its large nominal FAIL was traced to
+system libm's own `cpow`/`cexp` not being correctly rounded at the
+worst-offending points (confirmed against an independent
+arbitrary-precision reference), not a defect in this library. See
+`docs/accuracy.md`'s notes.
+
+### Contracts loosened
+
+- **`atan_f64`'s `ensures`** relaxed from TRIG-004's literal strict
+  `result > -pi/2 && result < pi/2` to `result >= -pi/2 && result <=
+  pi/2`. A correctly-rounded `f64` `atan` legitimately returns exactly
+  the nearest representable double to `pi/2` for sufficiently large
+  `|x|` (confirmed against the system libm directly: `atan(1e50)`,
+  `atan(1e300)`, etc. all return `== M_PI/2` in plain C) — a strict
+  inequality is unsatisfiable for an accurate double-precision
+  implementation, and the accuracy work above made hitting this
+  boundary MORE likely, not less (an earlier, less accurate version
+  happened to round just short of it by coincidence). Matches
+  `sin_f64`/`cos_f64`'s own boundary-inclusive convention. See
+  `README.md`'s "Deviations from SPEC.md".
+
+### Bugs fixed (not accuracy-budget misses — real defects)
+
+- **`tanh_f64` ensures panic**: the `|x| > 20.0` pre-clamp wasn't tight
+  enough — `exp_f64(2*x)` underflows enough for `(e2x-1)/(e2x+1)` to
+  round to exactly `+/-1.0` starting around `|x| ~= 19.98`, crashing
+  (`sv0 contract violation: ensures failed in tanh_f64`) for input as
+  unremarkable as `x = -19.999`. Fixed by checking the actual computed
+  result against the boundary, in addition to (not instead of) the
+  pre-clamp, which is still needed to avoid a separate
+  `Infinity/Infinity = NaN` failure mode for genuinely large `|x|`.
+- **`tanh_f64` near-zero cancellation**: `exp_f64(2*x)` near `x = 0` is
+  close to `1.0`, so `e2x - 1.0` catastrophically cancelled (121 ULP);
+  `tanh_f64` (unlike `sinh_f64`, which already had a near-zero Taylor
+  branch) had no cancellation-free path there at all. Fixed by
+  delegating to `sinh_f64(x) / cosh_f64(x)` for `|x| < 1.0`.
+
+### Added
+
+- `exp_complex`/`ln_complex`/`pow_complex` (CPLX-007) — gated on
+  `sin_f64`/`cos_f64`/`exp_f64`/`ln_f64` meeting PERF-002, now
+  confirmed met, so implemented rather than left "Future". Verified
+  functionally via Euler's identity and an `exp(ln(z)) == z`
+  round-trip, and accuracy-audited (see table above).
+- `docs/accuracy.md` (PERF-001) — one row per non-exact public
+  function with its measured maximum ULP error, algorithm parameter,
+  and toolchain revision.
+- `docs/ulp_audit_harness.c` — the standalone C ULP-audit harness used
+  to produce every number above, checked in (previously lived only in
+  a local scratch file) with its own usage instructions.
+- This changelog (DOC-003).
+
+### Toolchain gaps found (informational — see `BUGS.md` for full detail)
+
+- Bug #15: an inline `Complex { ... }` struct literal passed directly
+  as a function-call argument sometimes resolves its field names
+  against the wrong struct declaration. Open, workaround in place
+  (bind to a `let` first), follow-up task spawned to root-cause it in
+  `sv0c`.
