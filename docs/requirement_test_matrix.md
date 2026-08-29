@@ -31,7 +31,7 @@ Covers SPEC.md Sections 8 (CONV-*), 11 (ARITH-*), 12 (MOD-*), 13
 | MOD-003 | R0.1 | covered | test/unit/modular_test.sv0:34 |
 | MOD-004 | R0.1 | covered | test/unit/modular_test.sv0:43 |
 | MOD-005 | R0.2 | covered | test/unit/modular_test.sv0:54 |
-| MOD-006 | R0.2 | covered | test/unit/modular_test.sv0:61 |
+| MOD-006 | R0.2 | covered | test/property/property_test.sv0:94; test/unit/modular_test.sv0:61 |
 | MOD-007 | R0.2 | covered | test/unit/modular_test.sv0:70 |
 | PERF-001 | R0.1 | covered | test/unit/trig_test.sv0:8 |
 | PERF-002 | R0.2 | covered | test/unit/trig_test.sv0:10 |
@@ -41,9 +41,9 @@ Covers SPEC.md Sections 8 (CONV-*), 11 (ARITH-*), 12 (MOD-*), 13
 | POLAR-001 | R0.3 | covered | test/unit/polar_test.sv0:18 |
 | POLAR-002 | R0.3 | covered | test/unit/polar_test.sv0:27 |
 | POLAR-003 | R0.3 | covered | test/unit/polar_test.sv0:38 |
-| POLAR-004 | R0.3 | covered | test/unit/polar_test.sv0:55 |
+| POLAR-004 | R0.3 | covered | test/property/property_test.sv0:75; test/unit/polar_test.sv0:55 |
 | POLAR-005 | R0.3 | covered | test/unit/polar_test.sv0:70 |
-| TRIG-001 | R0.2 | covered | test/unit/trig_test.sv0:49 |
+| TRIG-001 | R0.2 | covered | test/property/property_test.sv0:60; test/unit/trig_test.sv0:49 |
 | TRIG-002 | R0.2 | covered | test/unit/trig_test.sv0:76 |
 | TRIG-003 | R0.2 | covered | test/unit/trig_test.sv0:83 |
 | TRIG-004 | R0.2 | covered | test/unit/trig_test.sv0:93 |
@@ -55,8 +55,9 @@ Covers SPEC.md Sections 8 (CONV-*), 11 (ARITH-*), 12 (MOD-*), 13
 
 | Test file | Result |
 |---|---|
-| `arith_test.sv0` | PASS |
-| `modular_test.sv0` | PASS |
-| `polar_test.sv0` | PASS |
-| `trig_test.sv0` | PASS |
+| `property/property_test.sv0` | PASS |
+| `unit/arith_test.sv0` | PASS |
+| `unit/modular_test.sv0` | PASS |
+| `unit/polar_test.sv0` | PASS |
+| `unit/trig_test.sv0` | PASS |
 

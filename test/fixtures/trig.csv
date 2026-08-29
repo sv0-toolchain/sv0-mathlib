@@ -1,0 +1,27 @@
+function,input1,input2,expected,tolerance,category,notes
+sqrt_f64,0.0,,0.0,0.0,boundary,exact
+sqrt_f64,-0.0,,0.0,0.0,boundary;neg_zero,sqrt(-0.0)=+0.0 per IEEE-754
+sqrt_f64,inf,,inf,exact,infinity,see BUGS.md fix -- sqrt_f64 special-cases Infinity input directly now (was silently computing NaN before this audit found it)
+sqrt_f64,-1.0,,PANIC,,boundary,requires(x>=0.0) violation -- use sqrt_checked_f64 for runtime-unknown negative input (see conv_review.md's CONV-005 section)
+sqrt_f64,nan,,PANIC,,nan,requires(x>=0.0) fails for NaN (NaN comparisons are always false) -- NOT propagated, panics instead; a genuine, confirmed CONV-005(b)-vs-(a) ambiguity for sqrt_f64 specifically, not yet resolved one way or the other
+sin_f64,0.0,,0.0,0.0,boundary,exact
+sin_f64,-0.0,,-0.0,0.0,boundary;neg_zero,sign preserved
+sin_f64,nan,,nan,exact,nan,propagates
+sin_f64,inf,,nan,exact,infinity,propagates NaN (undefined oscillation at infinity)
+cos_f64,0.0,,1.0,0.0,boundary,exact
+cos_f64,nan,,nan,exact,nan,propagates
+tan_f64,0.0,,0.0,0.0,boundary,exact
+asin_f64,1.0,,1.5707963267948966,0.0,boundary,exact endpoint (pi/2)
+asin_f64,-1.0,,-1.5707963267948966,0.0,boundary,exact endpoint (-pi/2)
+acos_f64,1.0,,0.0,0.0,boundary,exact endpoint
+atan_f64,0.0,,0.0,0.0,boundary,exact
+atan_f64,inf,,1.5707963267948966,0.0,infinity,exact +Infinity limit (pi/2)
+atan_f64,-inf,,-1.5707963267948966,0.0,infinity,exact -Infinity limit (-pi/2)
+atan_f64,nan,,nan,exact,nan,propagates
+atan2_f64,0.0,0.0,0.0,0.0,boundary,TRIG-004's own pinned origin case
+atan2_f64,0.0,-0.0,0.0,0.0,boundary;neg_zero,x=-0.0 with y=0.0
+exp_f64,0.0,,1.0,0.0,boundary,exact
+exp_f64,nan,,nan,exact,nan,propagates
+exp_f64,-inf,,0.0,0.0,infinity,exp(-Infinity)=0.0 -- see BUGS.md fix, was silently computing NaN before this audit found it
+exp_f64,inf,,inf,exact,infinity,exp(+Infinity)=+Infinity -- handled directly (verified via emitted-C inspection, not re-probed numerically here)
+ln_f64,1.0,,0.0,0.0,boundary,exact

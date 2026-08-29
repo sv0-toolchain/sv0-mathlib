@@ -83,6 +83,23 @@ arbitrary-precision reference), not a defect in this library. See
   the result as `int` (`ln_f64(10.0)` returned exactly `2`, not a small
   accuracy miss). Fixed by copying each field into its own local before
   the addition, mirroring bug #13's own established workaround.
+- **`sqrt_f64(+Infinity)` silently computed `NaN`, not `+Infinity`**:
+  the bracket-then-Newton algorithm's own arithmetic overflows to
+  `Infinity`/`NaN` internally for infinite input (found via `test/
+  fixtures/trig.csv`, TEST-003). Fixed by special-casing
+  `is_infinite_f64(x)` up front, returning `x` directly; also
+  broadened `sqrt_f64`'s own `ensures` to accommodate this case.
+- **`exp_f64(-Infinity)` silently computed `NaN`, not `0.0`**: the same
+  overflow-in-range-reduction shape as the `sqrt_f64` case above (found
+  the same way). Fixed by special-casing `+Infinity`/`-Infinity` input
+  up front (`exp(+Infinity) = +Infinity`, `exp(-Infinity) = 0.0`).
+- **`abs_f64(NaN)` panicked on its own `ensures`**: `abs_f64`'s
+  `ensures(result >= 0.0)` had no `NaN` escape hatch, so the
+  IEEE-754-correct answer (`NaN`) failed its own contract — this
+  pervasively-used helper's gap was masked until `exp_f64(-Infinity)`'s
+  own (separately fixed) bug started passing a `NaN` intermediate
+  through it. Fixed by adding `|| result != result` to the `ensures`,
+  matching this codebase's established `NaN`-propagation pattern.
 
 ### Added
 
@@ -116,6 +133,21 @@ arbitrary-precision reference), not a defect in this library. See
   with rationale — `--project`-mode has no `--contract-mode` flag
   today, genuinely untestable, not unimplemented on this library's own
   side).
+- `test/fixtures/rounding.csv` + `test/fixtures/trig.csv` +
+  `test/fixtures/manifest.md` + `scripts/check_fixtures.py` (TEST-002,
+  F0; TEST-003, R0.1) — named boundary/`NaN`/`Infinity`/`-0.0` fixture
+  rows for `floor_f64`/`ceil_f64`/`round_f64`/`trunc_f64` (ARITH-005
+  names `rounding.csv` explicitly) and every ULP-budgeted `math::trig`
+  function, each with recorded provenance and toolchain revision, linted
+  for manifest completeness and per-function boundary coverage, wired
+  into `scripts/ci`.
+- `test/property/property_test.sv0` (TEST-004, R0.1) — a small
+  deterministic PCG/Knuth-MMIX-style PRNG seeded by a checked-in literal
+  drives `sin_f64(x)^2 + cos_f64(x)^2 ~= 1.0`, `to_polar`/`from_polar`
+  round-tripping, `mod_inverse_u64` composed with `mul_mod_u64`, and
+  `Complex` addition/multiplication commutativity+associativity over 20-
+  30 samples each; `scripts/run_unit_tests.py` now also discovers and
+  runs `test/property/*.sv0` the same way it runs `test/unit/*.sv0`.
 
 ### Contracts strengthened
 
@@ -132,6 +164,18 @@ arbitrary-precision reference), not a defect in this library. See
 
 ### Toolchain gaps found (informational — see `BUGS.md` for full detail)
 
+- Bug #19: a struct-literal field initializer, OR a `requires`/
+  `ensures` clause, that is itself a binop involving a struct-field
+  access mistypes as `int` — the widest and most consequential finding
+  this session: found via `test/property/property_test.sv0`'s random-
+  sample associativity check, this affected every componentwise
+  arithmetic function in `math::complex` AND their own contract
+  clauses (the latter making genuinely-correct code panic on some
+  random samples but not others, reading as flakiness). Open, workaround
+  in place throughout `lib/complex.sv0`/`lib/polar.sv0`/`lib/trig.sv0`
+  (extract fields to locals before struct-literal use; route
+  contract-clause expressions through small pure helper functions,
+  since a contract has no access to the function body's own locals).
 - Bug #17: `--project` file discovery silently fails (exit 2, zero
   diagnostics) when a top-level file or directory sorts alphabetically
   before `lib` — found setting up `test/unit/`. Open, workaround in

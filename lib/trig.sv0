@@ -26,6 +26,7 @@ module trig;
 use arith::abs_f64;
 use arith::round_f64;
 use arith::floor_f64;
+use arith::is_infinite_f64;
 use arith::Pair2;
 use arith::two_prod;
 use arith::two_sum;
@@ -112,12 +113,28 @@ fn sqrt_error_bound(x: f64) -> f64 {
     return scaled + 0.0000000001;
 }
 
+/* `+Infinity` is a real, in-domain input (`requires(x >= 0.0)` doesn't
+ * exclude it) but breaks BOTH the algorithm and the plain `ensures`
+ * formula below if not special-cased — found writing `test/fixtures/
+ * trig.csv` (TEST-003's own boundary/Infinity fixture coverage).
+ * Bracket-then-Newton with `x = Infinity`: `sqrt_bracket_guess` doubles
+ * `guess` until `guess*guess > x`, but `guess*guess` itself overflows to
+ * `Infinity` long before that (`Infinity <= Infinity` stays true), so
+ * the bracket loop only stops at its own 1100-iteration safety cap,
+ * returning some enormous-but-finite guess; the Newton loop then
+ * computes `x / guess = Infinity / finite = Infinity` on its first
+ * iteration, then `Infinity / Infinity = NaN` on the very next one —
+ * `sqrt_f64(Infinity)` was silently returning `NaN`, not `Infinity`,
+ * and `NaN >= 0.0`/`abs_f64(NaN - x) <= ...` both being false made the
+ * `ensures` panic rather than silently propagate the wrong answer,
+ * which is how this was caught.
+ */
 fn sqrt_f64(x: f64) -> f64
     requires(x >= 0.0)
-    ensures(result >= 0.0)
-    ensures(abs_f64(result * result - x) <= sqrt_error_bound(x))
+    ensures((result >= 0.0 && abs_f64(result * result - x) <= sqrt_error_bound(x)) || is_infinite_f64(x))
 {
     if x == 0.0 { return 0.0; }
+    if is_infinite_f64(x) { return x; }
     let mut guess: f64 = sqrt_bracket_guess(x);
     let mut i: u32 = 0;
     /* loop_invariant: guess > 0.0 always holds (the bracket seed is
@@ -190,6 +207,20 @@ fn exp_f64(x: f64) -> f64
     ensures(result >= 0.0 || result != result)
 {
     if x != x { return x; }
+    /* `+Infinity`/`-Infinity` input breaks the double-double range
+     * reduction below the same way `sqrt_f64`'s own Infinity gap did
+     * (see that function's comment) — `k = round_f64(x/ln2_hi)` becomes
+     * `+/-Infinity` too, and `two_prod`/`dekker_split`'s own
+     * `splitter*a - a`-style arithmetic on an infinite `k` produces
+     * `NaN`, which then makes `abs_f64`'s own unguarded-for-NaN
+     * `ensures` panic deep inside the compensated-summation loop below
+     * — found via `test/fixtures/trig.csv` (TEST-003). `exp(+Infinity)
+     * = +Infinity`, `exp(-Infinity) = 0.0` per ordinary IEEE-754
+     * semantics, both handled directly here instead.
+     */
+    let pos_inf: f64 = 1.0 / 0.0;
+    if x == pos_inf { return pos_inf; }
+    if x == (0.0 - pos_inf) { return 0.0; }
     let ln2_hi: f64 = 0.6931471805599453;
     let ln2_lo: f64 = 2.3190468138462996e-17;
     let k: f64 = round_f64(x / ln2_hi);
@@ -805,7 +836,11 @@ fn atan_f64_dd(x: f64) -> Pair2 {
     if x != x { return Pair2 { hi: x, lo: 0.0 }; }
     if x < 0.0 {
         let inner: Pair2 = atan_f64_dd(0.0 - x);
-        return Pair2 { hi: 0.0 - inner.hi, lo: 0.0 - inner.lo };
+        /* BUGS.md #19: extract fields to locals first — see
+         * lib/complex.sv0's own #19 comment for the full writeup. */
+        let inner_hi: f64 = inner.hi;
+        let inner_lo: f64 = inner.lo;
+        return Pair2 { hi: 0.0 - inner_hi, lo: 0.0 - inner_lo };
     }
     let pi_hi: f64 = 3.141592653589793;
     let pi_lo: f64 = 1.2246467991473532e-16;

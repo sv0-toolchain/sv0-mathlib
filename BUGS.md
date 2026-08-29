@@ -3,11 +3,11 @@
 Filed here first (this repo has no upstream tracker yet); each should become
 a real `sv0-toolchain`/`sv0c` issue. Audited against sv0-toolchain HEAD
 `43ee2b0` / sv0c HEAD `d0fa706` (2026-08-28), updated through the R0.3 +
-accuracy-audit + TEST-006 CI-gate + TEST-001 test-suite work — bugs #16/
-#17/#18 were found and worked around against a LATER upstream revision
-(`sv0-toolchain` `c318513` / `sv0c` `53de895`) than the rest of this
-file's own pin, since this library's CI tracks the moving upstream
-default branch, not a fixed SHA.
+accuracy-audit + TEST-006 CI-gate + TEST-001/TEST-004 test-suite work —
+bugs #16/#17/#18/#19 were found and worked around against a LATER
+upstream revision (`sv0-toolchain` `c318513` / `sv0c` `53de895`) than
+the rest of this file's own pin, since this library's CI tracks the
+moving upstream default branch, not a fixed SHA.
 **Bugs #1, #2 (checker-level half), #3, #5, #6 (diagnostics half), #7, #8,
 #10, #11, #13, and #14 are fixed.** Bug #9 (generic enums resolve but
 don't monomorphize) and #12 (`match` used as a value mistypes its own
@@ -18,17 +18,21 @@ names against the wrong struct declaration), found finishing CPLX-007, is
 open — also with a documented, verified workaround. Bug #16 (a bare
 `return field_a + field_b;` combining two fields of the SAME struct
 instance mistypes its own temp — a regression past bug #13's own fix,
-found setting up `scripts/ci`/TEST-006), is open — workaround applied to
-all four affected functions in `lib/trig.sv0`. Bug #17 (`--project` file
-discovery silently fails — exit 2, zero diagnostics — when a top-level
-file/directory sorts alphabetically before `lib`) and bug #18 (`let x:
-StructType = <bare variable already of that type>;` mistypes the new
-local as `int`), both found setting up `test/unit/` (TEST-001), are
-newly open — both with documented, verified workarounds. Bug #6's fix
-also surfaced and fixed a real, sv0-mathlib-unrelated parser/lowering
-defect in sv0c's own test corpus (bare struct-field assignment statements
-silently compiling to nothing) — noted under bug #6 rather than given its
-own number, since it was never a blocker for this library.
+found setting up `scripts/ci`/TEST-006) and bug #19 (the SAME family, but
+for a struct-literal field initializer OR a `requires`/`ensures` clause
+that combines a struct-field access in a binop — found via `test/
+property/property_test.sv0`, TEST-004) are open — workarounds applied
+throughout `lib/complex.sv0`/`lib/polar.sv0`/`lib/trig.sv0`. Bug #17
+(`--project` file discovery silently fails — exit 2, zero diagnostics —
+when a top-level file/directory sorts alphabetically before `lib`) and
+bug #18 (`let x: StructType = <bare variable already of that type>;`
+mistypes the new local as `int`), both found setting up `test/unit/`
+(TEST-001), are also open — all four with documented, verified
+workarounds. Bug #6's fix also surfaced and fixed a real,
+sv0-mathlib-unrelated parser/lowering defect in sv0c's own test corpus
+(bare struct-field assignment statements silently compiling to nothing)
+— noted under bug #6 rather than given its own number, since it was
+never a blocker for this library.
 
 ## 1. Integer literals wider than i32 are silently truncated to 32 bits
 
@@ -1057,6 +1061,93 @@ actual functions is either a call result or a struct literal), only in
 this new test file's own attempt to demonstrate `Copy` directly. Worth
 a follow-up to root-cause and fix upstream regardless, since it's a
 natural pattern for any future consumer to reach for.
+
+## 19. A struct-literal field initializer, or a `requires`/`ensures` clause, that is itself a binop involving a struct-field access mistypes as `int`
+
+**STATUS (2026-08-29): OPEN, workaround verified — a WIDER regression
+than bug #16, found via `test/property/property_test.sv0`.** Building
+TEST-004's property-test layer surfaced this while checking `Complex`
+addition's associativity: the check intermittently panicked (not every
+run — see below for why) with `sv0 contract violation: ensures failed
+in add_complex` under `sv0c` `53de895` (`scripts/ci`'s own unpinned
+toolchain). Bisected in two parts:
+
+**Part A — struct-literal field initializers.** `Complex { re: a.re +
+b.re, im: a.im + b.im }` (`add_complex`'s function BODY, `a`/`b` two
+DIFFERENT `Complex` parameters, same field name) — this is bug #13's
+EXACT original repro shape, previously fixed, now regressed for THIS
+specific context:
+
+```c
+Complex _sv0t0;
+int _sv0t1 = (a.re + b.re);   /* WRONG */
+_sv0t0.re = _sv0t1;
+```
+
+A minimal, isolated repro (a `Pt { re: f64, im: f64 }` struct, `add_pt`
+returning `Pt { re: a.re + b.re, im: a.im + b.im }`) confirmed this is
+general, not `Complex`-specific. Audited every struct literal in
+`lib/*.sv0` for a directly-inlined struct-field access inside a binop
+(field-op-field OR field-op-literal/local) and fixed each one the
+established way — extract every field to its own local FIRST, so the
+struct literal only ever combines LOCAL-op-LOCAL: `add_complex`/
+`sub_complex`/`neg_complex`/`conjugate`/`from_polar_complex`/
+`exp_complex` in `lib/complex.sv0`, `from_polar`/`scale_polar`/
+`rotate_polar` in `lib/polar.sv0`, and `atan_f64_dd`'s negative-`x`
+branch in `lib/trig.sv0`. (`mul_complex`/`div_complex` were already
+written this way before this bug was even found — coincidentally safe,
+not deliberately.)
+
+**Part B — `requires`/`ensures` clauses themselves.** This is the part
+that made the failure LOOK intermittent: `add_complex`'s own `ensures`
+clause, `ensures(result.re == a.re + b.re && ...)`, has the SAME
+field-combining binop, and it emits the SAME broken `int` temp:
+
+```c
+int _sv0t3 = (a.re + b.re);
+int _sv0t4 = (result.re == _sv0t3);
+```
+
+— comparing a correctly-computed `double result.re` against an
+`int`-truncated version of its own expected value. This ONLY panics
+when the true (double-precision) sum isn't itself exactly equal to its
+own integer truncation — which most random `f64` sums aren't, but
+SOME coincidentally are (e.g. any sum that lands on a whole number),
+which is why this read as flaky rather than deterministic at first.
+Contract clauses can't use Part A's workaround (`requires`/`ensures`
+are declared in the function SIGNATURE, before the body, with no access
+to body-local variables) — fixed instead by moving the field-combining
+expression into a small pure helper function (`complex_re_sum`,
+`complex_im_diff`, `complex_neg_re`, etc., in `lib/complex.sv0`) and
+calling THAT from the contract clause; a function call's return value
+resolves its type correctly everywhere this was checked (unlike an
+inline field-combining binop). `approx_eq`'s ensures AND its own
+function body both had this shape (`abs_f64(a.re - b.re) <= epsilon`)
+and were fixed the same way (`complex_re_close`/`complex_im_close`).
+
+**What's confirmed SAFE (not overcorrected)**: a `let x: f64 = sa.hi *
+sb.hi;` in a function BODY (an explicit-annotation `let`, bug #7's own
+fix path) — unaffected; `ensures(result.r == p.r * k)` in
+`scale_polar` (a single field combined with a plain PARAMETER, not
+another field) — unaffected, confirmed via direct emitted-C inspection
+(`double _sv0t2 = (p.r * k);`, correctly typed) before leaving it as
+plain code. The trigger appears to need BOTH a struct-field-access
+operand AND a context that lacks an explicit `let`-style type
+annotation to fall back on (struct-literal init, or a contract clause) —
+not fully root-caused inside `sv0c` itself; that's real, separate
+`sv0-toolchain` work.
+
+**Impact on this library**: significant, and specifically dangerous
+because it's the kind of bug that reads as accuracy flakiness or a
+false contract violation rather than an obvious compile error — every
+one of `math::complex`'s componentwise arithmetic functions and their
+own `ensures` clauses were affected, and would have silently (or
+`ensures`-panic-ingly) shipped wrong behavior under a moving upstream
+toolchain pin without `test/property/property_test.sv0` catching it —
+TEST-001's own per-function unit tests, using fixed/typical inputs, did
+NOT catch this (their sample points happened not to expose the
+truncation), which is exactly the kind of gap SPEC.md's own property-
+test layer (Section 16.2) exists to catch.
 
 ## Working today — genuinely verified (emitted C inspected, not just exit code)
 

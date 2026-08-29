@@ -42,6 +42,7 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent.parent
 TEST_UNIT = HERE / "test" / "unit"
+TEST_PROPERTY = HERE / "test" / "property"
 LIB = HERE / "lib"
 MATRIX_OUT = HERE / "docs" / "requirement_test_matrix.md"
 
@@ -247,13 +248,16 @@ def main() -> int:
             print(f"run_unit_tests: no {TEST_UNIT}", file=sys.stderr)
             return 1
         runtime_dir = args.toolchain_root / "sv0c" / "runtime"
-        for sv0_file in sorted(TEST_UNIT.glob("*.sv0")):
-            passed, msg = run_one_test(sv0_file, args.toolchain_root, runtime_dir)
-            test_results[sv0_file.name] = (passed, msg)
-            status = "PASS" if passed else f"FAIL ({msg})"
-            print(f"run_unit_tests: {sv0_file.name}: {status}")
-            if not passed:
-                ok = False
+        test_dirs = [TEST_UNIT] + ([TEST_PROPERTY] if TEST_PROPERTY.is_dir() else [])
+        for test_dir in test_dirs:
+            for sv0_file in sorted(test_dir.glob("*.sv0")):
+                passed, msg = run_one_test(sv0_file, args.toolchain_root, runtime_dir)
+                key = f"{test_dir.name}/{sv0_file.name}"
+                test_results[key] = (passed, msg)
+                status = "PASS" if passed else f"FAIL ({msg})"
+                print(f"run_unit_tests: {key}: {status}")
+                if not passed:
+                    ok = False
 
     coverage = collect_req_tags()
     uncovered = write_matrix(coverage, test_results)
