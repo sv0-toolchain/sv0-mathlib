@@ -24,7 +24,16 @@
 module trig;
 
 use arith::abs_f64;
+use arith::round_f64;
 use prelude::OptionF64;
+
+/* ln(2) to 17 significant decimal digits — the standard range-reduction
+ * step size `exp_f64`/`ln_f64` both use, defined once here rather than
+ * re-literalized at each use site (same rationale TRIG-006 states for
+ * `PI_F64`, applied to this module's other shared constant). */
+fn ln2_f64() -> f64 {
+    return 0.6931471805599453;
+}
 
 /* PI_F64: SPEC.md's TRIG-006 requires "a single correctly-rounded
  * pi-derived constant shared with every other function in math::trig
@@ -130,4 +139,116 @@ fn sqrt_checked_f64(x: f64) -> OptionF64 {
         return OptionF64::None;
     }
     return OptionF64::Some(sqrt_f64(x));
+}
+
+/* ── exp_f64/ln_f64 (Section 14 shared machinery, "must land before
+ * pow_f64 [...], sinh_f64/cosh_f64/tanh_f64" per the roadmap) ─────────
+ *
+ * Standard range-reduction technique (no minimax coefficients needed —
+ * a plain Taylor series suffices once the argument is reduced to a
+ * small enough range, matching AD-004's "minimax (or truncated Taylor,
+ * documented either way)" allowance):
+ *
+ * `exp_f64(x)`: write `x = k*ln(2) + r` with `k` the nearest integer to
+ * `x/ln(2)`, so `r` is confined to roughly `[-ln(2)/2, ln(2)/2]`
+ * (~[-0.347, 0.347]) regardless of `x`'s own magnitude. `exp(r)` is then
+ * a 20-term Taylor series (`r`'s smallness makes this converge far
+ * beyond double precision well before the 20th term). `exp(x) = exp(r)
+ * * 2^k`: rather than compute `2^k` via a cast/bit-reinterpretation
+ * (unavailable — see this file's sqrt deviation note), scale the Taylor
+ * result by repeated `*2.0`/`/2.0`, exactly `sqrt_bracket_guess`'s own
+ * technique, bounded the same way (an f64's exponent range is roughly
+ * [-1074, 1023], so at most ~1074 repetitions).
+ *
+ * `ln_f64(x)`: write `x = m * 2^e` with `m` in `[1.0, 2.0)`, found by
+ * the same repeated-halving/doubling bracket `sqrt_bracket_guess` uses
+ * (tracking the integer exponent `e` this time, not just the bracket
+ * value). `ln(x) = e*ln(2) + ln(m)`; `ln(m)` uses the classic
+ * fast-converging series `ln(m) = 2*atanh(y) = 2*(y + y^3/3 + y^5/5 +
+ * ...)` with `y = (m-1)/(m+1)` — since `m` in `[1,2)` bounds `y` to
+ * `[0, 1/3]`, this converges to full double precision well within the
+ * 15 terms used below (each pair of terms shrinks by roughly `y^2 <=
+ * 1/9`).
+ */
+
+fn exp_f64(x: f64) -> f64
+    ensures(result >= 0.0 || result != result)
+{
+    if x != x { return x; }
+    let ln2: f64 = ln2_f64();
+    let k: f64 = round_f64(x / ln2);
+    let r: f64 = x - k * ln2;
+    let mut term: f64 = 1.0;
+    let mut sum: f64 = 1.0;
+    let mut n: f64 = 1.0;
+    /* loop_invariant: sum holds the partial Taylor sum for exp(r)
+     * through the n-th term; terminates after exactly 20 fixed
+     * iterations (not convergence-detected), matching this library's
+     * established "fixed, documented bound" style for series
+     * evaluation (SQRT_ITERATION_BOUND's own design intent).
+     */
+    while n <= 20.0 loop_invariant(n >= 1.0) {
+        term = term * r / n;
+        sum = sum + term;
+        n = n + 1.0;
+    }
+    let mut rv: f64 = sum;
+    let mut kk: f64 = k;
+    /* loop_invariant: rv always holds exp(r) * 2^(k - kk) so far;
+     * bounded to an f64's exponent range (~1074 max iterations either
+     * direction), same shape as sqrt_bracket_guess's own bracket loops.
+     */
+    while kk > 0.0 loop_invariant(rv >= 0.0) {
+        rv = rv * 2.0;
+        kk = kk - 1.0;
+    }
+    while kk < 0.0 loop_invariant(rv >= 0.0) {
+        rv = rv / 2.0;
+        kk = kk + 1.0;
+    }
+    return rv;
+}
+
+fn ln_f64(x: f64) -> f64
+    requires(x > 0.0)
+{
+    let mut m: f64 = x;
+    let mut e: f64 = 0.0;
+    /* loop_invariant: x == m * 2^e always holds (each step halves/
+     * doubles m while adjusting e oppositely); bounded to an f64's
+     * exponent range, same shape as sqrt_bracket_guess.
+     */
+    while m >= 2.0 loop_invariant(m > 0.0) {
+        m = m / 2.0;
+        e = e + 1.0;
+    }
+    while m < 1.0 loop_invariant(m > 0.0) {
+        m = m * 2.0;
+        e = e - 1.0;
+    }
+    let ln2: f64 = ln2_f64();
+    let y: f64 = (m - 1.0) / (m + 1.0);
+    let y2: f64 = y * y;
+    let mut term: f64 = y;
+    let mut sum: f64 = y;
+    let mut denom: f64 = 1.0;
+    let mut i: u32 = 0;
+    /* loop_invariant: sum holds the partial atanh series for ln(m)/2
+     * through the current term; fixed 15-iteration bound (m in [1,2)
+     * bounds y to [0, 1/3], so this converges far beyond double
+     * precision well before the 15th term).
+     */
+    while i < 15 loop_invariant(true) {
+        term = term * y2;
+        denom = denom + 2.0;
+        sum = sum + term / denom;
+        i = i + 1;
+    }
+    let ln_m: f64 = 2.0 * sum;
+    return e * ln2 + ln_m;
+}
+
+fn ln_checked_f64(x: f64) -> OptionF64 {
+    if x <= 0.0 { return OptionF64::None; }
+    return OptionF64::Some(ln_f64(x));
 }
