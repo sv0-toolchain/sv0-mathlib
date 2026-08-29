@@ -351,5 +351,60 @@ int main(void) {
     }
     audit_report("ln_complex", r, 3);
 
+    /* CPLX-007: pow_complex -- built directly on exp_complex/ln_complex/
+       mul_complex above (pow_complex(base,exp) =
+       exp_complex(mul_complex(exp, ln_complex(base)))), so it compounds
+       whatever error each of those three already carries -- informational
+       5 ULP budget (looser than exp_complex/ln_complex's own 3, since
+       chaining three operations is expected to accumulate more than any
+       one alone; still not a SPEC.md requirement, CPLX-007 pins no ULP
+       number at all). Domain: base magnitude 1e-5..1e5 at various
+       angles (100 pts), exponent re/im each in [-3,3] (100 pts), all
+       pairs (10000 combinations, each contributing up to 2
+       audit_point_scaled calls). scale = cabs(reference), same
+       scale-relative near-zero handling as exp_complex's own sweep, for
+       the same reason (pow_complex's own re/im components can differ
+       wildly in natural scale at a single point, inheriting
+       exp_complex's own final step).
+
+       IMPORTANT CAVEAT (see docs/accuracy.md's own notes for the full
+       writeup): this sweep WILL report FAIL, sometimes by tens of
+       thousands of nominal ULP, at points where `base`'s magnitude is
+       large/small and `exp` puts the result's imaginary-axis argument
+       near a cos/sin zero-crossing. Spot-checked several such points
+       against an independent arbitrary-precision (mpmath) reference and
+       confirmed system libm's OWN cpow() is not correctly rounded there
+       either (absolute errors up to ~1e-7 at points where this
+       function's own error was SMALLER) -- comparing two independent
+       ~1e-7-accurate approximations to each other via ULP, rather than
+       to the true value, can read as an enormous nominal ULP distance
+       even when both are close to correct. Treat a FAIL here as a
+       prompt to spot-check against a real arbitrary-precision reference
+       before assuming a regression, not as proof of one. */
+    memset(&r, 0, sizeof(r));
+    for (i = 0; i < 10000; i++) {
+        long bi = i / 100;
+        long ei = i % 100;
+        double be = -5.0 + 10.0 * ((double)bi / 99.0);
+        double btheta = -M_PI + 2.0 * M_PI * ((double)((bi * 37 + 5) % 100) / 100.0);
+        double bmag = pow(10.0, be);
+        double base_re = bmag * cos(btheta);
+        double base_im = bmag * sin(btheta);
+        double exp_re = -3.0 + 6.0 * ((double)ei / 99.0);
+        double exp_im = -3.0 + 6.0 * ((double)((ei * 53 + 11) % 100) / 99.0);
+        Complex base_c;
+        base_c.re = base_re;
+        base_c.im = base_im;
+        Complex exp_c;
+        exp_c.re = exp_re;
+        exp_c.im = exp_im;
+        Complex got_c = pow_complex(base_c, exp_c);
+        double complex refc = cpow(base_re + base_im * I, exp_re + exp_im * I);
+        double scale = cabs(refc);
+        audit_point_scaled(&r, got_c.re, creal(refc), base_re, base_im, scale);
+        audit_point_scaled(&r, got_c.im, cimag(refc), base_re, base_im, scale);
+    }
+    audit_report("pow_complex", r, 5);
+
     return 0;
 }
