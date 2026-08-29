@@ -99,6 +99,26 @@ use trig::cosh_f64;
 use trig::tanh_f64;
 use prelude::OptionF64;
 use prelude::OptionU64;
+use polar::Polar;
+use polar::Point2;
+use polar::to_polar;
+use polar::from_polar;
+use polar::scale_polar;
+use polar::rotate_polar;
+use complex::Complex;
+use complex::add_complex;
+use complex::sub_complex;
+use complex::neg_complex;
+use complex::mul_complex;
+use complex::div_complex;
+use complex::div_checked_complex;
+use complex::ComplexResult;
+use complex::modulus;
+use complex::argument;
+use complex::conjugate;
+use complex::to_polar_complex;
+use complex::from_polar_complex;
+use complex::approx_eq;
 
 fn main() -> i32 {
     if abs_i32(5) != 5 { return 1; }
@@ -514,6 +534,73 @@ fn main() -> i32 {
     if tanh_f64(100.0) >= 1.0 { return 286; }
     if tanh_f64(0.0 - 100.0) <= (0.0 - 1.0) { return 287; }
     if cosh_f64(0.0) != 1.0 { return 288; }
+
+    let p1: Polar = to_polar(3.0, 4.0);
+    if p1.r != 5.0 { return 300; }
+    let p1_theta_diff: f64 = abs_f64(p1.theta - 0.9272952180016122);
+    if p1_theta_diff >= 0.000000000000001 { return 301; }
+    let p2: Polar = to_polar(0.0, 0.0);
+    if p2.r != 0.0 { return 302; }
+    let p3: Polar = Polar { r: 5.0, theta: pi_f64() / 2.0 };
+    let xy: Point2 = from_polar(p3);
+    let x_diff: f64 = abs_f64(xy.x - 0.0);
+    if x_diff >= 0.000000000001 { return 303; }
+    let y_diff: f64 = abs_f64(xy.y - 5.0);
+    if y_diff >= 0.000000000001 { return 304; }
+    let p4: Polar = to_polar(1.0, 1.0);
+    let xy2: Point2 = from_polar(p4);
+    let rt_x: f64 = abs_f64(xy2.x - 1.0);
+    if rt_x >= 0.000000000001 { return 305; }
+    let rt_y: f64 = abs_f64(xy2.y - 1.0);
+    if rt_y >= 0.000000000001 { return 306; }
+    let p5: Polar = scale_polar(Polar { r: 3.0, theta: 1.0 }, 2.0);
+    if p5.r != 6.0 { return 307; }
+    let p6: Polar = rotate_polar(Polar { r: 3.0, theta: 1.0 }, 0.5);
+    if p6.r != 3.0 { return 308; }
+    let theta_diff: f64 = abs_f64(p6.theta - 1.5);
+    if theta_diff >= 0.000000000000001 { return 309; }
+
+    let c1: Complex = Complex { re: 3.0, im: 4.0 };
+    let c2: Complex = Complex { re: 1.0, im: 2.0 };
+    let c_add: Complex = add_complex(c1, c2);
+    if c_add.re != 4.0 { return 310; }
+    if c_add.im != 6.0 { return 311; }
+    let c_sub: Complex = sub_complex(c1, c2);
+    if c_sub.re != 2.0 { return 312; }
+    if c_sub.im != 2.0 { return 313; }
+    let c_neg: Complex = neg_complex(c1);
+    if c_neg.re != (0.0 - 3.0) { return 314; }
+    if c_neg.im != (0.0 - 4.0) { return 315; }
+    let c_mul: Complex = mul_complex(c1, c2);
+    if c_mul.re != (0.0 - 5.0) { return 316; }
+    if c_mul.im != 10.0 { return 317; }
+    let i_val: Complex = Complex { re: 0.0, im: 1.0 };
+    let i_sq: Complex = mul_complex(i_val, i_val);
+    if i_sq.re != (0.0 - 1.0) { return 318; }
+    if i_sq.im != 0.0 { return 319; }
+    let c_div: Complex = div_complex(c1, c2);
+    let div_re_diff: f64 = abs_f64(c_div.re - 2.2);
+    if div_re_diff >= 0.000000000000001 { return 320; }
+    let div_im_diff: f64 = abs_f64(c_div.im - (0.0 - 0.4));
+    if div_im_diff >= 0.000000000000001 { return 321; }
+    let dc1: ComplexResult = div_checked_complex(c1, c2);
+    if !dc1.ok { return 322; }
+    let dc2: ComplexResult = div_checked_complex(c1, Complex { re: 0.0, im: 0.0 });
+    if dc2.ok { return 323; }
+
+    if modulus(c1) != 5.0 { return 324; }
+    let arg_diff: f64 = abs_f64(argument(c1) - 0.9272952180016122);
+    if arg_diff >= 0.000000000000001 { return 325; }
+    let c_conj: Complex = conjugate(c1);
+    if c_conj.re != 3.0 { return 326; }
+    if c_conj.im != (0.0 - 4.0) { return 327; }
+
+    let cp: Polar = to_polar_complex(c1);
+    if cp.r != 5.0 { return 328; }
+    let cc: Complex = from_polar_complex(cp);
+    if !approx_eq(cc, c1, 0.000000000001) { return 329; }
+    if approx_eq(c1, c2, 0.000000000001) { return 330; }
+    if !approx_eq(c1, c1, 0.0) { return 331; }
 
     return 0;
 }
