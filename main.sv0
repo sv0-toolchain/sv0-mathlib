@@ -55,6 +55,7 @@ use arith::add_checked_u64;
 use arith::sub_checked_u64;
 use arith::mul_checked_u64;
 use arith::fma_f64;
+use arith::pow_f64;
 use prelude::i32_min_val;
 use prelude::i32_max_val;
 use prelude::i64_min_val;
@@ -77,6 +78,9 @@ use modular::is_congruent_i64;
 use trig::pi_f64;
 use trig::sqrt_f64;
 use trig::sqrt_checked_f64;
+use trig::exp_f64;
+use trig::ln_f64;
+use trig::ln_checked_f64;
 use prelude::OptionF64;
 use prelude::OptionU64;
 
@@ -367,6 +371,44 @@ fn main() -> i32 {
 
     let pi_diff: f64 = abs_f64(pi_f64() - 3.141592653589793);
     if pi_diff >= 0.0000000000000001 { return 218; }
+
+    let ee1: f64 = abs_f64(exp_f64(1.0) - 2.718281828459045);
+    if ee1 >= 0.0000000000001 { return 220; }
+    let ee2: f64 = abs_f64(exp_f64(0.0) - 1.0);
+    if ee2 >= 0.0000000000001 { return 221; }
+    let ee3: f64 = abs_f64(exp_f64(10.0) - 22026.465794806718);
+    if ee3 >= 0.00000001 { return 222; }
+    let ee4: f64 = abs_f64(exp_f64(0.0 - 5.0) - 0.006737946999085467);
+    if ee4 >= 0.0000000000001 { return 223; }
+    let nan: f64 = 0.0 / 0.0;
+    if exp_f64(nan) == exp_f64(nan) { return 224; }
+
+    let ll1: f64 = abs_f64(ln_f64(2.718281828459045) - 1.0);
+    if ll1 >= 0.0000000000001 { return 225; }
+    if ln_f64(1.0) != 0.0 { return 226; }
+    let ll2: f64 = abs_f64(ln_f64(10.0) - 2.302585092994046);
+    if ll2 >= 0.0000000000001 { return 227; }
+    let ll3: f64 = abs_f64(ln_f64(0.5) - (0.0 - 0.6931471805599453));
+    if ll3 >= 0.0000000000001 { return 228; }
+    let ll4: f64 = abs_f64(ln_f64(1000000.0) - 13.815510557964274);
+    if ll4 >= 0.0000000001 { return 229; }
+
+    let lc1: bool = match ln_checked_f64(1.0) { OptionF64::Some(v) => v == 0.0, OptionF64::None => false };
+    if !lc1 { return 230; }
+    let lc2: bool = match ln_checked_f64(0.0 - 1.0) { OptionF64::Some(v) => false, OptionF64::None => true };
+    if !lc2 { return 231; }
+    let lc3: bool = match ln_checked_f64(0.0) { OptionF64::Some(v) => false, OptionF64::None => true };
+    if !lc3 { return 232; }
+
+    let pf1: f64 = abs_f64(pow_f64(2.0, 10.0) - 1024.0);
+    if pf1 >= 0.00001 { return 233; }
+    let pf2: f64 = abs_f64(pow_f64(2.0, 0.5) - 1.4142135623730951);
+    if pf2 >= 0.0000000001 { return 234; }
+    if pow_f64(5.0, 0.0) != 1.0 { return 235; }
+    if pow_f64(0.0, 5.0) != 0.0 { return 236; }
+    if pow_f64(0.0, 0.0) != 1.0 { return 237; }
+    let pf3: f64 = abs_f64(pow_f64(10.0, 3.0) - 1000.0);
+    if pf3 >= 0.00001 { return 238; }
 
     return 0;
 }

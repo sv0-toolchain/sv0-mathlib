@@ -41,6 +41,8 @@ use prelude::i64_min_val;
 use prelude::i64_max_val;
 use prelude::u32_max_val;
 use prelude::u64_max_val;
+use trig::exp_f64;
+use trig::ln_f64;
 
 /* Absolute value of a signed i32.
  *
@@ -392,12 +394,7 @@ fn lerp_f64(a: f64, b: f64, t: f64) -> f64
     return a + t * (b - a);
 }
 
-/* ── ARITH-007: exponentiation ────────────────────────────────────────
- * pow_f64 is deferred to R0.2 — SPEC.md specifies it via
- * `exp_f64(exp * ln_f64(base))`, and `exp_f64`/`ln_f64` are themselves
- * R0.2 shared machinery (introduced for `math::trig`), not yet
- * implemented. Only the integer form is done here.
- */
+/* ── ARITH-007: exponentiation ──────────────────────────────────────── */
 
 /* Pure, recursively-defined mathematical helper used only inside
  * `pow_i64`'s own `ensures` (legal per CONV-009's purity rule) — SPEC.md
@@ -511,6 +508,28 @@ fn pow_checked_i64(base: i64, exp: u32) -> OptionI64 {
     }
     if overflowed { return OptionI64::None; }
     return OptionI64::Some(acc);
+}
+
+/* `pow_f64`, per ARITH-007's own wording: `exp_f64(exp * ln_f64(base))`
+ * for `base > 0.0`. `exp_f64`/`ln_f64` are `math::trig`'s R0.2 shared
+ * machinery (this file's own `use trig::...` below is the cross-module
+ * dependency ARITH-007's roadmap step names). Outside `base > 0.0`,
+ * documented IEEE-754-ish behavior (not a full replication of C's `pow`
+ * edge-case table — this library doesn't attempt every negative-base/
+ * non-integer-exponent corner): `base == 0.0` follows the natural
+ * `0^exp` cases (`0` for `exp > 0`, `1` for `exp == 0`, `+Infinity` for
+ * `exp < 0`); `base < 0.0` returns `NaN` unconditionally (a real
+ * simplification versus true IEEE `pow`, which special-cases integer
+ * exponents there — documented, not silently guessed, per GOV-004).
+ */
+fn pow_f64(base: f64, exp: f64) -> f64 {
+    if base > 0.0 { return exp_f64(exp * ln_f64(base)); }
+    if base == 0.0 {
+        if exp > 0.0 { return 0.0; }
+        if exp == 0.0 { return 1.0; }
+        return 1.0 / 0.0;
+    }
+    return 0.0 / 0.0;
 }
 
 /* ── ARITH-008: wrapping/checked add/sub/mul ──────────────────────────
