@@ -376,7 +376,14 @@ fn ln_f64(x: f64) -> f64
     requires(x > 0.0)
 {
     let p: Pair2 = ln_f64_dd(x);
-    return p.hi + p.lo;
+    /* `p.hi + p.lo` as a bare binop-of-two-struct-field-accesses hits
+     * sv0c's bug #13 territory again (see BUGS.md #16) — copy fields
+     * into locals first, the same established workaround this codebase
+     * already uses elsewhere.
+     */
+    let p_hi: f64 = p.hi;
+    let p_lo: f64 = p.lo;
+    return p_hi + p_lo;
 }
 
 fn ln_checked_f64(x: f64) -> OptionF64 {
@@ -635,7 +642,12 @@ fn sin_f64(x: f64) -> f64
     let reduced: Pair2 = trig_reduce_2pi(x);
     let fold: QuadrantFold = trig_fold_quadrant(reduced);
     let sc: SinCosDD = trig_apply_quadrant_dd(fold);
-    return sc.s_hi + sc.s_lo;
+    /* See ln_f64's own comment (BUGS.md #16) for why this isn't a bare
+     * `return sc.s_hi + sc.s_lo;`.
+     */
+    let s_hi: f64 = sc.s_hi;
+    let s_lo: f64 = sc.s_lo;
+    return s_hi + s_lo;
 }
 
 fn cos_f64(x: f64) -> f64
@@ -648,7 +660,12 @@ fn cos_f64(x: f64) -> f64
     let reduced: Pair2 = trig_reduce_2pi(x);
     let fold: QuadrantFold = trig_fold_quadrant(reduced);
     let sc: SinCosDD = trig_apply_quadrant_dd(fold);
-    return sc.c_hi + sc.c_lo;
+    /* See ln_f64's own comment (BUGS.md #16) for why this isn't a bare
+     * `return sc.c_hi + sc.c_lo;`.
+     */
+    let c_hi: f64 = sc.c_hi;
+    let c_lo: f64 = sc.c_lo;
+    return c_hi + c_lo;
 }
 
 /* TRIG-002: `tan_f64(x)` is `sin_f64(x) / cos_f64(x)` — deliberately
@@ -844,7 +861,12 @@ fn atan_f64(x: f64) -> f64
     ensures((result >= (0.0 - pi_f64()) / 2.0 && result <= pi_f64() / 2.0) || result != result)
 {
     let p: Pair2 = atan_f64_dd(x);
-    return p.hi + p.lo;
+    /* See ln_f64's own comment (BUGS.md #16) for why this isn't a bare
+     * `return p.hi + p.lo;`.
+     */
+    let p_hi: f64 = p.hi;
+    let p_lo: f64 = p.lo;
+    return p_hi + p_lo;
 }
 
 /* Standard four-quadrant form, per TRIG-004's own wording; `atan2_f64(0.0,
