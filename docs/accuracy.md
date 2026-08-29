@@ -28,6 +28,17 @@ PERF-002 pins one (`sin_f64`/`cos_f64`/`tan_f64`/`asin_f64`/`acos_f64`/
 ULP bound) use an informational 3 ULP budget carried over from the
 sin/cos/tan convention, not a documented requirement.
 
+## Status
+
+| Requirement | Status |
+|---|---|
+| PERF-001 (`docs/accuracy.md` row per non-exact function) | COMPLETE |
+| PERF-002 (pinned ULP budgets: `sqrt_f64`/`sin_f64`/`cos_f64`/`tan_f64`/`asin_f64`/`acos_f64`/`atan_f64`/`atan2_f64`/`exp_f64`/`ln_f64`) | COMPLETE — all 10 PASS |
+| TRIG-005/TRIG-007 informational sweep (`sinh_f64`/`cosh_f64`/`tanh_f64`/`hypot_f64`, no SPEC-pinned budget) | COMPLETE — all 4 PASS |
+| CPLX-007 accuracy verification (`exp_complex`/`ln_complex`/`pow_complex`, no SPEC-pinned budget) | COMPLETE — `exp_complex` PASS; `ln_complex` FAIL against an informational budget only (real, understood, documented residual — see notes); `pow_complex` FAIL against an informational budget only (reference-quality artifact, not a confirmed defect — see notes) |
+
+## Measurements
+
 | Function | Domain sampled | Max ULP | Budget | Parameter | Status |
 |---|---|---:|---:|---|---|
 | `sqrt_f64` | magnitudes `1e-300`..`1e300` (100001 pts) + exact values | 1 | 2 | Newton-Raphson, exponent-doubling bracket seed, fixed 1 refinement pass (see `sqrt_bracket_guess`/`sqrt_error_bound`) | PASS |
