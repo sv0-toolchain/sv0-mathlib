@@ -7,18 +7,19 @@ coordinates, and complex numbers, built contract-first per
 
 ## Status
 
-**F0 complete. R0.1 complete**: `math::arith`'s ARITH-005 (rounding),
-ARITH-006 (classification), ARITH-007 (`pow_i64`/`pow_checked_i64`),
-ARITH-008 (wrapping/checked add/sub/mul across i32/i64/u32/u64),
-ARITH-009 (lerp), and ARITH-010 (`fma_f64`, a genuine software-emulated
-single-rounding fma via Dekker's algorithm — no native fma primitive
-exists anywhere in this toolchain), plus all of `math::modular`
-(MOD-001..004: floor/Euclidean remainder, GCD/LCM, overflow-safe modular
-add/sub/mul) are all done. Found and fixed four more real toolchain bugs
-along the way (BUGS.md #10, #11) and found two more real, still-open
-gaps with documented workarounds (#12, #13) — see BUGS.md for detail.
-MOD-005..007 and every R0.2/R0.3 requirement (trig, polar, complex) are
-not yet started.
+**F0 complete. R0.1 complete.** R0.2 in progress: `math::modular`'s
+MOD-005..007 (modular exponentiation, modular inverse, congruence) are
+done, closing out `math::modular` entirely. `math::trig`'s shared
+`PI_F64` constant and `sqrt_f64`/`sqrt_checked_f64` (a genuine
+Newton-Raphson square root, seeded via a portable exponent-doubling
+bracket rather than the bit-reinterpretation trick SPEC.md offers as one
+option — no safe cast/bit-reinterpretation exists in this toolchain) are
+done — see README's "Deviations from SPEC.md" for why sqrt lives in
+`math::trig` rather than `math::arith`. Remaining for R0.2: `exp_f64`/
+`ln_f64` (shared machinery, needed for `pow_f64` and `sinh`/`cosh`/
+`tanh`), `sin_f64`/`cos_f64`/`tan_f64` (range reduction + polynomial),
+inverse trig, hyperbolic forms, `to_radians_f64`/`to_degrees_f64`, and
+`hypot_f64`. R0.3 (`polar`, `complex`) is not yet started.
 
 **F0's own surface, including `abs_checked_i64`:** `math::arith`'s ARITH-001..004
 are fully implemented and contract-checked: all i32, i64, and f64 forms
@@ -106,6 +107,18 @@ toolchain and the spec disagree — write down the deviation and why).
    BUGS.md #9. Not a scalable pattern past a handful of concrete `_checked`
    return types; worth revisiting before R0.1+'s larger `_checked` surface
    if bug #9 isn't fixed by then.
+4. **`sqrt_f64`/`sqrt_checked_f64` live in `lib/trig.sv0`, not
+   `lib/arith.sv0`.** SPEC.md fully specifies both (Section 14.3's
+   Newton-Raphson algorithm, Appendix C's worked `sqrt_checked_f64`
+   contract, PERF-002's 2 ULP requirement) but never assigns either a
+   requirement ID or a home module — neither `math::arith`'s scope
+   (Section 11) nor `math::trig`'s own scope (13.1, which lists sin/cos/
+   tan/asin/acos/atan/atan2/sinh/cosh/tanh/degree-radian conversion/
+   hypot, but not "sqrt") names it. Placed in `math::trig` because
+   `hypot_f64` (TRIG-007) needs it directly and AD-004 already groups
+   "Newton-Raphson for roots" with "trig" as one combined design
+   decision — see `lib/trig.sv0`'s own header comment for the full
+   reasoning.
 
 ## Build and test
 
