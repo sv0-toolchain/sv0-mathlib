@@ -170,6 +170,24 @@ toolchain and the spec disagree — write down the deviation and why).
    an accurate double-precision implementation; the non-strict form
    matches `sin_f64`/`cos_f64`'s own boundary-inclusive convention. See
    `docs/accuracy.md` for the full accuracy audit this was found during.
+9. **The Section 15 ULP fixture tables' authoritative reference is the
+   system libm (`<math.h>`), not a hand-derived arbitrary-precision
+   computation checked into this repository — resolving SPEC.md §22
+   Open Question 5.** SPEC.md assumed the latter by default but didn't
+   mandate it. In practice, `docs/ulp_audit_harness.c` (checked in)
+   compares every function directly against the system's `<math.h>`/
+   `<complex.h>` implementations, which is simpler, has no extra
+   toolchain dependency, and covers the full swept domain rather than a
+   fixed checked-in table. The one place this needed reinforcing:
+   system libm is NOT always correctly rounded itself (found auditing
+   `pow_complex` — `cpow`/`cexp` measured genuinely less accurate than
+   this library at some points, confirmed against an independent
+   arbitrary-precision reference, `mpmath`, used ad hoc as a
+   second-opinion check rather than as the primary fixture source — see
+   `docs/accuracy.md`'s own notes on `pow_complex`). No checked-in
+   fixture table exists yet (`test/fixtures/` is still empty; the audit
+   uses a fixed sample grid generated at run time, not stored data) —
+   tracked as a follow-up, not blocking this resolution.
 
 ## Build and test
 
@@ -204,6 +222,7 @@ confirmed works).
 ```text
 sv0-mathlib/
 ├── README.md
+├── CHANGELOG.md     # DOC-003: user-visible changes, accuracy bound changes, contract changes
 ├── BUGS.md          # toolchain gaps found during development
 ├── main.sv0         # smoke/demo entry point (also the full test suite today)
 ├── lib/
@@ -215,5 +234,6 @@ sv0-mathlib/
 │   └── prelude.sv0   # module prelude — shared Option/Result declarations
 ├── test/{unit,fixtures,property,parity}/
 └── docs/
-    └── accuracy.md   # PERF-001/PERF-002: measured ULP error per non-exact function
+    ├── accuracy.md            # PERF-001/PERF-002: measured ULP error per non-exact function
+    └── ulp_audit_harness.c    # the standalone C harness used to produce accuracy.md's numbers
 ```
