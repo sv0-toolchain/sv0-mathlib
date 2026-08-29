@@ -8,7 +8,7 @@
 # library's own README "Deviations from SPEC.md" #2) — set
 # SV0_TOOLCHAIN_ROOT to point elsewhere if it isn't.
 #
-# Usage: scripts/ci [--skip-fmt] [--skip-guard] [--skip-run] [--skip-unit] [--skip-fixtures]
+# Usage: scripts/ci [--skip-fmt] [--skip-guard] [--skip-run] [--skip-unit] [--skip-fixtures] [--skip-doc]
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -19,6 +19,7 @@ SKIP_GUARD=0
 SKIP_RUN=0
 SKIP_UNIT=0
 SKIP_FIXTURES=0
+SKIP_DOC=0
 for arg in "$@"; do
   case "$arg" in
     --skip-fmt) SKIP_FMT=1 ;;
@@ -26,6 +27,7 @@ for arg in "$@"; do
     --skip-run) SKIP_RUN=1 ;;
     --skip-unit) SKIP_UNIT=1 ;;
     --skip-fixtures) SKIP_FIXTURES=1 ;;
+    --skip-doc) SKIP_DOC=1 ;;
     *)
       echo "sv0-mathlib ci: unknown argument: $arg" >&2
       exit 2
@@ -93,6 +95,12 @@ if [[ "$SKIP_FIXTURES" -eq 0 ]]; then
   echo "== sv0-mathlib ci: fixture manifest + boundary-coverage lint (TEST-002/TEST-003) =="
   python3 "$HERE/scripts/check_fixtures.py"
   echo "sv0-mathlib ci: fixtures OK"
+fi
+
+if [[ "$SKIP_DOC" -eq 0 ]]; then
+  echo "== sv0-mathlib ci: doc-comment coverage lint (DOC-001) =="
+  python3 "$HERE/scripts/check_doc_comments.py"
+  echo "sv0-mathlib ci: doc comments OK"
 fi
 
 echo "sv0-mathlib ci: PASS"

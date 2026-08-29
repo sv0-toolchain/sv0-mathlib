@@ -188,11 +188,13 @@ toolchain and the spec disagree — write down the deviation and why).
    not present — no `pub use` re-export syntax exists in sv0 today, so
    there's nothing for it to do yet.
 2. **Repo lives as a sibling of `sv0-toolchain`, driven by relative
-   `--project` paths**, resolving SPEC.md §22 OQ-002 in practice ahead of
-   a formal decision: `./scripts/sv0 vm-project-compile ../../sv0-mathlib`
-   and `build/sv0-megatu-compiler-native --project /path/to/sv0-mathlib`
-   both work today from a `sv0-toolchain` checkout. No `sv0.toml` exists in
-   the toolchain to root a project a different way.
+   `--project` paths** — see deviation #10 below for this being this
+   library's own formal resolution of SPEC.md §22 OQ-002, not just a
+   practical workaround: `./scripts/sv0 vm-project-compile
+   ../../sv0-mathlib` and `build/sv0-megatu-compiler-native --project
+   /path/to/sv0-mathlib` both work today from a `sv0-toolchain`
+   checkout. No `sv0.toml` exists in the toolchain to root a project a
+   different way.
 3. **`abs_checked_i64` returns `OptionI64`, a second concrete enum, not
    `Option<T>` instantiated at `i64`.** sv0 generic enums resolve (BUGS.md
    #3) but the compiler doesn't monomorphize them: there is exactly one
@@ -266,10 +268,24 @@ toolchain and the spec disagree — write down the deviation and why).
    this library at some points, confirmed against an independent
    arbitrary-precision reference, `mpmath`, used ad hoc as a
    second-opinion check rather than as the primary fixture source — see
-   `docs/accuracy.md`'s own notes on `pow_complex`). No checked-in
-   fixture table exists yet (`test/fixtures/` is still empty; the audit
-   uses a fixed sample grid generated at run time, not stored data) —
-   tracked as a follow-up, not blocking this resolution.
+   `docs/accuracy.md`'s own notes on `pow_complex`). `test/fixtures/`
+   (TEST-002/TEST-003) DOES now exist — `rounding.csv`/`trig.csv` —
+   but as a small set of named, discrete boundary/special-value points,
+   not a full checked-in reference table for the broad ULP sweep itself;
+   that broad sweep still runs against system libm directly, live, per
+   this deviation's own resolution.
+10. **This repository IS the sibling-of-`sv0-toolchain`, `--project`-
+    driven shape — resolving SPEC.md §22 Open Question 2.** Deviation
+    #2 above already described this as the PRACTICAL answer; recorded
+    here explicitly as the deviation's own formal resolution (SPEC.md
+    §21.5's R1-gate wording wants open questions "resolved or
+    explicitly deferred with rationale," not merely worked around).
+    No `sv0.toml`-rooted project convention exists anywhere in the
+    audited toolchain to root a project a different way (confirmed
+    empirically, not merely absent from documentation) — until one
+    does, `--project <dir>` against a sibling checkout is this
+    library's own repository shape, not a placeholder for something
+    else.
 
 ## Build and test
 

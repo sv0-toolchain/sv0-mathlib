@@ -127,7 +127,8 @@ fn sqrt_error_bound(x: f64) -> f64 {
  * `sqrt_f64(Infinity)` was silently returning `NaN`, not `Infinity`,
  * and `NaN >= 0.0`/`abs_f64(NaN - x) <= ...` both being false made the
  * `ensures` panic rather than silently propagate the wrong answer,
- * which is how this was caught.
+ * which is how this was caught. Non-exact — see docs/accuracy.md's
+ * `sqrt_f64` row (PERF-002's 2 ULP budget).
  */
 fn sqrt_f64(x: f64) -> f64
     requires(x >= 0.0)
@@ -202,6 +203,8 @@ fn sqrt_checked_f64(x: f64) -> OptionF64 {
  * `x ~ 689`, nowhere near PERF-002's 2 ULP budget). Fixed the same way:
  * `ln2_hi`/`ln2_lo` split `ln(2)` to ~100 bits, `k * ln2_hi` computed
  * exactly via `two_prod`, and the subtraction from `x` via `two_sum`.
+ * Non-exact — see docs/accuracy.md's `exp_f64` row (PERF-002's 2 ULP
+ * budget).
  */
 fn exp_f64(x: f64) -> f64
     ensures(result >= 0.0 || result != result)
@@ -403,6 +406,8 @@ fn ln_f64_dd(x: f64) -> Pair2
     return Pair2 { hi: total.hi, lo: total_lo };
 }
 
+/* TRIG-002ish (Section 14): natural log, requires(x > 0.0). Non-exact
+ * — see docs/accuracy.md's `ln_f64` row (PERF-002's 2 ULP budget). */
 fn ln_f64(x: f64) -> f64
     requires(x > 0.0)
 {
@@ -417,6 +422,9 @@ fn ln_f64(x: f64) -> f64
     return p_hi + p_lo;
 }
 
+/* Unchecked-domain companion to `ln_f64`: None for x <= 0.0 (outside
+ * ln's own domain) instead of the panic `ln_f64`'s own `requires`
+ * would raise. */
 fn ln_checked_f64(x: f64) -> OptionF64 {
     if x <= 0.0 { return OptionF64::None; }
     return OptionF64::Some(ln_f64(x));
@@ -674,6 +682,8 @@ fn trig_apply_quadrant_dd(fold: QuadrantFold) -> SinCosDD {
 
 /* Total functions over all finite f64 (no `requires` on domain, per
  * TRIG-001's own wording); NaN/Infinity input propagates NaN.
+ * Non-exact — see docs/accuracy.md's `sin_f64`/`cos_f64` rows
+ * (PERF-002's 2 ULP budget).
  */
 fn sin_f64(x: f64) -> f64
     ensures((result >= (0.0 - 1.0) && result <= 1.0) || result != result)
@@ -693,6 +703,8 @@ fn sin_f64(x: f64) -> f64
     return s_hi + s_lo;
 }
 
+/* See sin_f64's own comment above (same domain, contract shape, and
+ * docs/accuracy.md accuracy budget). */
 fn cos_f64(x: f64) -> f64
     ensures((result >= (0.0 - 1.0) && result <= 1.0) || result != result)
 {
@@ -722,12 +734,16 @@ fn cos_f64(x: f64) -> f64
  * anyway for API consistency with every other domain-adjacent function
  * in this module, even though TRIG-002 doesn't require it (`cos_f64(x)
  * == 0.0` is itself the only "domain violation," already handled by the
- * unchecked form's own IEEE-754 behavior).
+ * unchecked form's own IEEE-754 behavior). Non-exact — see
+ * docs/accuracy.md's `tan_f64` row (PERF-002's 2 ULP budget).
  */
 fn tan_f64(x: f64) -> f64 {
     return sin_f64(x) / cos_f64(x);
 }
 
+/* Checked companion to `tan_f64`, per this section's own comment above
+ * — None exactly where cos_f64(x) == 0.0 (the asymptote), Some
+ * otherwise. */
 fn tan_checked_f64(x: f64) -> OptionF64 {
     let c: f64 = cos_f64(x);
     if c == 0.0 { return OptionF64::None; }
@@ -743,6 +759,8 @@ fn to_radians_f64(deg: f64) -> f64 {
     return deg * (pi_f64() / 180.0);
 }
 
+/* TRIG-006: radians to degrees, any finite rad — see this section's
+ * own header comment above. */
 fn to_degrees_f64(rad: f64) -> f64 {
     return rad * (180.0 / pi_f64());
 }
@@ -753,7 +771,8 @@ fn to_degrees_f64(rad: f64) -> f64 {
  * `mn/mx`, a ratio always in `[0.0, 1.0]` — `x*x + y*y` directly would
  * overflow to Infinity for any `x`/`y` whose magnitude exceeds roughly
  * `sqrt(f64::MAX)` (~1.34e154) even when the TRUE hypot result is still
- * comfortably representable.
+ * comfortably representable. Non-exact — see docs/accuracy.md's
+ * `hypot_f64` row (PERF-002's 2 ULP budget).
  */
 fn hypot_f64(x: f64, y: f64) -> f64
     ensures(result >= 0.0)
@@ -902,7 +921,8 @@ fn atan_f64_dd(x: f64) -> Pair2 {
  * accurate version of this function happened to round just short of the
  * boundary by coincidence, masking the same underlying issue. The
  * `ensures` below uses `>=`/`<=` instead, matching `sin_f64`/`cos_f64`'s
- * own boundary-inclusive convention.
+ * own boundary-inclusive convention. Non-exact — see
+ * docs/accuracy.md's `atan_f64` row (PERF-002's 2 ULP budget).
  */
 fn atan_f64(x: f64) -> f64
     ensures((result >= (0.0 - pi_f64()) / 2.0 && result <= pi_f64() / 2.0) || result != result)
@@ -918,6 +938,8 @@ fn atan_f64(x: f64) -> f64
 
 /* Standard four-quadrant form, per TRIG-004's own wording; `atan2_f64(0.0,
  * 0.0)` is explicitly defined as `0.0` rather than left unspecified.
+ * Non-exact — see docs/accuracy.md's `atan2_f64` row (a direct
+ * pass-through of `atan_f64`'s own PERF-002 2 ULP budget).
  */
 fn atan2_f64(y: f64, x: f64) -> f64
     ensures(result >= (0.0 - pi_f64()) && result <= pi_f64())
@@ -944,7 +966,8 @@ fn atan2_f64(y: f64, x: f64) -> f64
  * computes the same mathematical quantity but each factor is its own
  * well-conditioned subtraction (no cancellation — `x` isn't close to
  * `-1`/`1` in a single factor the way `x*x` is close to `1` in the naive
- * form), so the product retains full relative precision.
+ * form), so the product retains full relative precision. Non-exact —
+ * see docs/accuracy.md's `asin_f64` row (PERF-002's 3 ULP budget).
  */
 fn asin_f64(x: f64) -> f64
     requires(x >= (0.0 - 1.0) && x <= 1.0)
@@ -965,7 +988,8 @@ fn asin_f64(x: f64) -> f64
  * `(1-x)/2`/`(1+x)/2` are each well-conditioned (the SAME well-behaved
  * shape `asin_f64`'s own `(1.0-x)*(1.0+x)` fix relies on), and reuses
  * `asin_f64`'s own accuracy directly instead of independently
- * re-deriving the angle.
+ * re-deriving the angle. Non-exact — see docs/accuracy.md's
+ * `acos_f64` row (PERF-002's 3 ULP budget).
  */
 fn acos_f64(x: f64) -> f64
     requires(x >= (0.0 - 1.0) && x <= 1.0)
@@ -977,12 +1001,16 @@ fn acos_f64(x: f64) -> f64
     return pi_f64() - 2.0 * asin_f64(sqrt_f64((1.0 + x) / 2.0));
 }
 
+/* Checked companion to `asin_f64` — None outside [-1.0, 1.0], Some
+ * otherwise. */
 fn asin_checked_f64(x: f64) -> OptionF64 {
     if x < (0.0 - 1.0) { return OptionF64::None; }
     if x > 1.0 { return OptionF64::None; }
     return OptionF64::Some(asin_f64(x));
 }
 
+/* Checked companion to `acos_f64` — None outside [-1.0, 1.0], Some
+ * otherwise. */
 fn acos_checked_f64(x: f64) -> OptionF64 {
     if x < (0.0 - 1.0) { return OptionF64::None; }
     if x > 1.0 { return OptionF64::None; }
@@ -1005,6 +1033,8 @@ fn acos_checked_f64(x: f64) -> OptionF64 {
  * asymptote (`tanh(20.0)` already differs from `1.0` by less than
  * `1e-17`, past `f64` precision) — clamped explicitly rather than
  * letting `(Infinity - 1) / (Infinity + 1)` produce `NaN`.
+ * Non-exact — see docs/accuracy.md's `sinh_f64`/`cosh_f64`/`tanh_f64`
+ * rows (informational 3 ULP budgets).
  */
 fn sinh_f64(x: f64) -> f64 {
     if abs_f64(x) < 1.0 {
@@ -1040,6 +1070,8 @@ fn sinh_f64(x: f64) -> f64 {
     return (ex - enx) / 2.0;
 }
 
+/* See sinh_f64's own comment above (same section, same
+ * docs/accuracy.md accuracy budget). */
 fn cosh_f64(x: f64) -> f64
     ensures(result >= 1.0)
 {
@@ -1080,6 +1112,8 @@ fn cosh_f64(x: f64) -> f64
  * `sinh_f64` already has its own cancellation-free Taylor branch for
  * `|x| < 1.0` (see above), and `cosh_f64` near zero has no cancellation
  * to begin with (`exp(x) + exp(-x)` near `2.0`, nothing subtracts).
+ * Non-exact — see docs/accuracy.md's `tanh_f64` row (informational 3
+ * ULP budget).
  */
 fn tanh_f64(x: f64) -> f64
     ensures(result > (0.0 - 1.0) && result < 1.0)

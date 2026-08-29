@@ -130,6 +130,9 @@ fn add_mod_u64(a: u64, b: u64, m: u64) -> u64
     return ar + br;
 }
 
+/* MOD-004: (a - b) mod m for any u64 a/b, requires(m>0), ensures
+ * result < m — wraps around m rather than underflowing when b's own
+ * residue exceeds a's. */
 fn sub_mod_u64(a: u64, b: u64, m: u64) -> u64
     requires(m > 0)
     ensures(result < m)
@@ -140,6 +143,9 @@ fn sub_mod_u64(a: u64, b: u64, m: u64) -> u64
     return m - (br - ar);
 }
 
+/* MOD-004: (a * b) mod m for any u64 a/b, requires(m>0), ensures
+ * result < m — via binary ("Russian peasant") multiplication, avoiding
+ * the u128 intermediate this toolchain doesn't have. */
 fn mul_mod_u64(a: u64, b: u64, m: u64) -> u64
     requires(m > 0)
     ensures(result < m)

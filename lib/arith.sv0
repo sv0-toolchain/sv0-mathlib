@@ -187,7 +187,9 @@ fn max_i32(a: i32, b: i32) -> i32
     return b;
 }
 
-/* Clamp x into [lo, hi]. */
+/* ARITH-004: clamp x (any i32) into [lo, hi]; requires lo <= hi;
+ * ensures the result is in [lo, hi], and equals x unchanged whenever x
+ * was already inside that range. */
 fn clamp_i32(x: i32, lo: i32, hi: i32) -> i32
     requires(lo <= hi)
     ensures(result >= lo && result <= hi)
@@ -307,6 +309,10 @@ fn frac_floor_of_nonneg(x: f64) -> f64
     return acc;
 }
 
+/* ARITH-005: truncate x (any f64, including NaN/Infinity) toward zero.
+ * Total function, no `requires` — NaN propagates, +/-Infinity and
+ * already-integer values pass through unchanged, ordinary values
+ * round toward zero within one unit. */
 fn trunc_f64(x: f64) -> f64
     ensures(((x >= 0.0 && result <= x && result > x - 1.0) ||
              (x < 0.0 && result >= x && result < x + 1.0) ||
@@ -320,6 +326,9 @@ fn trunc_f64(x: f64) -> f64
     return 0.0 - frac_floor_of_nonneg(0.0 - x);
 }
 
+/* ARITH-005: round x (any f64) down toward negative infinity. Total,
+ * NaN/Infinity/already-integer pass through unchanged (see trunc_f64's
+ * own comment — the same domain-boundary reasoning applies here). */
 fn floor_f64(x: f64) -> f64
     ensures((result <= x && result > x - 1.0) || result == x || result != result)
 {
@@ -333,6 +342,9 @@ fn floor_f64(x: f64) -> f64
     return t - 1.0;
 }
 
+/* ARITH-005: round x (any f64) up toward positive infinity. Total,
+ * NaN/Infinity/already-integer pass through unchanged (see trunc_f64's
+ * own comment). */
 fn ceil_f64(x: f64) -> f64
     ensures((result >= x && result < x + 1.0) || result == x || result != result)
 {
@@ -379,6 +391,9 @@ fn is_nan_f64(x: f64) -> bool
     return x != x;
 }
 
+/* ARITH-006: true iff x is +Infinity or -Infinity; false for NaN and
+ * every finite value — the only sanctioned way this library tests for
+ * Infinity (CONV-006's own convention, applied to classification). */
 fn is_infinite_f64(x: f64) -> bool
     ensures(!result || !is_nan_f64(x))
 {
@@ -389,6 +404,8 @@ fn is_infinite_f64(x: f64) -> bool
     return false;
 }
 
+/* ARITH-006: true iff x is neither NaN nor +/-Infinity — every ordinary
+ * finite double, including 0.0/-0.0 and subnormals. */
 fn is_finite_f64(x: f64) -> bool
     ensures(result == (!is_nan_f64(x) && !is_infinite_f64(x)))
 {
@@ -571,6 +588,9 @@ fn pow_f64(base: f64, exp: f64) -> f64 {
  * same approach ARITH-007's `mul_checked_i64` already established.
  */
 
+/* ARITH-008: add two i32 (any values), wrapping modulo 2^32 on overflow
+ * — via this file's own unsigned-round-trip technique above, never `%`
+ * or a naive `a+b` (undefined behavior on signed overflow). */
 fn add_wrapping_i32(a: i32, b: i32) -> i32 {
     let ua: u32 = a;
     let ub: u32 = b;
@@ -579,6 +599,7 @@ fn add_wrapping_i32(a: i32, b: i32) -> i32 {
     return out;
 }
 
+/* ARITH-008: subtract two i32, wrapping modulo 2^32. */
 fn sub_wrapping_i32(a: i32, b: i32) -> i32 {
     let ua: u32 = a;
     let ub: u32 = b;
@@ -587,6 +608,7 @@ fn sub_wrapping_i32(a: i32, b: i32) -> i32 {
     return out;
 }
 
+/* ARITH-008: multiply two i32, wrapping modulo 2^32. */
 fn mul_wrapping_i32(a: i32, b: i32) -> i32 {
     let ua: u32 = a;
     let ub: u32 = b;
@@ -595,6 +617,9 @@ fn mul_wrapping_i32(a: i32, b: i32) -> i32 {
     return out;
 }
 
+/* ARITH-008: add two i32, returning None on overflow instead of
+ * wrapping — checked BEFORE computing (see this family's own header
+ * comment for why). */
 fn add_checked_i32(a: i32, b: i32) -> Option {
     if b > 0 {
         if a > (i32_max_val() - b) { return Option::None; }
@@ -604,6 +629,7 @@ fn add_checked_i32(a: i32, b: i32) -> Option {
     return Option::Some(a + b);
 }
 
+/* ARITH-008: subtract two i32, returning None on overflow. */
 fn sub_checked_i32(a: i32, b: i32) -> Option {
     if b < 0 {
         if a > (i32_max_val() + b) { return Option::None; }
@@ -613,6 +639,7 @@ fn sub_checked_i32(a: i32, b: i32) -> Option {
     return Option::Some(a - b);
 }
 
+/* ARITH-008: multiply two i32, returning None on overflow. */
 fn mul_checked_i32(a: i32, b: i32) -> Option {
     if a == 0 { return Option::Some(0); }
     if b == 0 { return Option::Some(0); }
@@ -640,6 +667,8 @@ fn mul_checked_i32(a: i32, b: i32) -> Option {
     return Option::Some(a * b);
 }
 
+/* ARITH-008: i64 forms of the same three wrapping/checked shapes above,
+ * via the u64 round-trip. */
 fn add_wrapping_i64(a: i64, b: i64) -> i64 {
     let ua: u64 = a;
     let ub: u64 = b;
@@ -648,6 +677,7 @@ fn add_wrapping_i64(a: i64, b: i64) -> i64 {
     return out;
 }
 
+/* ARITH-008: subtract two i64, wrapping modulo 2^64. */
 fn sub_wrapping_i64(a: i64, b: i64) -> i64 {
     let ua: u64 = a;
     let ub: u64 = b;
@@ -656,6 +686,7 @@ fn sub_wrapping_i64(a: i64, b: i64) -> i64 {
     return out;
 }
 
+/* ARITH-008: multiply two i64, wrapping modulo 2^64. */
 fn mul_wrapping_i64(a: i64, b: i64) -> i64 {
     let ua: u64 = a;
     let ub: u64 = b;
@@ -664,6 +695,7 @@ fn mul_wrapping_i64(a: i64, b: i64) -> i64 {
     return out;
 }
 
+/* ARITH-008: add two i64, returning None on overflow. */
 fn add_checked_i64(a: i64, b: i64) -> OptionI64 {
     if b > 0 {
         if a > (i64_max_val() - b) { return OptionI64::None; }
@@ -673,6 +705,7 @@ fn add_checked_i64(a: i64, b: i64) -> OptionI64 {
     return OptionI64::Some(a + b);
 }
 
+/* ARITH-008: subtract two i64, returning None on overflow. */
 fn sub_checked_i64(a: i64, b: i64) -> OptionI64 {
     if b < 0 {
         if a > (i64_max_val() + b) { return OptionI64::None; }
@@ -682,43 +715,56 @@ fn sub_checked_i64(a: i64, b: i64) -> OptionI64 {
     return OptionI64::Some(a - b);
 }
 
-/* Unsigned wrapping: C unsigned arithmetic already wraps modulo 2^n by
- * definition — no trick needed.
- */
+/* ARITH-008: add two u32, wrapping modulo 2^32 — C unsigned arithmetic
+ * already wraps by definition, no round-trip trick needed (unlike the
+ * signed i32/i64 forms above). */
 fn add_wrapping_u32(a: u32, b: u32) -> u32 { return a + b; }
+/* ARITH-008: subtract two u32, wrapping modulo 2^32. */
 fn sub_wrapping_u32(a: u32, b: u32) -> u32 { return a - b; }
+/* ARITH-008: multiply two u32, wrapping modulo 2^32. */
 fn mul_wrapping_u32(a: u32, b: u32) -> u32 { return a * b; }
 
+/* ARITH-008: add two u32, returning None on overflow. */
 fn add_checked_u32(a: u32, b: u32) -> OptionU32 {
     if a > (u32_max_val() - b) { return OptionU32::None; }
     return OptionU32::Some(a + b);
 }
 
+/* ARITH-008: subtract two u32, returning None if the result would be
+ * negative (unsigned has no negative representation to wrap into). */
 fn sub_checked_u32(a: u32, b: u32) -> OptionU32 {
     if a < b { return OptionU32::None; }
     return OptionU32::Some(a - b);
 }
 
+/* ARITH-008: multiply two u32, returning None on overflow. */
 fn mul_checked_u32(a: u32, b: u32) -> OptionU32 {
     if a == 0 { return OptionU32::Some(0); }
     if b > (u32_max_val() / a) { return OptionU32::None; }
     return OptionU32::Some(a * b);
 }
 
+/* ARITH-008: add two u64, wrapping modulo 2^64. */
 fn add_wrapping_u64(a: u64, b: u64) -> u64 { return a + b; }
+/* ARITH-008: subtract two u64, wrapping modulo 2^64. */
 fn sub_wrapping_u64(a: u64, b: u64) -> u64 { return a - b; }
+/* ARITH-008: multiply two u64, wrapping modulo 2^64. */
 fn mul_wrapping_u64(a: u64, b: u64) -> u64 { return a * b; }
 
+/* ARITH-008: add two u64, returning None on overflow. */
 fn add_checked_u64(a: u64, b: u64) -> OptionU64 {
     if a > (u64_max_val() - b) { return OptionU64::None; }
     return OptionU64::Some(a + b);
 }
 
+/* ARITH-008: subtract two u64, returning None if the result would be
+ * negative. */
 fn sub_checked_u64(a: u64, b: u64) -> OptionU64 {
     if a < b { return OptionU64::None; }
     return OptionU64::Some(a - b);
 }
 
+/* ARITH-008: multiply two u64, returning None on overflow. */
 fn mul_checked_u64(a: u64, b: u64) -> OptionU64 {
     if a == 0 { return OptionU64::Some(0); }
     if b > (u64_max_val() / a) { return OptionU64::None; }
