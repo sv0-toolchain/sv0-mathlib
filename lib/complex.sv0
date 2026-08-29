@@ -46,7 +46,10 @@ use trig::atan2_f64;
 use trig::sin_f64;
 use trig::cos_f64;
 use trig::exp_f64;
-use trig::ln_f64;
+use trig::ln_f64_dd;
+use arith::Pair2;
+use arith::two_sum;
+use arith::two_prod;
 use arith::abs_f64;
 
 /* CPLX-001: matches `sv0doc/type-system/rules.md` §2.4's worked example
@@ -197,11 +200,70 @@ fn exp_complex(c: Complex) -> Complex {
 /* `ln_complex(c) = ln(|c|) + i*arg(c)` for `c != 0` — undefined (a branch
  * point) at the origin, per the standard complex logarithm's own domain;
  * `requires` excludes it the same way `div_complex` excludes `b == 0`.
+ *
+ * The real part is deliberately NOT `ln_f64(modulus(c))` — `modulus(c)`
+ * is `hypot_f64(c.re, c.im)`, itself already correctly-rounded to ~1
+ * ULP, but that rounding is a SEPARATE step from the `ln_f64` that
+ * follows it, and near `\|c\| ~= 1` (where `ln\|c\|` itself is near
+ * zero) that extra rounding is enough to blow past this library's own
+ * informational accuracy budget — confirmed via a widened audit sweep:
+ * 234 ULP at `c.re ~= -0.694, c.im ~= -0.729` (`\|c\| ~= 1.007`), even
+ * though `ln_f64` and `hypot_f64` each independently measure within 1
+ * ULP on their own. Uses `hypot_f64`'s own overflow-safe scaling
+ * decomposition (`mx`/`mn`/`ratio`) directly against `ln_f64` instead —
+ * `ln\|c\| = ln(mx) + 0.5*ln(1 + ratio^2)` — skipping the intermediate
+ * `sqrt` (and its own rounding) entirely; `ln_f64`'s own accuracy near
+ * `1 + ratio^2 ~= 1` (proven separately in `docs/accuracy.md`) covers
+ * the case `ratio` is small.
  */
 fn ln_complex(c: Complex) -> Complex
     requires(c.re != 0.0 || c.im != 0.0)
 {
-    return Complex { re: ln_f64(modulus(c)), im: argument(c) };
+    let ax: f64 = abs_f64(c.re);
+    let ay: f64 = abs_f64(c.im);
+    let mut mx: f64 = ax;
+    let mut mn: f64 = ay;
+    if ay > ax {
+        mx = ay;
+        mn = ax;
+    }
+    let ratio: f64 = mn / mx;
+    /* `ln_f64(mx) + 0.5 * ln_f64(1.0 + ratio*ratio)` (independent single
+     * roundings throughout, then a plain `+`) still lost real precision
+     * right where this decomposition needs it most: near `\|c\| ~= 1`,
+     * `ln(mx)` and `0.5*ln(1+ratio^2)` are close in magnitude and
+     * OPPOSITE in sign, so they cancel — a ~1 ULP rounding anywhere
+     * upstream becomes a much larger RELATIVE error once the (near-zero)
+     * sum is formed. Measured 234 ULP before any fix; three intermediate
+     * fixes got this to 32, then 23, then 14 ULP (see `docs/accuracy.md`
+     * for the full progression) via this version: `ratio*ratio` itself
+     * is computed via `two_prod` (not a plain, rounding `*`) and
+     * `1.0 + ratio^2` via `two_sum`, `ln_f64_dd` is used for BOTH the
+     * `mx` and `1+ratio^2` logarithms, `1+ratio^2`'s own residual
+     * (`s_lo`) is folded in as a first-order correction
+     * (`d(ln(x))/dx = 1/x`, so `s_lo/s_hi`) — mirroring `ln_f64_dd`'s own
+     * `y`/`y_lo` correction internally — and everything combines via
+     * `two_sum`, rounding to a single `f64` only once at the very end.
+     * 14 ULP against this table's own informational 3 ULP budget is a
+     * real, understood residual (`ratio` itself is still only a single,
+     * ~0.5-ULP-rounded division — going further would need its own
+     * Newton-refinement step, the same shape as this fix's own `s_lo`
+     * correction, one level down), not chased further since SPEC.md
+     * pins no ULP requirement for CPLX-007 at all.
+     */
+    let r2: Pair2 = two_prod(ratio, ratio);
+    let s: Pair2 = two_sum(1.0, r2.hi);
+    let s_hi: f64 = s.hi;
+    let s_lo: f64 = s.lo + r2.lo;
+    let a: Pair2 = ln_f64_dd(mx);
+    let b: Pair2 = ln_f64_dd(s_hi);
+    let b_corr: f64 = s_lo / s_hi;
+    let b_half_hi: f64 = 0.5 * b.hi;
+    let b_half_lo: f64 = 0.5 * (b.lo + b_corr);
+    let combined: Pair2 = two_sum(a.hi, b_half_hi);
+    let combined_lo: f64 = (combined.lo + a.lo) + b_half_lo;
+    let ln_mod: f64 = combined.hi + combined_lo;
+    return Complex { re: ln_mod, im: argument(c) };
 }
 
 /* `pow_complex(base, exp) = exp(exp * ln(base))` — the standard complex

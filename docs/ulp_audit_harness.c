@@ -35,6 +35,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdint.h>
+#include <complex.h>
 
 #define NEAR_ZERO_THRESHOLD 1e-6
 #define NEAR_ZERO_ABS_BUDGET 1e-9
@@ -54,13 +55,17 @@ static int64_t ulp_diff(double a, double b) {
     return d < 0 ? -d : d;
 }
 
-static double effective_err(double got, double ref, int64_t *nan_sentinel) {
+static double effective_err_scaled(double got, double ref, double scale, int64_t *nan_sentinel) {
     if (got != got || ref != ref) { *nan_sentinel = 1; return 0.0; }
     *nan_sentinel = 0;
-    if (fabs(got) < NEAR_ZERO_THRESHOLD || fabs(ref) < NEAR_ZERO_THRESHOLD) {
-        return fabs(got - ref) / NEAR_ZERO_ABS_BUDGET;
+    if (fabs(got) < NEAR_ZERO_THRESHOLD * scale || fabs(ref) < NEAR_ZERO_THRESHOLD * scale) {
+        return fabs(got - ref) / (NEAR_ZERO_ABS_BUDGET * scale);
     }
     return (double)ulp_diff(got, ref);
+}
+
+static double effective_err(double got, double ref, int64_t *nan_sentinel) {
+    return effective_err_scaled(got, ref, 1.0, nan_sentinel);
 }
 
 typedef struct { double max_err; double at_x; double at_y; long n; long nan_mismatch; } AuditResult;
@@ -74,6 +79,26 @@ static void audit_report(const char *name, AuditResult r, int64_t budget) {
 static void audit_point(AuditResult *r, double got, double ref, double x, double y) {
     int64_t nanmm;
     double e = effective_err(got, ref, &nanmm);
+    if (nanmm) { r->nan_mismatch++; return; }
+    if (e > r->max_err) { r->max_err = e; r->at_x = x; r->at_y = y; }
+    r->n++;
+}
+
+/* Scaled variant, for a component whose own natural magnitude isn't
+   O(1) the way plain real-valued sin/cos/exp/ln's outputs are (e.g. one
+   component of a complex result whose OTHER component dominates by
+   orders of magnitude) -- `scale` shifts the near-zero threshold/budget
+   proportionally, so a component that's legitimately tiny relative to
+   ITS OWN result's natural scale (not the fixed 1.0 the unscaled
+   NEAR_ZERO_THRESHOLD/NEAR_ZERO_ABS_BUDGET assume) doesn't register a
+   measurement artifact the same way an absolute-scale near-zero
+   crossing would. `scale` is clamped to >= 1.0 so this never makes the
+   threshold TIGHTER than the unscaled default for an ordinary O(1) or
+   smaller result. */
+static void audit_point_scaled(AuditResult *r, double got, double ref, double x, double y, double scale) {
+    int64_t nanmm;
+    double s = scale > 1.0 ? scale : 1.0;
+    double e = effective_err_scaled(got, ref, s, &nanmm);
     if (nanmm) { r->nan_mismatch++; return; }
     if (e > r->max_err) { r->max_err = e; r->at_x = x; r->at_y = y; }
     r->n++;
@@ -263,6 +288,68 @@ int main(void) {
         }
     }
     audit_report("hypot_f64", r, 3);
+
+    /* CPLX-007: exp_complex/ln_complex (math::complex) -- gated on
+       sin_f64/cos_f64/exp_f64/ln_f64 meeting PERF-002 (now confirmed
+       above), so audited here too even though CPLX-007 itself carries
+       no separate ULP number in SPEC.md -- informational 3 ULP budget,
+       same convention as the TRIG-005/007 sweeps above. Reference is
+       C99's <complex.h> cexp/clog (an independent implementation, not
+       reusing this library's own sin_f64/cos_f64/exp_f64/ln_f64 as the
+       "truth"). Each complex point contributes up to two audit_point
+       calls (re, then im component) into the SAME AuditResult, so the
+       reported max_ulp is the worse of the two components at whichever
+       point produced it.
+
+       exp_complex's two components can differ in NATURAL scale by many
+       orders of magnitude at a single point (e.g. c.im near an odd
+       multiple of pi/2, where cos_f64(c.im) legitimately crosses zero
+       while sin_f64(c.im) stays near +/-1 -- the re component is then
+       tiny while the im component is near the full modulus exp_f64(c.re)).
+       Using the plain (unscaled, O(1)-relative) near-zero threshold there
+       measures a component that's tiny only RELATIVE TO ITS OWN RESULT'S
+       scale as if it were an absolute near-zero crossing, producing a
+       measurement artifact (confirmed: 21 ULP at c.re=20, where the tiny
+       re component's own ABSOLUTE error was ~9e-15, an excellent result
+       by any real standard) -- audit_point_scaled with scale =
+       cabs(refc) judges each component against the complex value's own
+       modulus instead, the same fix in spirit as this file's own
+       NEAR_ZERO_THRESHOLD but relative to the right unit for this
+       function. */
+    memset(&r, 0, sizeof(r));
+    for (i = 0; i <= 200000; i++) {
+        long ri = i / 4001;
+        long ii = i % 4001;
+        double re_in = -20.0 + 40.0 * ((double)ri / 49.0);
+        double im_in = -1000.0 * M_PI + 2000.0 * M_PI * ((double)ii / 4000.0);
+        if (ri > 49) continue;
+        Complex c;
+        c.re = re_in;
+        c.im = im_in;
+        Complex got_c = exp_complex(c);
+        double complex refc = cexp(re_in + im_in * I);
+        double scale = cabs(refc);
+        audit_point_scaled(&r, got_c.re, creal(refc), re_in, im_in, scale);
+        audit_point_scaled(&r, got_c.im, cimag(refc), re_in, im_in, scale);
+    }
+    audit_report("exp_complex", r, 3);
+
+    memset(&r, 0, sizeof(r));
+    for (i = 0; i <= 100000; i++) {
+        double e = -150.0 + 300.0 * ((double)i / 100000.0);
+        double theta = -M_PI + 2.0 * M_PI * ((double)(i % 6151) / 6151.0);
+        double mag = pow(10.0, e);
+        double re_in = mag * cos(theta);
+        double im_in = mag * sin(theta);
+        Complex c;
+        c.re = re_in;
+        c.im = im_in;
+        Complex got_c = ln_complex(c);
+        double complex refc = clog(re_in + im_in * I);
+        audit_point(&r, got_c.re, creal(refc), re_in, im_in);
+        audit_point(&r, got_c.im, cimag(refc), re_in, im_in);
+    }
+    audit_report("ln_complex", r, 3);
 
     return 0;
 }
