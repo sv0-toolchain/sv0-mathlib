@@ -1,0 +1,81 @@
+#!/usr/bin/env bash
+# TEST-006 (R1): a dedicated sv0-mathlib-local CI gate equivalent to
+# `sv0-toolchain`'s own `./scripts/sv0 ci`, and .sv0 formatting/lint
+# parity with the upstream toolchain (via the SAME upstream scripts,
+# not a local copy that could drift).
+#
+# Assumes sv0-mathlib is checked out as a sibling of sv0-toolchain (this
+# library's own README "Deviations from SPEC.md" #2) — set
+# SV0_TOOLCHAIN_ROOT to point elsewhere if it isn't.
+#
+# Usage: scripts/ci [--skip-fmt] [--skip-guard] [--skip-run]
+set -euo pipefail
+
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+TOOLCHAIN="${SV0_TOOLCHAIN_ROOT:-$HERE/../sv0-toolchain}"
+
+SKIP_FMT=0
+SKIP_GUARD=0
+SKIP_RUN=0
+for arg in "$@"; do
+  case "$arg" in
+    --skip-fmt) SKIP_FMT=1 ;;
+    --skip-guard) SKIP_GUARD=1 ;;
+    --skip-run) SKIP_RUN=1 ;;
+    *)
+      echo "sv0-mathlib ci: unknown argument: $arg" >&2
+      exit 2
+      ;;
+  esac
+done
+
+if [[ ! -d "$TOOLCHAIN" ]]; then
+  echo "sv0-mathlib ci: sv0-toolchain not found at $TOOLCHAIN (set SV0_TOOLCHAIN_ROOT)" >&2
+  exit 1
+fi
+
+FMT_SCRIPT="$TOOLCHAIN/scripts/fmt_sv0.py"
+GUARD_SCRIPT="$TOOLCHAIN/scripts/check_sv0_block_comment_nesting.py"
+NATIVE_COMPILER="$TOOLCHAIN/build/sv0-megatu-compiler-native"
+RUNTIME_DIR="$TOOLCHAIN/sv0c/runtime"
+
+if [[ "$SKIP_FMT" -eq 0 ]]; then
+  echo "== sv0-mathlib ci: fmt --check (whitespace parity, TEST-006) =="
+  if [[ ! -f "$FMT_SCRIPT" ]]; then
+    echo "sv0-mathlib ci: missing $FMT_SCRIPT" >&2
+    exit 1
+  fi
+  python3 "$FMT_SCRIPT" --check "$HERE/lib" "$HERE/main.sv0"
+  echo "sv0-mathlib ci: fmt --check OK"
+fi
+
+if [[ "$SKIP_GUARD" -eq 0 ]]; then
+  echo "== sv0-mathlib ci: block-comment nesting guard (TEST-006) =="
+  if [[ ! -f "$GUARD_SCRIPT" ]]; then
+    echo "sv0-mathlib ci: missing $GUARD_SCRIPT" >&2
+    exit 1
+  fi
+  python3 "$GUARD_SCRIPT" "$HERE/lib" "$HERE"
+  echo "sv0-mathlib ci: block-comment nesting guard OK"
+fi
+
+if [[ "$SKIP_RUN" -eq 0 ]]; then
+  echo "== sv0-mathlib ci: compile + run full project (C backend) =="
+  if [[ ! -x "$NATIVE_COMPILER" ]]; then
+    echo "sv0-mathlib ci: missing $NATIVE_COMPILER — build sv0-toolchain first" \
+      "(e.g. bash \"$TOOLCHAIN/scripts/build-sv0-megatu-native.sh\")" >&2
+    exit 1
+  fi
+  # See feedback_drv_path_reset: reset before any gate/push, this control
+  # file is read as a PATH by the (legacy-path) driver, not program text.
+  printf '' > /tmp/.sv0_drv_path
+  WORK="$(mktemp -d)"
+  trap 'rm -rf "$WORK"' EXIT
+  "$NATIVE_COMPILER" --project "$HERE" > "$WORK/mathlib.c"
+  cc -std=c99 -O0 -w -I "$RUNTIME_DIR" "$WORK/mathlib.c" "$RUNTIME_DIR/sv0_runtime.c" \
+    -o "$WORK/mathlib_bin"
+  "$WORK/mathlib_bin"
+  echo "sv0-mathlib ci: compile + run OK (exit 0)"
+fi
+
+echo "sv0-mathlib ci: PASS"
