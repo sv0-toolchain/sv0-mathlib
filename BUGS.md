@@ -4,7 +4,7 @@ Filed here first (this repo has no upstream tracker yet); each should become
 a real `sv0-toolchain`/`sv0c` issue. Audited against sv0-toolchain HEAD
 `840fe73` / sv0c HEAD `0705d68` (2026-08-23), updated through R0.1 work.
 **Bugs #1, #2 (checker-level half), #3, #5, #6 (diagnostics half), #7, #8,
-#10, and #11 are fixed.** Bug #9 (generic enums resolve but don't
+#10, #11, and #14 are fixed.** Bug #9 (generic enums resolve but don't
 monomorphize), #12 (`match` used as a value mistypes its own result
 temp), and #13 (a binop directly on a struct field access mistypes its
 own temp) remain open, genuine gaps — each has a documented, verified
@@ -740,6 +740,58 @@ so `sa_hi * sb_hi` (both plain variables) resolves correctly.
 around; will recur for R0.2/R0.3's `Complex`/`Polar` struct types, which
 are entirely `f64`-field structs — worth fixing upstream before that work
 starts, rather than re-discovering the same workaround repeatedly.
+
+## 14. A struct field name token landing at index 500-599 was misread as a tuple projection
+
+**STATUS (2026-08-23): FIXED in `sv0-toolchain`** (sv0c commit `a74d537`,
+included in the parent's later submodule bump — this checkout is shared
+with other concurrent sv0-toolchain work, so the parent's own bump commit
+that picked this up isn't this library's to cite by hash). Found while
+adding `math::trig`'s `sin_f64`/
+`cos_f64` (a `SinCos { sin: f64, cos: f64 }` struct literal in a file
+large enough to push a real field-name token past source position 500):
+compiling failed with a C-level error, `no member named 'f93' in
+'SinCos'` — the struct's `s`/`c`-shaped (in the original repro) field
+names were emitted as `f93`/`f97` instead.
+
+**Root cause**: two entirely different features shared the same handle
+space by coincidence, not by design. A regular struct field access
+(`obj.fieldname`, `codegen_Value::VMember`'s field handle) uses the
+field name's own real, positive source TOKEN INDEX directly — unbounded,
+growing with file size, same as any other token. Tuple projection
+(`obj.0`, `obj.1`, sv0's numeric-index syntax for tuples) encoded its
+field index as a SYNTHETIC handle `500 + field_num`, decoded by
+`megatu_field_name` (`megaTU-main.sv0`) as "any handle in `[500, 600)`
+is a tuple field" — but `500..599` isn't a reserved sentinel space at
+all, it's well within the range real token indices reach in any
+moderately-sized multi-function file (this repo's own files routinely
+exceed token 500). Once a genuine struct field name token landed in
+that range, it was silently misidentified as a tuple-projection index
+instead of resolved by its real name.
+
+**Fix**: moved the tuple-projection encoding to a NEGATIVE sentinel
+range (`-2000000 - field_num`) instead — real token indices are always
+`>= 0`, so this is unconditionally collision-free, not merely
+improbable. Chosen far enough below the existing enum tag/payload-slot
+sentinels (`-1`, `-10-i`) that no realistic enum payload count could
+ever reach it either, mirroring `lower_temp_base`'s own "far above any
+realistic token count" reasoning for temp handles, just mirrored onto
+the negative axis.
+
+**Verified**: the exact struct-literal repro that triggered this now
+compiles and runs correctly; `pc3b6-native-project-acceptance.sh`,
+`self-host-check-golden`, and `integration-vm` all stay green (this
+library doesn't use tuples with more than one element — `E0446:
+multi-element tuples are not supported in this slice` — so nothing here
+exercises the *tuple* side of this fix directly, only confirms the
+*collision* is gone).
+
+**Impact on this library**: blocked `math::trig`'s very first struct
+usage; would have blocked `math::polar`/`math::complex` (both
+`Complex`/`Polar` are structs) identically, and in fact ANY sufficiently
+large file with ANY struct field access — this wasn't specific to
+`math::trig`'s particular size, just the first place in this project
+that happened to cross the threshold.
 
 ## Working today — genuinely verified (emitted C inspected, not just exit code)
 
