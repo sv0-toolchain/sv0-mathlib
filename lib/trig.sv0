@@ -920,18 +920,32 @@ fn acos_checked_f64(x: f64) -> OptionF64 {
  */
 fn sinh_f64(x: f64) -> f64 {
     if abs_f64(x) < 1.0 {
+        /* Neumaier-compensated summation (see sin_poly/cos_poly's own
+         * fix for why) — found via the widened sinh/cosh/tanh/hypot
+         * audit sweep that a plain running sum here left enough
+         * rounding for tanh_f64 (dividing this by cosh_f64) to exceed
+         * its own informational 3 ULP budget even after tanh_f64's
+         * near-zero cancellation fix.
+         */
         let x2: f64 = x * x;
         let mut term: f64 = x;
         let mut sum: f64 = x;
+        let mut c: f64 = 0.0;
         let mut n: f64 = 1.0;
         let mut i: u32 = 0;
         while i < 15 loop_invariant(true) {
             term = term * x2 / ((2.0 * n) * (2.0 * n + 1.0));
-            sum = sum + term;
+            let t: f64 = sum + term;
+            if abs_f64(sum) >= abs_f64(term) {
+                c = c + ((sum - t) + term);
+            } else {
+                c = c + ((term - t) + sum);
+            }
+            sum = t;
             n = n + 1.0;
             i = i + 1;
         }
-        return sum;
+        return sum + c;
     }
     let ex: f64 = exp_f64(x);
     let enx: f64 = exp_f64(0.0 - x);
@@ -954,12 +968,45 @@ fn cosh_f64(x: f64) -> f64
  * more numerically "honest" rounding — but TRIG-005's own `ensures`
  * demands a STRICT bound, so this favors satisfying the contract as
  * written over that extra, unobservable-at-this-precision honesty.
+ *
+ * The `|x| > 20.0` pre-clamp alone is NOT sufficient — found via a
+ * widened accuracy-audit sweep ([-50,50], not just near the original
+ * clamp boundary) that `exp_f64(2*x)` underflows enough for
+ * `(e2x-1)/(e2x+1)` to round to exactly `+/-1.0` starting around `|x| ~=
+ * 19.98`, a real `ensures` panic ("sv0 contract violation: ensures
+ * failed in tanh_f64") for input as unremarkable as `x = -19.999`. Kept
+ * the pre-clamp anyway (it's still needed: without it, `x` large enough
+ * that `exp_f64(2*x)` itself overflows to `Infinity` computes
+ * `(Infinity-1)/(Infinity+1) = Infinity/Infinity = NaN`, a DIFFERENT
+ * failure mode entirely) and ADDED a post-hoc check on the actual
+ * computed `t` for the narrower gap the pre-clamp's threshold doesn't
+ * quite reach — belt-and-suspenders, since the post-hoc check alone
+ * (were the pre-clamp removed) would let large-`x` inputs reach the
+ * `Infinity/Infinity` `NaN` case before ever getting a chance to clamp.
+ *
+ * `|x| < 1.0` ALSO needed its own fix, same shape as `sinh_f64`'s own
+ * near-zero branch above: `exp_f64(2*x)` near `x = 0` is close to
+ * `1.0`, so `e2x - 1.0` catastrophically cancels — found via the same
+ * widened sweep, 121 ULP against a 3 ULP informational budget at `x ~=
+ * 0.001`. Delegates to `sinh_f64(x) / cosh_f64(x)` there instead:
+ * `sinh_f64` already has its own cancellation-free Taylor branch for
+ * `|x| < 1.0` (see above), and `cosh_f64` near zero has no cancellation
+ * to begin with (`exp(x) + exp(-x)` near `2.0`, nothing subtracts).
  */
 fn tanh_f64(x: f64) -> f64
     ensures(result > (0.0 - 1.0) && result < 1.0)
 {
     if x > 20.0 { return 0.9999999999999999; }
     if x < (0.0 - 20.0) { return 0.0 - 0.9999999999999999; }
+    if abs_f64(x) < 1.0 {
+        let t0: f64 = sinh_f64(x) / cosh_f64(x);
+        if t0 >= 1.0 { return 0.9999999999999999; }
+        if t0 <= (0.0 - 1.0) { return 0.0 - 0.9999999999999999; }
+        return t0;
+    }
     let e2x: f64 = exp_f64(2.0 * x);
-    return (e2x - 1.0) / (e2x + 1.0);
+    let t: f64 = (e2x - 1.0) / (e2x + 1.0);
+    if t >= 1.0 { return 0.9999999999999999; }
+    if t <= (0.0 - 1.0) { return 0.0 - 0.9999999999999999; }
+    return t;
 }

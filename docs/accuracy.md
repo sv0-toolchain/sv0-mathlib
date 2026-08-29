@@ -9,8 +9,10 @@ toolchain revision last measured against.
 (not yet committed as of this table's writing — see `BUGS.md`/`README.md`
 for the finalized SHAs once landed).
 
-**Method**: a standalone C harness compiles `sv0-mathlib/lib/` via the
-native compiler (`build/sv0-megatu-compiler-native --project`), strips the
+**Method**: a standalone C harness, checked in at
+[`docs/ulp_audit_harness.c`](ulp_audit_harness.c) (usage instructions in
+its own header comment), compiles `sv0-mathlib/lib/` via the native
+compiler (`build/sv0-megatu-compiler-native --project`), strips the
 trivial fallback `main`, and links a custom `main()` in the same
 translation unit that calls each `sv0`-emitted function directly (they are
 `static`) and compares against the system libm (`<math.h>`) as an
@@ -19,7 +21,12 @@ bit-pattern ordering of `double` (`ordered_int64`), with an absolute-error
 fallback below `1e-6` in magnitude (ULP spacing near a zero-crossing is
 not a meaningful metric — a physically insignificant absolute difference
 between two near-zero values otherwise explodes into an astronomical
-nominal ULP count). Domains match PERF-002's own wording exactly.
+nominal ULP count). Domains match PERF-002's own wording exactly where
+PERF-002 pins one (`sin_f64`/`cos_f64`/`tan_f64`/`asin_f64`/`acos_f64`/
+`atan_f64`/`atan2_f64`/`exp_f64`/`ln_f64`); `sinh_f64`/`cosh_f64`/
+`tanh_f64`/`hypot_f64` (TRIG-005/TRIG-007, which don't carry a pinned
+ULP bound) use an informational 3 ULP budget carried over from the
+sin/cos/tan convention, not a documented requirement.
 
 | Function | Domain sampled | Max ULP | Budget | Parameter | Status |
 |---|---|---:|---:|---|---|
@@ -33,6 +40,10 @@ nominal ULP count). Domains match PERF-002's own wording exactly.
 | `atan2_f64` | all 4 quadrants, radius `1`..`10` (100001 pts) | 2 | 3 | standard four-quadrant form built on `atan_f64` | PASS |
 | `exp_f64` | `[-700, 700]` (100001 pts) | 1 | 2 | double-double (`ln2_hi`/`ln2_lo`) range reduction `x = k*ln2 + r`, 20-term Taylor, Neumaier-compensated, first-order `r_lo` correction | PASS |
 | `ln_f64` | magnitudes `1e-300`..`1e300` (100001 pts) | 1 | 2 | exponent-doubling bracket for `m`/`e`, double-double `y = (m-1)/(m+1)` (Newton-style residual correction — `m+1.0` is not exact for `m` in `[1,2)`), 20-term atanh series, Neumaier-compensated, double-double `e*ln2` combination, single final rounding | PASS |
+| `sinh_f64` | `[-50, 50]` (100001 pts) | 1 | 3 (informational) | Taylor series (Neumaier-compensated) for `\|x\| < 1.0`, `(exp_f64(x) - exp_f64(-x))/2` otherwise | PASS |
+| `cosh_f64` | `[-50, 50]` (100001 pts) | 1 | 3 (informational) | `(exp_f64(x) + exp_f64(-x))/2` — no cancellation to begin with, no special-casing needed | PASS |
+| `tanh_f64` | `[-50, 50]` (100001 pts) | 2 | 3 (informational) | `sinh_f64(x)/cosh_f64(x)` for `\|x\| < 1.0`, `(exp_f64(2x)-1)/(exp_f64(2x)+1)` otherwise, clamped to the nearest double strictly inside `(-1,1)` both by a pre-check on `\|x\|` (avoids `Infinity/Infinity`) and post-hoc on the computed result (catches rounding to exactly `+/-1.0` before the pre-check's threshold) | PASS |
+| `hypot_f64` | magnitudes `1e-150`..`1e150`, both signs (100001 pts) + exact/simple pairs | 3 | 3 (informational) | scaled form (`mx * sqrt_f64(1 + (mn/mx)^2)`) avoiding overflow/underflow from squaring both inputs directly | PASS |
 
 ## Notes
 
@@ -58,11 +69,28 @@ nominal ULP count). Domains match PERF-002's own wording exactly.
   accurate made hitting this boundary more likely, not less; an earlier,
   less accurate version happened to round just short of it by
   coincidence.
-- `sinh_f64`/`cosh_f64`/`tanh_f64`/`hypot_f64`/`to_radians_f64`/
-  `to_degrees_f64` are not yet in this audit's automated sweep (TRIG-005/
-  TRIG-006/TRIG-007 don't carry an explicit PERF-002 ULP bound the way
-  TRIG-001–004 do) — worth adding a sweep for completeness even without a
-  pinned budget to enforce, tracked as a follow-up.
+- `sinh_f64`/`cosh_f64`/`tanh_f64`/`hypot_f64` are now swept (see table
+  above); `to_radians_f64`/`to_degrees_f64` are exact (trivial scaling by
+  `pi_f64()`, no series or reduction), so ULP auditing them the same way
+  wouldn't say anything a `requires`/`ensures`-driven fixture doesn't
+  already cover, and they're skipped here for that reason.
+- The widened sweep found two real bugs, both fixed, neither previously
+  caught (the original sweep only exercised these functions indirectly,
+  through `sin_f64`/`cos_f64`/`exp_f64`): (1) `tanh_f64`'s pre-emptive
+  `\|x\| > 20.0` clamp wasn't tight enough — `exp_f64(2*x)` underflows
+  enough for `(e2x-1)/(e2x+1)` to round to exactly `+/-1.0` starting
+  around `\|x\| ~= 19.98`, a real `ensures` PANIC (not just an accuracy
+  miss) for input as unremarkable as `x = -19.999`; fixed by checking the
+  actual computed result against the boundary, in addition to (not
+  instead of) the pre-clamp, which is still needed to avoid a SEPARATE
+  `Infinity/Infinity = NaN` failure mode for genuinely large `\|x\|`. (2)
+  `tanh_f64` near `x = 0` measured 121 ULP — `exp_f64(2*x)` near `1.0`
+  means `e2x - 1.0` catastrophically cancels, and `tanh_f64` (unlike
+  `sinh_f64`, which already had a near-zero Taylor branch) had no
+  cancellation-free path there at all; fixed by delegating to
+  `sinh_f64(x) / cosh_f64(x)` for `\|x\| < 1.0`. `sinh_f64`'s own Taylor
+  loop also picked up Neumaier-compensated summation (was a plain running
+  sum) once `tanh_f64`'s division made its residual error visible.
 - This table is generated by hand from the standalone C harness described
   above, not yet wired into CI as an automated regression gate (the
   PERF-001 "Generated-doc freshness test" / PERF-002 "Automated ULP-diff
