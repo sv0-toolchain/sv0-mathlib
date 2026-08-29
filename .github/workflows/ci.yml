@@ -1,0 +1,70 @@
+# TEST-006 (R1): sv0-mathlib's own CI gate. Checks out sv0-toolchain as a
+# sibling directory (this library's own README "Deviations from SPEC.md"
+# #2 — driven by relative --project paths), bootstraps just enough of it
+# to get the native mega-TU compiler (build/sv0-megatu-compiler-native)
+# built, then runs scripts/ci — the SAME formatter/lint scripts the
+# upstream toolchain's own `./scripts/sv0 test-guards` uses (parity by
+# calling the canonical script, not a local copy that could drift), plus
+# a full compile+run of this project.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 45
+    steps:
+      - name: Checkout sv0-mathlib
+        uses: actions/checkout@v4
+        with:
+          path: sv0-mathlib
+
+      - name: Use HTTPS for SSH-form submodule URLs in sv0-toolchain's .gitmodules
+        run: git config --global url."https://github.com/".insteadOf "git@github.com:"
+
+      - name: Checkout sv0-toolchain (sibling directory, submodules recursive)
+        uses: actions/checkout@v4
+        with:
+          repository: sv0-toolchain/sv0-toolchain
+          submodules: recursive
+          path: sv0-toolchain
+
+      - name: Set up Python 3.11+ (sv0-toolchain's own guard scripts need it)
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Cache SML/NJ install
+        uses: actions/cache@v4
+        id: smlnj-cache
+        with:
+          path: ~/smlnj-110.99.9
+          key: smlnj-110.99.9-${{ runner.os }}-${{ runner.arch }}-curl-v2
+
+      - name: Install SML/NJ (110.99.x; apt package is too old)
+        working-directory: sv0-toolchain
+        run: bash scripts/ci-install-smlnj.sh
+
+      - name: Compile smoke (sv0c + sv0vm) — builds the SML heap the native compiler bootstraps from
+        working-directory: sv0-toolchain
+        run: ./scripts/sv0 check
+
+      - name: Build the native mega-TU compiler (build/sv0-megatu-compiler-native)
+        working-directory: sv0-toolchain
+        run: bash scripts/build-sv0-megatu-native.sh
+
+      - name: sv0-mathlib CI gate (fmt + block-comment guard + compile/run)
+        working-directory: sv0-mathlib
+        run: bash scripts/ci

@@ -32,6 +32,14 @@ see `docs/accuracy.md` for the full table and root-cause notes.
 `exp_complex`/`ln_complex`/`pow_complex` (CPLX-007) are implemented in
 `lib/complex.sv0`, verified via Euler's identity.
 
+**TEST-006 (R1) is met.** `scripts/ci` (`bash scripts/ci`) is this
+repo's own CI gate — `.sv0` whitespace formatting and the block-comment
+nesting guard via the SAME scripts `sv0-toolchain`'s own
+`./scripts/sv0 test-guards` uses (real parity, not a copy that could
+drift), plus a full compile+run of this project — and runs in GitHub
+Actions on every push/PR (`.github/workflows/ci.yml`, which bootstraps a
+sibling `sv0-toolchain` checkout first).
+
 **F0's own surface, including `abs_checked_i64`:** `math::arith`'s ARITH-001..004
 are fully implemented and contract-checked: all i32, i64, and f64 forms
 (`abs_i32`/`abs_i64`/`abs_f64`, `sign_i32`/`sign_i64`/`sign_f64`,
@@ -191,8 +199,22 @@ toolchain and the spec disagree — write down the deviation and why).
 
 ## Build and test
 
-From an `sv0-toolchain` checkout, with `sv0-mathlib` checked out as a
-sibling directory:
+**`scripts/ci`** (TEST-006) is the fastest way to check everything at
+once — from an `sv0-toolchain` checkout with `sv0-mathlib` checked out
+as a sibling directory (set `SV0_TOOLCHAIN_ROOT` if it isn't):
+`.sv0` whitespace formatting, the block-comment nesting guard (both via
+the SAME scripts `sv0-toolchain`'s own `./scripts/sv0 test-guards` uses,
+for real parity rather than a copy that could drift), and a full
+compile+run of this project:
+
+```bash
+bash scripts/ci
+```
+
+Runs in CI on every push/PR (`.github/workflows/ci.yml`), which
+bootstraps a sibling `sv0-toolchain` checkout first.
+
+The individual steps, run by hand:
 
 ```bash
 # C backend (native compiler)
@@ -225,6 +247,9 @@ sv0-mathlib/
 ├── CHANGELOG.md     # DOC-003: user-visible changes, accuracy bound changes, contract changes
 ├── BUGS.md          # toolchain gaps found during development
 ├── main.sv0         # smoke/demo entry point (also the full test suite today)
+├── .github/workflows/ci.yml  # TEST-006: CI gate (bootstraps sv0-toolchain, then scripts/ci)
+├── scripts/
+│   └── ci            # TEST-006: fmt-check + block-comment guard + compile/run, local or CI
 ├── lib/
 │   ├── arith.sv0     # module arith — F0 arithmetic core (Section 11)
 │   ├── modular.sv0   # module modular — R0.1/R0.2 modular arithmetic (Section 12)

@@ -88,6 +88,16 @@ arbitrary-precision reference), not a defect in this library. See
   to produce every number above, checked in (previously lived only in
   a local scratch file) with its own usage instructions.
 - This changelog (DOC-003).
+- `scripts/ci` + `.github/workflows/ci.yml` (TEST-006, R1) — a
+  dedicated CI gate for this repo: `.sv0` whitespace formatting and the
+  block-comment nesting guard via the SAME scripts `sv0-toolchain`'s
+  own `./scripts/sv0 test-guards` uses (real parity with the upstream
+  toolchain, not a local copy that could drift), plus a full
+  compile+run of this project. Runs locally (`bash scripts/ci`, assumes
+  a sibling `sv0-toolchain` checkout — `SV0_TOOLCHAIN_ROOT` overrides)
+  and in GitHub Actions on every push/PR (which bootstraps a sibling
+  `sv0-toolchain` checkout first: SML/NJ install, `./scripts/sv0
+  check`, then `build-sv0-megatu-native.sh`).
 
 ### Toolchain gaps found (informational — see `BUGS.md` for full detail)
 
