@@ -72,8 +72,20 @@ fn abs_checked_i32(x: i32) -> Option {
 
 /* Absolute value of an f64. Total function: NaN and Infinity both have a
  * well-defined IEEE-754 absolute value, so there is no requires clause. */
+/* `NaN` input: `x < 0.0` is false for `NaN` (comparisons involving
+ * `NaN` are always false), so this falls through to `return x;`,
+ * returning `NaN` itself (the IEEE-754-correct answer — `abs(NaN)` is
+ * conventionally `NaN`). The `ensures` below needs its own `NaN`
+ * escape hatch for that, matching this codebase's established pattern
+ * elsewhere (`sin_f64`/`cos_f64`/`exp_f64`'s own `result != result`
+ * clauses) — an earlier version without it made `abs_f64(NaN)` panic
+ * on its OWN `ensures`, found via `test/fixtures/trig.csv` (TEST-003)
+ * when `exp_f64`'s own double-double machinery produced a `NaN`
+ * intermediate for `+/-Infinity` input and passed it through this
+ * pervasively-used helper.
+ */
 fn abs_f64(x: f64) -> f64
-    ensures(result >= 0.0)
+    ensures(result >= 0.0 || result != result)
 {
     if x < 0.0 {
         return 0.0 - x;

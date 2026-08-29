@@ -1,0 +1,166 @@
+/* TEST-001's Section 16.2 "Property" test layer, and TEST-004 (R0.1):
+ * "Property tests SHALL use a fixed, checked-in seed for any
+ * pseudo-random sample generation so failures are reproducible."
+ *
+ * `lcg_next`/`lcg_unit` below are a small, deterministic PCG/Knuth-MMIX-
+ * style linear congruential generator, seeded by the literal `SEED`
+ * constant checked in below — a PURE function of that seed and nothing
+ * else (no OS entropy, no wall-clock, no external input), so re-running
+ * this binary any number of times produces bit-identical samples and
+ * therefore identical pass/fail results and identical failing inputs
+ * (TEST-004's own "determinism check"), trivially, by construction.
+ *
+ * u64 -> f64 conversion (`let f: f64 = some_u64_value;`) is a real
+ * numeric conversion at the C level (confirmed empirically before
+ * writing this file — `uint64_t x; double y; y = x;` performs value
+ * conversion, not bit-reinterpretation), unlike an f64 -> integer
+ * TRUNCATING cast, which this codebase avoids elsewhere (see
+ * `sqrt_bracket_guess`'s own header comment on why bit-reinterpretation
+ * isn't safely available). Every property below that needs an integer
+ * sample (the modular-inverse one) draws it directly from the
+ * generator's own `u64` output via `%`, never round-trips through
+ * `f64`.
+ */
+use arith::add_wrapping_u64;
+use arith::mul_wrapping_u64;
+use arith::abs_f64;
+use trig::pi_f64;
+use trig::sin_f64;
+use trig::cos_f64;
+use polar::Polar;
+use polar::Point2;
+use polar::to_polar;
+use polar::from_polar;
+use modular::gcd_u64;
+use modular::mod_inverse_u64;
+use modular::mul_mod_u64;
+use prelude::OptionU64;
+use complex::Complex;
+use complex::add_complex;
+use complex::mul_complex;
+use complex::approx_eq;
+
+fn lcg_next(state: u64) -> u64 {
+    let a: u64 = 6364136223846793005;
+    let c: u64 = 1442695040888963407;
+    return add_wrapping_u64(mul_wrapping_u64(state, a), c);
+}
+
+/* Maps the generator's raw u64 state to a value in [0.0, 1.0). */
+fn lcg_unit(state: u64) -> f64 {
+    let s: f64 = state;
+    let umax: f64 = 18446744073709551615.0;
+    return s / umax;
+}
+
+fn main() -> i32 {
+    let seed: u64 = 88172645463325252;
+    let mut state: u64 = seed;
+
+    /* REQ: TRIG-001 property — sin_f64(x)^2 + cos_f64(x)^2 ~= 1.0, over
+     * 30 seeded samples spanning [-1000*pi, 1000*pi] (PERF-002's own
+     * domain). */
+    let mut i: u32 = 0;
+    while i < 30 loop_invariant(i <= 30) {
+        state = lcg_next(state);
+        let u: f64 = lcg_unit(state);
+        let x: f64 = (u - 0.5) * 2000.0 * pi_f64();
+        let s: f64 = sin_f64(x);
+        let c: f64 = cos_f64(x);
+        let sum: f64 = s * s + c * c;
+        if abs_f64(sum - 1.0) >= 0.0000001 { return 1; }
+        i = i + 1;
+    }
+
+    /* REQ: POLAR-004 property — to_polar composed with from_polar
+     * round-trips, over 30 seeded (x,y) samples including near-origin
+     * (the LCG's own [0,1) range naturally includes values arbitrarily
+     * close to the 0.5 recentering point) and large-magnitude points. */
+    let mut j: u32 = 0;
+    while j < 30 loop_invariant(j <= 30) {
+        state = lcg_next(state);
+        let ux: f64 = lcg_unit(state);
+        state = lcg_next(state);
+        let uy: f64 = lcg_unit(state);
+        let x2: f64 = (ux - 0.5) * 2000000.0;
+        let y2: f64 = (uy - 0.5) * 2000000.0;
+        let p: Polar = to_polar(x2, y2);
+        let xy: Point2 = from_polar(p);
+        if abs_f64(xy.x - x2) >= 0.0001 { return 2; }
+        if abs_f64(xy.y - y2) >= 0.0001 { return 2; }
+        j = j + 1;
+    }
+
+    /* REQ: MOD-006 property — mod_inverse_u64 composed with
+     * mul_mod_u64 yields 1, for seeded coprime (a,m) pairs. Draws are
+     * integer u64 samples directly from the generator (`% range`, safe
+     * per CONV-006 — the operands are unsigned, never negative), not
+     * round-tripped through f64. Non-coprime draws are skipped (not
+     * asserted on — MOD-006's own contract only promises the inverse
+     * property when `gcd_checked_u64(a, m) == 1`); a bounded outer loop
+     * guards against an unlucky seed making every draw non-coprime, and
+     * requires at least 15 of the 20 target samples to have actually
+     * been coprime-and-checked, so this can't silently pass vacuously.
+     */
+    let mut k: u32 = 0;
+    let mut checked_count: u32 = 0;
+    while checked_count < 20 loop_invariant(checked_count <= 20) {
+        if k >= 500 { return 3; }
+        state = lcg_next(state);
+        let a: u64 = (state % 999983) + 1;
+        state = lcg_next(state);
+        let m: u64 = (state % 999983) + 2;
+        let g: u64 = gcd_u64(a, m);
+        if g == 1 {
+            let inv_ok: bool = match mod_inverse_u64(a, m) {
+                OptionU64::Some(inv) => mul_mod_u64(a, inv, m) == 1,
+                OptionU64::None => false,
+            };
+            if !inv_ok { return 3; }
+            checked_count = checked_count + 1;
+        }
+        k = k + 1;
+    }
+    if checked_count < 15 { return 3; }
+
+    /* REQ: CPLX-002 property — Complex addition is commutative and
+     * associative (within f64 epsilon), over 20 seeded triples. */
+    let mut n: u32 = 0;
+    while n < 20 loop_invariant(n <= 20) {
+        state = lcg_next(state);
+        let ua: f64 = lcg_unit(state);
+        state = lcg_next(state);
+        let ub: f64 = lcg_unit(state);
+        state = lcg_next(state);
+        let uc: f64 = lcg_unit(state);
+        state = lcg_next(state);
+        let ud: f64 = lcg_unit(state);
+        state = lcg_next(state);
+        let ue: f64 = lcg_unit(state);
+        state = lcg_next(state);
+        let uf: f64 = lcg_unit(state);
+        let ca: Complex = Complex { re: (ua - 0.5) * 200.0, im: (ub - 0.5) * 200.0 };
+        let cb: Complex = Complex { re: (uc - 0.5) * 200.0, im: (ud - 0.5) * 200.0 };
+        let cc_: Complex = Complex { re: (ue - 0.5) * 200.0, im: (uf - 0.5) * 200.0 };
+
+        let ab: Complex = add_complex(ca, cb);
+        let ba: Complex = add_complex(cb, ca);
+        if !approx_eq(ab, ba, 0.0000001) { return 4; }
+
+        let ab_c: Complex = add_complex(add_complex(ca, cb), cc_);
+        let a_bc: Complex = add_complex(ca, add_complex(cb, cc_));
+        if !approx_eq(ab_c, a_bc, 0.00001) { return 5; }
+
+        let mab: Complex = mul_complex(ca, cb);
+        let mba: Complex = mul_complex(cb, ca);
+        if !approx_eq(mab, mba, 0.00001) { return 6; }
+
+        let mab_c: Complex = mul_complex(mul_complex(ca, cb), cc_);
+        let ma_bc: Complex = mul_complex(ca, mul_complex(cb, cc_));
+        if !approx_eq(mab_c, ma_bc, 0.001) { return 7; }
+
+        n = n + 1;
+    }
+
+    return 0;
+}

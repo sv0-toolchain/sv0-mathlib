@@ -65,22 +65,87 @@ struct Complex { re: f64, im: f64 }
  * See this file's DEVIATION 1 above for why these are free functions,
  * not `impl Add`/`impl Sub`/`impl Neg for Complex`.
  */
+/* BUGS.md #19: a struct-literal field initializer OR a `requires`/
+ * `ensures` clause that is itself a binop combining struct-field
+ * accesses (`Complex { re: a.re + b.re, ... }`, or
+ * `ensures(result.re == a.re + b.re ...)`) mistypes as `int` — found
+ * via `test/property/property_test.sv0`'s associativity check
+ * intermittently panicking under the newer `sv0c` `53de895` revision
+ * (`scripts/ci`'s own toolchain, unpinned; "intermittently" because the
+ * bug truncates the ensures' OWN comparison value to `int`, so it only
+ * panics for seeded samples whose true sum isn't itself an exact
+ * integer). The FUNCTION BODY half of this is fixed the established
+ * way (bugs #13/#16): copy every field to its own local before use, so
+ * struct literals only ever combine LOCAL-op-LOCAL. The CONTRACT-CLAUSE
+ * half can't use that trick — `requires`/`ensures` are declared in the
+ * function signature and have no access to the body's own locals — so
+ * each one below is rewritten to call a small pure helper function
+ * (`complex_re_sum`, etc., right below) instead of inlining the
+ * field-combining binop directly in the clause; the helper's OWN body
+ * uses the local-extraction workaround internally, and a function
+ * CALL's return value resolves its type correctly everywhere this was
+ * checked (unlike a field access combined inline).
+ */
+fn complex_re_sum(a: Complex, b: Complex) -> f64 {
+    let ar: f64 = a.re;
+    let br: f64 = b.re;
+    return ar + br;
+}
+
+fn complex_im_sum(a: Complex, b: Complex) -> f64 {
+    let ai: f64 = a.im;
+    let bi: f64 = b.im;
+    return ai + bi;
+}
+
+fn complex_re_diff(a: Complex, b: Complex) -> f64 {
+    let ar: f64 = a.re;
+    let br: f64 = b.re;
+    return ar - br;
+}
+
+fn complex_im_diff(a: Complex, b: Complex) -> f64 {
+    let ai: f64 = a.im;
+    let bi: f64 = b.im;
+    return ai - bi;
+}
+
+fn complex_neg_re(a: Complex) -> f64 {
+    let ar: f64 = a.re;
+    return 0.0 - ar;
+}
+
+fn complex_neg_im(a: Complex) -> f64 {
+    let ai: f64 = a.im;
+    return 0.0 - ai;
+}
+
 fn add_complex(a: Complex, b: Complex) -> Complex
-    ensures(result.re == a.re + b.re && result.im == a.im + b.im)
+    ensures(result.re == complex_re_sum(a, b) && result.im == complex_im_sum(a, b))
 {
-    return Complex { re: a.re + b.re, im: a.im + b.im };
+    let are: f64 = a.re;
+    let aim: f64 = a.im;
+    let bre: f64 = b.re;
+    let bim: f64 = b.im;
+    return Complex { re: are + bre, im: aim + bim };
 }
 
 fn sub_complex(a: Complex, b: Complex) -> Complex
-    ensures(result.re == a.re - b.re && result.im == a.im - b.im)
+    ensures(result.re == complex_re_diff(a, b) && result.im == complex_im_diff(a, b))
 {
-    return Complex { re: a.re - b.re, im: a.im - b.im };
+    let are: f64 = a.re;
+    let aim: f64 = a.im;
+    let bre: f64 = b.re;
+    let bim: f64 = b.im;
+    return Complex { re: are - bre, im: aim - bim };
 }
 
 fn neg_complex(a: Complex) -> Complex
-    ensures(result.re == (0.0 - a.re) && result.im == (0.0 - a.im))
+    ensures(result.re == complex_neg_re(a) && result.im == complex_neg_im(a))
 {
-    return Complex { re: 0.0 - a.re, im: 0.0 - a.im };
+    let are: f64 = a.re;
+    let aim: f64 = a.im;
+    return Complex { re: 0.0 - are, im: 0.0 - aim };
 }
 
 /* ── CPLX-003: multiplication/division ────────────────────────────────
@@ -155,10 +220,17 @@ fn argument(c: Complex) -> f64 {
  * `math::polar`'s own `Polar` struct (POLAR-001) rather than
  * duplicating it, per CPLX-005's own wording.
  */
+fn complex_neg_im_of(c: Complex) -> f64 {
+    let ci: f64 = c.im;
+    return 0.0 - ci;
+}
+
 fn conjugate(c: Complex) -> Complex
-    ensures(result.re == c.re && result.im == (0.0 - c.im))
+    ensures(result.re == c.re && result.im == complex_neg_im_of(c))
 {
-    return Complex { re: c.re, im: 0.0 - c.im };
+    let cre: f64 = c.re;
+    let cim: f64 = c.im;
+    return Complex { re: cre, im: 0.0 - cim };
 }
 
 fn to_polar_complex(c: Complex) -> Polar {
@@ -166,7 +238,9 @@ fn to_polar_complex(c: Complex) -> Polar {
 }
 
 fn from_polar_complex(p: Polar) -> Complex {
-    return Complex { re: p.r * cos_f64(p.theta), im: p.r * sin_f64(p.theta) };
+    let pr: f64 = p.r;
+    let ptheta: f64 = p.theta;
+    return Complex { re: pr * cos_f64(ptheta), im: pr * sin_f64(ptheta) };
 }
 
 /* ── CPLX-006: approximate equality ───────────────────────────────────
@@ -176,10 +250,20 @@ fn from_polar_complex(p: Polar) -> Complex {
  * to guard against accidentally reaching for here beyond the discipline
  * CPLX-006 itself asks for).
  */
+fn complex_re_close(a: Complex, b: Complex, epsilon: f64) -> bool {
+    let d: f64 = complex_re_diff(a, b);
+    return abs_f64(d) <= epsilon;
+}
+
+fn complex_im_close(a: Complex, b: Complex, epsilon: f64) -> bool {
+    let d: f64 = complex_im_diff(a, b);
+    return abs_f64(d) <= epsilon;
+}
+
 fn approx_eq(a: Complex, b: Complex, epsilon: f64) -> bool
-    ensures(result == (abs_f64(a.re - b.re) <= epsilon && abs_f64(a.im - b.im) <= epsilon))
+    ensures(result == (complex_re_close(a, b, epsilon) && complex_im_close(a, b, epsilon)))
 {
-    return abs_f64(a.re - b.re) <= epsilon && abs_f64(a.im - b.im) <= epsilon;
+    return complex_re_close(a, b, epsilon) && complex_im_close(a, b, epsilon);
 }
 
 /* ── CPLX-007: complex exponential form ──────────────────────────────
@@ -193,8 +277,9 @@ fn approx_eq(a: Complex, b: Complex, epsilon: f64) -> bool
  * `sin_f64` directly.
  */
 fn exp_complex(c: Complex) -> Complex {
+    let cim: f64 = c.im;
     let mag: f64 = exp_f64(c.re);
-    return Complex { re: mag * cos_f64(c.im), im: mag * sin_f64(c.im) };
+    return Complex { re: mag * cos_f64(cim), im: mag * sin_f64(cim) };
 }
 
 /* `ln_complex(c) = ln(|c|) + i*arg(c)` for `c != 0` — undefined (a branch

@@ -1,0 +1,16 @@
+input,floor_expected,ceil_expected,round_expected,trunc_expected,category,notes
+0.0,0.0,0.0,0.0,0.0,boundary,exact zero
+-0.0,-0.0,-0.0,-0.0,-0.0,boundary;neg_zero,exact negative zero
+0.5,0.0,1.0,1.0,0.0,boundary,round-half-away-from-zero pins round(0.5)=1.0
+-0.5,-1.0,-0.0,-1.0,-0.0,boundary,round(-0.5)=-1.0 (away from zero, not toward -0.0)
+2.5,2.0,3.0,3.0,2.0,boundary,classic round-half case
+-2.5,-3.0,-2.0,-3.0,-2.0,boundary,round(-2.5)=-3.0
+1.9999999999999998,1.0,2.0,2.0,1.0,near_integer,largest double strictly below 2.0
+2.0000000000000004,2.0,3.0,2.0,2.0,near_integer,smallest double strictly above 2.0
+-1.9999999999999998,-2.0,-1.0,-2.0,-1.0,near_integer,negative of the below-2.0 case
+3.4,3.0,4.0,3.0,3.0,typical,ordinary fractional value
+-3.4,-4.0,-3.0,-3.0,-3.0,typical,ordinary negative fractional value
+12345678901234.0,12345678901234.0,12345678901234.0,12345678901234.0,12345678901234.0,boundary,already-integer value well past ARITH-005's 2^52 "already exact" threshold
+nan,nan,nan,nan,nan,nan,NaN propagates through all four (checked via result != result at the call site — a literal "nan" string here is not itself compared with ==)
+inf,inf,inf,inf,inf,infinity,+Infinity passes through unchanged (>= 2^52 branch)
+-inf,-inf,-inf,-inf,-inf,infinity,-Infinity passes through unchanged (<= -2^52 branch)

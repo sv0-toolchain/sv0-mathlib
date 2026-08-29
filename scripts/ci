@@ -8,7 +8,7 @@
 # library's own README "Deviations from SPEC.md" #2) — set
 # SV0_TOOLCHAIN_ROOT to point elsewhere if it isn't.
 #
-# Usage: scripts/ci [--skip-fmt] [--skip-guard] [--skip-run] [--skip-unit]
+# Usage: scripts/ci [--skip-fmt] [--skip-guard] [--skip-run] [--skip-unit] [--skip-fixtures]
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -18,12 +18,14 @@ SKIP_FMT=0
 SKIP_GUARD=0
 SKIP_RUN=0
 SKIP_UNIT=0
+SKIP_FIXTURES=0
 for arg in "$@"; do
   case "$arg" in
     --skip-fmt) SKIP_FMT=1 ;;
     --skip-guard) SKIP_GUARD=1 ;;
     --skip-run) SKIP_RUN=1 ;;
     --skip-unit) SKIP_UNIT=1 ;;
+    --skip-fixtures) SKIP_FIXTURES=1 ;;
     *)
       echo "sv0-mathlib ci: unknown argument: $arg" >&2
       exit 2
@@ -81,10 +83,16 @@ if [[ "$SKIP_RUN" -eq 0 ]]; then
 fi
 
 if [[ "$SKIP_UNIT" -eq 0 ]]; then
-  echo "== sv0-mathlib ci: test/unit/*.sv0 + requirement-to-test matrix (TEST-001) =="
+  echo "== sv0-mathlib ci: test/unit/*.sv0 + test/property/*.sv0 + requirement-to-test matrix (TEST-001) =="
   printf '' > /tmp/.sv0_drv_path
   SV0_TOOLCHAIN_ROOT="$TOOLCHAIN" python3 "$HERE/scripts/run_unit_tests.py"
-  echo "sv0-mathlib ci: test/unit + matrix OK"
+  echo "sv0-mathlib ci: test/unit + test/property + matrix OK"
+fi
+
+if [[ "$SKIP_FIXTURES" -eq 0 ]]; then
+  echo "== sv0-mathlib ci: fixture manifest + boundary-coverage lint (TEST-002/TEST-003) =="
+  python3 "$HERE/scripts/check_fixtures.py"
+  echo "sv0-mathlib ci: fixtures OK"
 fi
 
 echo "sv0-mathlib ci: PASS"

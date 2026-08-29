@@ -59,6 +59,38 @@ library's own code (9 of 34 `loop_invariant` clauses across
 `loop_invariant(true)` placeholders — all replaced with real,
 prose-explained invariants).
 
+**TEST-002/TEST-003/TEST-004 are met.** `test/fixtures/rounding.csv`
+(ARITH-005 names this file explicitly) and `test/fixtures/trig.csv`
+(hand-picked domain-boundary/`NaN`/`Infinity`/`-0.0` points for every
+ULP-budgeted `math::trig` function) each have a `test/fixtures/
+manifest.md` row recording provenance and the toolchain revision
+validated under (TEST-002), and `scripts/check_fixtures.py` (wired into
+`scripts/ci`) lints both for boundary/special-value coverage per
+non-exact function (TEST-003). `test/property/property_test.sv0` (also
+wired into `scripts/ci` via `scripts/run_unit_tests.py`) checks
+`sin_f64(x)^2 + cos_f64(x)^2 ~= 1.0`, `to_polar`/`from_polar`
+round-tripping, `mod_inverse_u64` composed with `mul_mod_u64`, and
+`Complex` addition/multiplication commutativity+associativity, over
+samples from a small deterministic PCG/Knuth-MMIX-style generator
+seeded by a checked-in literal (TEST-004 — re-running produces
+bit-identical samples and results by construction, no OS/wall-clock
+entropy involved at all).
+
+Building the boundary fixtures and the property-test layer surfaced
+FOUR more real gaps: two genuine bugs in this library's own code
+(`sqrt_f64(+Infinity)` and `exp_f64(-Infinity)` were both silently
+computing `NaN` instead of `Infinity`/`0.0`; `abs_f64`'s own `ensures`
+had no `NaN` escape hatch), and two more toolchain regressions (BUGS.md
+#19 — a struct-literal field initializer OR a `requires`/`ensures`
+clause combining a struct-field access in a binop mistypes as `int`,
+the widest and most consequential of this session's toolchain findings:
+it made every one of `math::complex`'s componentwise arithmetic
+functions and their own contracts silently wrong or flaky under the
+newer, unpinned upstream toolchain revision `scripts/ci` actually
+tracks — found specifically because the property-test layer exercises
+RANDOM, not just hand-picked, inputs, exactly the gap SPEC.md's own
+Section 16.2 property layer exists to catch).
+
 **F0's own surface, including `abs_checked_i64`:** `math::arith`'s ARITH-001..004
 are fully implemented and contract-checked: all i32, i64, and f64 forms
 (`abs_i32`/`abs_i64`/`abs_f64`, `sign_i32`/`sign_i64`/`sign_f64`,
@@ -77,9 +109,9 @@ forms — see BUGS.md #2 for why (VM bytecode has no float representation
 at all, a separate, larger gap) — and a duplicate-type issue once more
 than one file imports the same type; see BUGS.md's "Not yet working".
 
-See [BUGS.md](BUGS.md) for eighteen toolchain gaps found across F0,
-R0.1, R0.2, R0.3, the accuracy-audit pass, and TEST-006/TEST-001's setup.
-**Eleven are fixed**: bug #5
+See [BUGS.md](BUGS.md) for nineteen toolchain gaps found across F0,
+R0.1, R0.2, R0.3, the accuracy-audit pass, and TEST-006/TEST-001/
+TEST-004's setup. **Eleven are fixed**: bug #5
 (`f64` silently compiling as `int`), bug #3 (generic enums like
 `Option<T>` failing to resolve), bug #1 (integer literals wider than i32
 truncating), bug #7 (an explicit `let x: f64 = <arithmetic-expr>;` local
@@ -98,7 +130,7 @@ result, no intermediate `let`, mistyping the payload binding), bug #13
 bug #14 (a struct field name token landing at a coincidental source
 position `500-599` was silently misread as an unrelated
 tuple-projection index — found via `math::trig`'s first struct literal).
-**Six remain genuine open gaps, each with a documented, verified
+**Seven remain genuine open gaps, each with a documented, verified
 workaround this library uses instead**: bug #9 (generic enums resolve
 but don't monomorphize — `abs_checked_i64` uses a concrete `OptionI64`
 instead of the shared `Option<T>`), bug #12 (`match` used as a value
@@ -117,11 +149,19 @@ into its own local first, applied to `ln_f64`/`sin_f64`/`cos_f64`/
 2, zero diagnostics — when a top-level file/directory sorts
 alphabetically before `lib`, found setting up `test/unit/` — worked
 around in `scripts/run_unit_tests.py` by staging each unit test file
-inside a subdirectory that sorts after `lib`), and bug #18 (`let x:
+inside a subdirectory that sorts after `lib`), bug #18 (`let x:
 StructType = <bare variable already of that type>;` mistypes the new
 local as `int`, found writing `test/unit/polar_test.sv0`'s own
 `Copy`-derivation test — worked around by routing the copy through a
-trivial identity function call instead), plus the VM bytecode
+trivial identity function call instead), and bug #19 (the same "binop
+on a struct field access mistypes its own temp" family as bug #16, but
+for a struct-literal field initializer OR a `requires`/`ensures`
+clause specifically — found via `test/property/property_test.sv0`'s
+random-sample associativity check, TEST-004 — worked around throughout
+`lib/complex.sv0`/`lib/polar.sv0`/`lib/trig.sv0` by extracting fields
+to locals before struct-literal use, and by routing contract-clause
+expressions through small pure helper functions since a contract can't
+reference the function body's own locals), plus the VM bytecode
 float-lowering gap noted above.
 
 ## Tier 1 / Tier 2
@@ -283,8 +323,9 @@ sv0-mathlib/
 ├── main.sv0         # smoke/demo entry point (also the full test suite today)
 ├── .github/workflows/ci.yml  # TEST-006: CI gate (bootstraps sv0-toolchain, then scripts/ci)
 ├── scripts/
-│   ├── ci                  # TEST-006: fmt-check + block-comment guard + compile/run + test/unit
-│   └── run_unit_tests.py   # TEST-001: runs test/unit/*.sv0, generates the requirement-to-test matrix
+│   ├── ci                    # TEST-006: fmt-check + block-comment guard + compile/run + test/unit + fixtures
+│   ├── run_unit_tests.py     # TEST-001/TEST-004: runs test/unit + test/property, generates the requirement-to-test matrix
+│   └── check_fixtures.py     # TEST-002/TEST-003: fixture-manifest completeness + boundary-coverage lint
 ├── lib/
 │   ├── arith.sv0     # module arith — F0 arithmetic core (Section 11)
 │   ├── modular.sv0   # module modular — R0.1/R0.2 modular arithmetic (Section 12)
@@ -295,7 +336,9 @@ sv0-mathlib/
 ├── test/
 │   ├── unit/          # TEST-001: one standalone fn main()->i32 binary per module,
 │   │                  # plus conv_review.md for Section 8's policy-style CONV-* requirements
-│   └── {fixtures,property,parity}/   # not yet populated — TEST-002/003/004/005
+│   ├── property/      # TEST-004: property_test.sv0 — seeded-PRNG algebraic-invariant checks
+│   ├── fixtures/      # TEST-002/TEST-003: rounding.csv, trig.csv, manifest.md
+│   └── parity/        # not yet populated — TEST-005 (blocked on the VM backend, see BUGS.md)
 └── docs/
     ├── accuracy.md                     # PERF-001/PERF-002: measured ULP error per non-exact function
     ├── ulp_audit_harness.c             # the standalone C harness used to produce accuracy.md's numbers

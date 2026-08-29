@@ -39,10 +39,20 @@ fn to_polar(x: f64, y: f64) -> Polar
     return Polar { r: hypot_f64(x, y), theta: atan2_f64(y, x) };
 }
 
+/* BUGS.md #19: a struct-literal field initializer that is itself a
+ * binop involving a struct-field access mistypes as `int` under the
+ * newer `sv0c` `53de895` revision (`scripts/ci`'s own toolchain,
+ * unpinned) — found via `test/property/property_test.sv0`. Every field
+ * used below is copied to its own local FIRST (bugs #13/#16's own
+ * established workaround), so no struct literal ever combines a raw
+ * field access with anything else.
+ */
 fn from_polar(p: Polar) -> Point2
     requires(p.r >= 0.0)
 {
-    return Point2 { x: p.r * cos_f64(p.theta), y: p.r * sin_f64(p.theta) };
+    let pr: f64 = p.r;
+    let ptheta: f64 = p.theta;
+    return Point2 { x: pr * cos_f64(ptheta), y: pr * sin_f64(ptheta) };
 }
 
 /* Negative scale is a rotation-by-pi plus a positive scale, kept as a
@@ -53,11 +63,15 @@ fn scale_polar(p: Polar, k: f64) -> Polar
     requires(k >= 0.0)
     ensures(result.r == p.r * k)
 {
-    return Polar { r: p.r * k, theta: p.theta };
+    let pr: f64 = p.r;
+    let ptheta: f64 = p.theta;
+    return Polar { r: pr * k, theta: ptheta };
 }
 
 fn rotate_polar(p: Polar, delta_theta: f64) -> Polar
     ensures(result.r == p.r)
 {
-    return Polar { r: p.r, theta: p.theta + delta_theta };
+    let pr: f64 = p.r;
+    let ptheta: f64 = p.theta;
+    return Polar { r: pr, theta: ptheta + delta_theta };
 }
