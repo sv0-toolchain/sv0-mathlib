@@ -71,6 +71,9 @@ use modular::lcm_checked_u64;
 use modular::add_mod_u64;
 use modular::sub_mod_u64;
 use modular::mul_mod_u64;
+use modular::pow_mod_u64;
+use modular::mod_inverse_u64;
+use modular::is_congruent_i64;
 use prelude::OptionU64;
 
 fn main() -> i32 {
@@ -324,6 +327,24 @@ fn main() -> i32 {
     if precise <= 2.2 { return 184; }
     if precise >= 2.3 { return 185; }
     if naive == precise { return 186; }
+
+    if pow_mod_u64(2, 10, 1000) != 24 { return 190; }
+    if pow_mod_u64(3, 100, 1000000007) != 886041711 { return 191; }
+    if pow_mod_u64(5, 0, 7) != 1 { return 192; }
+    if pow_mod_u64(4, 13, 497) != 445 { return 193; }
+
+    let mi1: bool = match mod_inverse_u64(3, 11) { OptionU64::Some(v) => v == 4, OptionU64::None => false };
+    if !mi1 { return 194; }
+    let mi2: bool = match mod_inverse_u64(10, 17) { OptionU64::Some(v) => mul_mod_u64(10, v, 17) == 1, OptionU64::None => false };
+    if !mi2 { return 195; }
+    let mi3: bool = match mod_inverse_u64(6, 9) { OptionU64::Some(v) => false, OptionU64::None => true };
+    if !mi3 { return 196; }
+    let mi4: bool = match mod_inverse_u64(1, 2) { OptionU64::Some(v) => v == 1, OptionU64::None => false };
+    if !mi4 { return 197; }
+
+    if !is_congruent_i64(7, 22, 5) { return 198; }
+    if is_congruent_i64(7, 23, 5) { return 199; }
+    if !is_congruent_i64(0 - 3, 7, 5) { return 200; }
 
     return 0;
 }
