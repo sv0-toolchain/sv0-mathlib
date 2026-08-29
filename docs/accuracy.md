@@ -59,6 +59,43 @@ sin/cos/tan convention, not a documented requirement.
 | `ln_complex` | magnitudes `1e-150`..`1e150`, all angles (100001 pts) | 14 | 3 (informational) | `hypot_f64`'s own `mx`/`mn`/`ratio` decomposition fed into `ln_f64_dd` (not `ln_f64(hypot_f64(...))`) for both `ln(mx)` and `0.5*ln(1+ratio^2)`, `ratio^2` via `two_prod`, combined via `two_sum`, single final rounding, argument via `atan2_f64` | FAIL (see notes — real, understood residual, not chased further) |
 | `pow_complex` | base magnitude `1e-5`..`1e5`, all angles (100 pts) x exponent re/im each in `[-3,3]` (100 pts), 10000 combinations | 38329 | 5 (informational) | `exp_complex(mul_complex(exp, ln_complex(base)))`, the standard complex power identity | FAIL (see notes — the reference itself is unreliable here, not a confirmed defect) |
 
+## Benchmark: cost vs. naive alternative (PERF-005)
+
+PERF-005 wants every non-exact function's iteration/instruction cost
+recorded and compared against "the naive/unbounded alternative it
+replaced." None of these algorithms use a convergence-DETECTING loop
+(check the error each iteration, stop early) — every one uses a FIXED
+iteration count instead, chosen generously enough that the fixed count
+is comfortably past where a convergence check would have stopped, per
+this library's own established "fixed, documented bound, not an early
+exit" convention (`sqrt_bracket_guess`'s own header comment states this
+design intent explicitly, and every other function below follows the
+same shape). The "naive alternative" column below is that
+convergence-checking loop each function's own fixed count replaces —
+cheaper on average, but with an unbounded worst case, a data-dependent
+runtime (a problem for anything needing consistent timing across the C
+and VM backends per PERF-005's own portability wording), and no static
+proof it terminates at all without deeper reasoning about the series'
+own convergence rate. The "extra work" column is the fixed count's own
+cost relative to the FEWEST iterations that stayed within budget across
+this audit's full domain sweep (`docs/ulp_audit_harness.c`) — i.e. how
+much headroom the fixed bound buys beyond the worst case actually
+measured.
+
+| Function | Fixed bound | Naive alternative | Extra work vs. measured worst case |
+|---|---|---|---|
+| `sqrt_bracket_guess` | 1100 doubling/halving steps | convergence-checking bracket search | `f64`'s exponent range needs at most ~1023 steps either direction; 1100 is a ~7% margin over the theoretical max, not the typical case (a handful of steps for any realistic input) |
+| `sqrt_f64` | 64 Newton iterations | convergence-checking Newton (stop when `\|guess*guess - x\|` is small) | quadratic convergence from an already-within-2x bracket reaches full precision in ~6-7 iterations in practice — 64 is roughly 9x that |
+| `exp_f64` (Taylor) | 20 terms | convergence-checking series (stop when a term is negligible) | reduced argument `r` is at most `~ln(2)/2 ~= 0.347`; the series is already accurate to far past double precision by term ~12-13 — 20 is roughly 1.5-1.7x that |
+| `ln_f64` (atanh series) | 20 terms | convergence-checking series | reduced `y` is at most `1/3`; 15 terms alone measured within budget until the double-double residual/rounding fixes needed the extra headroom — 20 gives margin past the point those fixes stopped mattering |
+| `sin_poly_dd`/`cos_poly_dd` | 12 terms | convergence-checking series | reduced argument is at most `pi/4 ~= 0.785`; well past double precision by term ~9-10 — 12 is roughly 1.2-1.3x that |
+| `atan_small_series_dd` | 20 terms | convergence-checking series | reduced argument is at most `tan(pi/12) ~= 0.268`; well past double precision by term ~10 — 20 is roughly 2x that |
+| `trig_reduce_2pi` (quadrant normalization) | 2 loops, no fixed cap (bounded by input magnitude via `round_f64`, not a term count) | N/A — this isn't a series, it's a range-reduction step; no naive unbounded alternative applies | realistic inputs need 0-1 iterations per loop (see `trig_fold_quadrant`'s own `loop_invariant` comments for the proof); no measured case in this audit's full domain sweep needed more than 1 |
+| `pow_checked_i64`/`pow_i64` | `O(log2(exp))` (exponentiation by squaring, `exp < 64` per `requires`) | `O(exp)` naive repeated multiplication | up to ~10.7x fewer multiplications at `exp` near its `requires`-guarded ceiling (`log2(64) = 6` vs `64`) |
+| `pow_mod_u64` | `O(log2(exp))` (same squaring shape, composed from `mul_mod_u64`) | `O(exp)` naive repeated modular multiplication | same shape as `pow_i64`/`pow_checked_i64` above, scales with `exp`'s own bit width |
+| `mod_inverse_u64` | `O(log2(min(a,m)))` (extended Euclidean) | brute-force search over `[1, m)` for an inverse | Euclidean's own logarithmic-in-the-smaller-input bound vs. `O(m)` brute force — the gap widens without bound as `m` grows |
+| `gcd_u64` | `O(log2(min(a,b)))` (Euclidean) | naive trial division / brute-force common-factor search | same logarithmic-vs-linear-or-worse shape as `mod_inverse_u64` |
+
 ## Notes
 
 - Every function above started this audit pass FAILING its budget (some by

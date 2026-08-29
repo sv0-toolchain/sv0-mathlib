@@ -233,7 +233,7 @@ fn mod_inverse_u64(a: u64, m: u64) -> OptionU64
      * iteration and is bounded below by 0 (same termination argument as
      * gcd_u64's own Euclidean loop).
      */
-    while r != 0 loop_invariant(true) {
+    while r != 0 loop_invariant(m_i > 1) {
         let q: i64 = old_r / r;
         let tmp_r: i64 = old_r - q * r;
         old_r = r;

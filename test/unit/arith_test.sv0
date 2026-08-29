@@ -1,0 +1,201 @@
+/* TEST-001 unit test for math::arith — covers ARITH-001..010,
+ * CONV-005(b)'s IEEE-754-propagation option (NaN forms), and CONV-006
+ * (floor_mod/euclid_mod exist as helpers so bare `%` isn't needed here —
+ * see modular_test.sv0 for the actual MOD-* assertions).
+ * Exit code convention: 0 = pass, nonzero = first failing case index
+ * (numbers are local to this file, not globally unique across the
+ * other files under test/unit/).
+ * Compiled standalone: lib/ + this one file, own `fn main()` — see
+ * scripts/run_unit_tests.py's own header comment for why.
+ */
+use arith::abs_i32;
+use arith::abs_checked_i32;
+use arith::abs_checked_i64;
+use arith::abs_i64;
+use arith::abs_f64;
+use prelude::Option;
+use prelude::OptionI64;
+use arith::sign_i32;
+use arith::sign_i64;
+use arith::sign_f64;
+use arith::min_i32;
+use arith::min_f64;
+use arith::max_i32;
+use arith::max_f64;
+use arith::clamp_i32;
+use arith::clamp_f64;
+use arith::floor_f64;
+use arith::ceil_f64;
+use arith::trunc_f64;
+use arith::round_f64;
+use arith::is_nan_f64;
+use arith::is_infinite_f64;
+use arith::is_finite_f64;
+use arith::lerp_f64;
+use arith::pow_i64;
+use arith::pow_checked_i64;
+use arith::mul_checked_i64;
+use arith::add_wrapping_i32;
+use arith::sub_wrapping_i32;
+use arith::mul_wrapping_i32;
+use arith::add_checked_i32;
+use arith::sub_checked_i32;
+use arith::mul_checked_i32;
+use arith::add_wrapping_i64;
+use arith::sub_wrapping_i64;
+use arith::mul_wrapping_i64;
+use arith::add_checked_i64;
+use arith::sub_checked_i64;
+use arith::add_wrapping_u32;
+use arith::sub_wrapping_u32;
+use arith::mul_wrapping_u32;
+use arith::add_checked_u32;
+use arith::sub_checked_u32;
+use arith::mul_checked_u32;
+use arith::add_wrapping_u64;
+use arith::sub_wrapping_u64;
+use arith::mul_wrapping_u64;
+use arith::add_checked_u64;
+use arith::sub_checked_u64;
+use arith::mul_checked_u64;
+use arith::fma_f64;
+use prelude::i32_min_val;
+use prelude::i32_max_val;
+use prelude::i64_min_val;
+use prelude::i64_max_val;
+use prelude::u32_max_val;
+use prelude::u64_max_val;
+use prelude::OptionU32;
+use prelude::OptionU64;
+
+fn main() -> i32 {
+    /* REQ: ARITH-001 — abs_i32/abs_i64/abs_f64, requires(x != MIN),
+     * abs_checked_i32/abs_checked_i64's Option companions. */
+    if abs_i32(5) != 5 { return 1; }
+    if abs_i32(0 - 5) != 5 { return 2; }
+    if abs_i32(0) != 0 { return 3; }
+    if abs_f64(5.0) != 5.0 { return 4; }
+    if abs_f64(0.0 - 5.0) != 5.0 { return 5; }
+    if abs_i64(9223372036854775807) != 9223372036854775807 { return 6; }
+    if abs_i64(0 - 9223372036854775807) != 9223372036854775807 { return 7; }
+    let some_case: Option = abs_checked_i32(0 - 5);
+    let some_ok: bool = match some_case { Option::Some(v) => v == 5, Option::None => false };
+    if !some_ok { return 8; }
+    let none_case: Option = abs_checked_i32(0 - 2147483648);
+    let none_ok: bool = match none_case { Option::Some(v) => false, Option::None => true };
+    if !none_ok { return 9; }
+    let some_case_i64: OptionI64 = abs_checked_i64(0 - 9223372036854775807);
+    let some_ok_i64: bool = match some_case_i64 { OptionI64::Some(v) => v == 9223372036854775807, OptionI64::None => false };
+    if !some_ok_i64 { return 10; }
+    let none_case_i64: OptionI64 = abs_checked_i64(0 - 9223372036854775807 - 1);
+    let none_ok_i64: bool = match none_case_i64 { OptionI64::Some(v) => false, OptionI64::None => true };
+    if !none_ok_i64 { return 11; }
+
+    /* REQ: ARITH-002 — sign_i32/sign_i64/sign_f64 in {-1,0,1};
+     * NaN input returns 0 (CONV-005(b)'s documented IEEE-754 default). */
+    if sign_i32(5) != 1 { return 20; }
+    if sign_i32(0 - 5) != (0 - 1) { return 21; }
+    if sign_i32(0) != 0 { return 22; }
+    if sign_i64(5) != 1 { return 23; }
+    if sign_f64(5.0) != 1.0 { return 24; }
+    if sign_f64(0.0 - 5.0) != (0.0 - 1.0) { return 25; }
+    if sign_f64(0.0) != 0.0 { return 26; }
+    let nan: f64 = 0.0 / 0.0;
+    if sign_f64(nan) != 0.0 { return 27; }
+
+    /* REQ: ARITH-003 — min_i32/max_i32/min_f64/max_f64, equal-input case. */
+    if min_i32(3, 7) != 3 { return 30; }
+    if min_i32(4, 4) != 4 { return 31; }
+    if max_i32(3, 7) != 7 { return 32; }
+    if min_f64(3.0, 7.0) != 3.0 { return 33; }
+    if max_f64(3.0, 7.0) != 7.0 { return 34; }
+
+    /* REQ: ARITH-004 — clamp_*(x, lo, hi), below/inside/above range. */
+    if clamp_i32(0 - 5, 0, 10) != 0 { return 40; }
+    if clamp_i32(15, 0, 10) != 10 { return 41; }
+    if clamp_i32(5, 0, 10) != 5 { return 42; }
+    if clamp_f64(0.0 - 5.0, 0.0, 10.0) != 0.0 { return 43; }
+    if clamp_f64(15.0, 0.0, 10.0) != 10.0 { return 44; }
+    if clamp_f64(5.5, 0.0, 10.0) != 5.5 { return 45; }
+
+    /* REQ: ARITH-005 — floor/ceil/round/trunc, boundary cases (0.0,
+     * 0.5, -0.5, 2.5, -2.5), round-half-away-from-zero pinned. */
+    if trunc_f64(3.7) != 3.0 { return 50; }
+    if trunc_f64(0.0 - 3.7) != (0.0 - 3.0) { return 51; }
+    if trunc_f64(0.0) != 0.0 { return 52; }
+    if floor_f64(3.7) != 3.0 { return 53; }
+    if floor_f64(0.0 - 3.7) != (0.0 - 4.0) { return 54; }
+    if ceil_f64(3.2) != 4.0 { return 55; }
+    if ceil_f64(0.0 - 3.2) != (0.0 - 3.0) { return 56; }
+    if round_f64(2.5) != 3.0 { return 57; }
+    if round_f64(0.0 - 2.5) != (0.0 - 3.0) { return 58; }
+    if round_f64(0.5) != 1.0 { return 59; }
+    if round_f64(0.0 - 0.5) != (0.0 - 1.0) { return 60; }
+    let big: f64 = 12345678901234.0;
+    if floor_f64(big) != big { return 61; }
+    if round_f64(big) != big { return 62; }
+
+    /* REQ: ARITH-006 — is_nan_f64/is_infinite_f64/is_finite_f64: NaN,
+     * +/-Infinity, ordinary finite. */
+    let inf: f64 = 1.0 / 0.0;
+    let ninf: f64 = 0.0 - 1.0 / 0.0;
+    if !is_nan_f64(nan) { return 70; }
+    if is_nan_f64(1.0) { return 71; }
+    if !is_infinite_f64(inf) { return 72; }
+    if !is_infinite_f64(ninf) { return 73; }
+    if is_infinite_f64(nan) { return 74; }
+    if !is_finite_f64(1.0) { return 75; }
+    if is_finite_f64(inf) { return 76; }
+    if is_finite_f64(nan) { return 77; }
+
+    /* REQ: ARITH-007 — pow_i64 by squaring + pow_checked_i64 overflow
+     * detection. (pow_f64's own ARITH-007 coverage lives in
+     * trig_test.sv0, since it's implemented in lib/trig.sv0 alongside
+     * exp_f64/ln_f64 — see lib/trig.sv0's own header note.) */
+    if pow_i64(2, 10) != 1024 { return 80; }
+    if pow_i64(0 - 2, 3) != (0 - 8) { return 81; }
+    if pow_i64(5, 0) != 1 { return 82; }
+    let pc_ok: bool = match pow_checked_i64(2, 10) { OptionI64::Some(v) => v == 1024, OptionI64::None => false };
+    if !pc_ok { return 83; }
+    let pc_ov: bool = match pow_checked_i64(2, 63) { OptionI64::Some(v) => false, OptionI64::None => true };
+    if !pc_ov { return 84; }
+
+    /* REQ: ARITH-008 — wrapping/checked add/sub/mul, MIN/MAX boundary,
+     * across i32/i64/u32/u64. */
+    if add_wrapping_i32(2147483647, 1) != (0 - 2147483648) { return 90; }
+    if sub_wrapping_i32(i32_min_val(), 1) != i32_max_val() { return 91; }
+    if mul_wrapping_i32(2147483647, 2) != (0 - 2) { return 92; }
+    let ac1: bool = match add_checked_i32(2147483647, 1) { Option::Some(v) => false, Option::None => true };
+    if !ac1 { return 93; }
+    let mc1: bool = match mul_checked_i32(i32_min_val(), 0 - 1) { Option::Some(v) => false, Option::None => true };
+    if !mc1 { return 94; }
+    if add_wrapping_i64(9223372036854775807, 1) != i64_min_val() { return 95; }
+    let ac3: bool = match add_checked_i64(9223372036854775807, 1) { OptionI64::Some(v) => false, OptionI64::None => true };
+    if !ac3 { return 96; }
+    if add_wrapping_u32(u32_max_val(), 1) != 0 { return 97; }
+    let auc1: bool = match add_checked_u32(u32_max_val(), 1) { OptionU32::Some(v) => false, OptionU32::None => true };
+    if !auc1 { return 98; }
+    if add_wrapping_u64(u64_max_val(), 1) != 0 { return 99; }
+    let auc2: bool = match add_checked_u64(u64_max_val(), 1) { OptionU64::Some(v) => false, OptionU64::None => true };
+    if !auc2 { return 100; }
+
+    /* REQ: ARITH-009 — lerp_f64 endpoints (t=0, t=1, t=0.5). */
+    if lerp_f64(2.0, 10.0, 0.0) != 2.0 { return 110; }
+    if lerp_f64(2.0, 10.0, 1.0) != 10.0 { return 111; }
+    if lerp_f64(0.0, 10.0, 0.5) != 5.0 { return 112; }
+
+    /* REQ: ARITH-010 — fma_f64 differs from naive a*b+c at a value
+     * chosen to expose double rounding (the differential fixture
+     * SPEC.md's own Verification column asks for). */
+    if fma_f64(2.0, 3.0, 4.0) != 10.0 { return 120; }
+    let fbig: f64 = 10000000000000000.0;
+    let one_plus_eps: f64 = 1.0000000000000002;
+    let naive: f64 = fbig * one_plus_eps + (0.0 - fbig);
+    let precise: f64 = fma_f64(fbig, one_plus_eps, 0.0 - fbig);
+    if naive != 2.0 { return 121; }
+    if precise <= 2.2 { return 122; }
+    if precise >= 2.3 { return 123; }
+    if naive == precise { return 124; }
+
+    return 0;
+}

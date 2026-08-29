@@ -1,0 +1,84 @@
+/* TEST-001 unit test for math::modular — covers MOD-001..007. */
+use modular::floor_mod_i64;
+use modular::euclid_mod_i64;
+use modular::gcd_u64;
+use modular::gcd_checked_u64;
+use modular::lcm_u64;
+use modular::lcm_checked_u64;
+use modular::add_mod_u64;
+use modular::sub_mod_u64;
+use modular::mul_mod_u64;
+use modular::pow_mod_u64;
+use modular::mod_inverse_u64;
+use modular::is_congruent_i64;
+use prelude::OptionU64;
+
+fn main() -> i32 {
+    /* REQ: MOD-001 — floor_mod_i64/euclid_mod_i64: negative a, zero a,
+     * a a multiple of m, and floor_mod == euclid_mod. */
+    if floor_mod_i64(7, 3) != 1 { return 1; }
+    if floor_mod_i64(0 - 7, 3) != 2 { return 2; }
+    if floor_mod_i64(0, 5) != 0 { return 3; }
+    if floor_mod_i64(9, 3) != 0 { return 4; }
+    if floor_mod_i64(7, 3) != euclid_mod_i64(7, 3) { return 5; }
+
+    /* REQ: MOD-002 — gcd_u64 (Euclidean), gcd_checked_u64's zero-input
+     * convention (gcd_checked_u64(0,b)=b, gcd_checked_u64(a,0)=a). */
+    if gcd_u64(48, 18) != 6 { return 10; }
+    if gcd_u64(17, 5) != 1 { return 11; }
+    if gcd_u64(7, 7) != 7 { return 12; }
+    if gcd_checked_u64(0, 5) != 5 { return 13; }
+    if gcd_checked_u64(5, 0) != 5 { return 14; }
+    if gcd_checked_u64(0, 0) != 0 { return 15; }
+
+    /* REQ: MOD-003 — lcm_u64 (divide-before-multiply), lcm_checked_u64
+     * overflow near u64::MAX. */
+    if lcm_u64(4, 6) != 12 { return 20; }
+    if lcm_u64(3, 5) != 15 { return 21; }
+    let lcm_ok: bool = match lcm_checked_u64(4, 6) { OptionU64::Some(v) => v == 12, OptionU64::None => false };
+    if !lcm_ok { return 22; }
+    let lcm_overflow_ok: bool = match lcm_checked_u64(18446744073709551557, 18446744073709551533) { OptionU64::Some(v) => false, OptionU64::None => true };
+    if !lcm_overflow_ok { return 23; }
+
+    /* REQ: MOD-004 — add_mod_u64/sub_mod_u64/mul_mod_u64, overflow-stress
+     * near u64::MAX. */
+    if add_mod_u64(7, 6, 10) != 3 { return 30; }
+    let umax: u64 = 18446744073709551615;
+    if add_mod_u64(umax, umax, 10) != 0 { return 31; }
+    if sub_mod_u64(3, 7, 10) != 6 { return 32; }
+    if mul_mod_u64(7, 6, 10) != 2 { return 33; }
+    if mul_mod_u64(123456789, 987654321, 1000000007) != 259106859 { return 34; }
+    let big_prime: u64 = 18446744073709551557;
+    if mul_mod_u64(big_prime - 1, big_prime - 1, big_prime) != 1 { return 35; }
+
+    /* REQ: MOD-005 — pow_mod_u64 (exponentiation-by-squaring composed
+     * from mul_mod_u64), small hand-checkable + cryptographic-scale
+     * triples. */
+    if pow_mod_u64(2, 10, 1000) != 24 { return 40; }
+    if pow_mod_u64(5, 0, 7) != 1 { return 41; }
+    if pow_mod_u64(3, 100, 1000000007) != 886041711 { return 42; }
+
+    /* REQ: MOD-006 — mod_inverse_u64 (extended Euclidean), invertible
+     * and non-invertible (a,m) pairs. */
+    let mi1: bool = match mod_inverse_u64(3, 11) { OptionU64::Some(v) => v == 4, OptionU64::None => false };
+    if !mi1 { return 50; }
+    let mi2: bool = match mod_inverse_u64(10, 17) { OptionU64::Some(v) => mul_mod_u64(10, v, 17) == 1, OptionU64::None => false };
+    if !mi2 { return 51; }
+    let mi3: bool = match mod_inverse_u64(6, 9) { OptionU64::Some(v) => false, OptionU64::None => true };
+    if !mi3 { return 52; }
+
+    /* REQ: MOD-007 — is_congruent_i64, defined via floor_mod_i64. */
+    if !is_congruent_i64(7, 22, 5) { return 60; }
+    if is_congruent_i64(7, 23, 5) { return 61; }
+    if !is_congruent_i64(0 - 3, 7, 5) { return 62; }
+    /* Property-shaped check (TEST-004's fixed-seed convention: no
+     * pseudo-random generation here, just a fixed small sweep) —
+     * is_congruent_i64(a, a + k*m, m) holds for a spread of k. */
+    let mut k: i64 = 0 - 5;
+    while k <= 5 loop_invariant(true) {
+        if !is_congruent_i64(17, 17 + k * 9, 9) { return 63; }
+        k = k + 1;
+    }
+
+    return 0;
+}

@@ -1,0 +1,145 @@
+/* TEST-001 unit test for math::trig — covers TRIG-001..007, ARITH-007's
+ * pow_f64 (implemented in lib/trig.sv0 alongside exp_f64/ln_f64), and
+ * points PERF-001/002/004 at their real evidence (a per-value
+ * tolerance check here isn't a substitute for docs/accuracy.md's own
+ * full-domain ULP sweep, which is what those requirements actually ask
+ * for).
+ *
+ * REQ: PERF-001 — see docs/accuracy.md (one row per non-exact function,
+ * measured max ULP error, algorithm parameter, toolchain revision).
+ * REQ: PERF-002 — see docs/accuracy.md's own table: all of sqrt_f64/
+ * sin_f64/cos_f64/tan_f64/asin_f64/acos_f64/atan_f64/atan2_f64/exp_f64/
+ * ln_f64 measure within their pinned ULP budget.
+ * REQ: PERF-004 — MOD-*'s and ARITH-*'s integer/modular functions are exact
+ * by construction; see arith_test.sv0/modular_test.sv0 for their own
+ * fixture coverage (not repeated here, math::trig is entirely f64).
+ *
+ * REQ: PERF-005 — see docs/accuracy.md's own "Benchmark: cost vs.
+ * naive alternative" section: every fixed-iteration-count algorithm in
+ * this module (and MOD-*'s O(log) ones) has its cost recorded relative
+ * to the convergence-checking/brute-force alternative it replaced.
+ */
+use trig::pi_f64;
+use trig::sqrt_f64;
+use trig::sqrt_checked_f64;
+use trig::exp_f64;
+use trig::ln_f64;
+use trig::ln_checked_f64;
+use trig::pow_f64;
+use trig::sin_f64;
+use trig::cos_f64;
+use trig::tan_f64;
+use trig::tan_checked_f64;
+use trig::to_radians_f64;
+use trig::to_degrees_f64;
+use trig::hypot_f64;
+use trig::atan_f64;
+use trig::atan2_f64;
+use trig::asin_f64;
+use trig::acos_f64;
+use trig::asin_checked_f64;
+use trig::acos_checked_f64;
+use trig::sinh_f64;
+use trig::cosh_f64;
+use trig::tanh_f64;
+use arith::abs_f64;
+use prelude::OptionF64;
+
+fn main() -> i32 {
+    /* REQ: TRIG-001 — sin_f64/cos_f64 at exact and irrational-ish
+     * points, plus NaN/Infinity propagation. sqrt_f64 (this file's own
+     * deviation, documented in README — no requirement ID assigns it a
+     * home module) is grouped here too since it's implemented alongside
+     * these in lib/trig.sv0. */
+    if sqrt_f64(4.0) != 2.0 { return 1; }
+    let sq2: f64 = abs_f64(sqrt_f64(2.0) - 1.4142135623730951);
+    if sq2 >= 0.000000000000001 { return 2; }
+    if sqrt_f64(0.0) != 0.0 { return 3; }
+    let scf1: bool = match sqrt_checked_f64(4.0) { OptionF64::Some(v) => v == 2.0, OptionF64::None => false };
+    if !scf1 { return 4; }
+    let scf2: bool = match sqrt_checked_f64(0.0 - 1.0) { OptionF64::Some(v) => false, OptionF64::None => true };
+    if !scf2 { return 5; }
+
+    let sn0: f64 = abs_f64(sin_f64(0.0) - 0.0);
+    if sn0 >= 0.0000000000001 { return 10; }
+    let cs0: f64 = abs_f64(cos_f64(0.0) - 1.0);
+    if cs0 >= 0.0000000000001 { return 11; }
+    let sn1: f64 = abs_f64(sin_f64(pi_f64() / 2.0) - 1.0);
+    if sn1 >= 0.0000000000001 { return 12; }
+    let sn4: f64 = abs_f64(sin_f64(100.0) - (0.0 - 0.5063656411097588));
+    if sn4 >= 0.000000001 { return 13; }
+    let nan2: f64 = 0.0 / 0.0;
+    if sin_f64(nan2) == sin_f64(nan2) { return 14; }
+    let inf: f64 = 1.0 / 0.0;
+    if sin_f64(inf) == sin_f64(inf) { return 15; }
+
+    /* REQ: TRIG-002 — tan_f64 = sin_f64/cos_f64, total (no requires),
+     * plus tan_checked_f64. */
+    let tn1: f64 = abs_f64(tan_f64(1.0) - 1.557407724654902);
+    if tn1 >= 0.00000000001 { return 20; }
+    let tc1: bool = match tan_checked_f64(1.0) { OptionF64::Some(v) => abs_f64(v - 1.557407724654902) < 0.00000000001, OptionF64::None => false };
+    if !tc1 { return 21; }
+
+    /* REQ: TRIG-003 — asin_f64/acos_f64, endpoint x=1.0, and their
+     * _checked companions' domain-violation None case. */
+    let as1: f64 = abs_f64(asin_f64(0.5) - 0.5235987755982988);
+    if as1 >= 0.000000000000001 { return 30; }
+    let ac1: f64 = abs_f64(acos_f64(0.5) - 1.0471975511965976);
+    if ac1 >= 0.000000000000001 { return 31; }
+    if asin_f64(1.0) != (pi_f64() / 2.0) { return 32; }
+    let asc2: bool = match asin_checked_f64(2.0) { OptionF64::Some(v) => false, OptionF64::None => true };
+    if !asc2 { return 33; }
+
+    /* REQ: TRIG-004 — atan_f64 (total, boundary-inclusive ensures — see
+     * README's "Deviations from SPEC.md" #8), atan2_f64's 4 quadrants +
+     * axis + origin cases. */
+    let at1: f64 = abs_f64(atan_f64(1.0) - 0.7853981633974483);
+    if at1 >= 0.000000000000001 { return 40; }
+    let a2t1: f64 = abs_f64(atan2_f64(1.0, 1.0) - 0.7853981633974483);
+    if a2t1 >= 0.000000000000001 { return 41; }
+    let a2t3: f64 = abs_f64(atan2_f64(0.0 - 1.0, 0.0 - 1.0) - (0.0 - 2.356194490192345));
+    if a2t3 >= 0.000000000000001 { return 42; }
+    if atan2_f64(0.0, 0.0) != 0.0 { return 43; }
+
+    /* REQ: TRIG-005 — sinh_f64/cosh_f64/tanh_f64, near-zero (sinh) and
+     * large-|x| clamp (tanh) cases. */
+    let sh1: f64 = abs_f64(sinh_f64(0.5) - 0.5210953054937474);
+    if sh1 >= 0.00000000000001 { return 50; }
+    let ch1: f64 = abs_f64(cosh_f64(0.5) - 1.1276259652063807);
+    if ch1 >= 0.00000000000001 { return 51; }
+    let sh2: f64 = abs_f64(sinh_f64(0.001) - 0.001000000166666675);
+    if sh2 >= 0.0000000000000001 { return 52; }
+    if tanh_f64(100.0) >= 1.0 { return 53; }
+    if tanh_f64(0.0 - 100.0) <= (0.0 - 1.0) { return 54; }
+
+    /* REQ: TRIG-006 — to_radians_f64/to_degrees_f64, round-trip. */
+    let rad_diff: f64 = abs_f64(to_radians_f64(180.0) - pi_f64());
+    if rad_diff >= 0.0000000000000001 { return 60; }
+    let rt_diff: f64 = abs_f64(to_degrees_f64(to_radians_f64(37.5)) - 37.5);
+    if rt_diff >= 0.0000000000001 { return 61; }
+
+    /* REQ: TRIG-007 — hypot_f64, including a magnitude large enough
+     * that naive sqrt(x*x+y*y) would overflow to Infinity. */
+    if hypot_f64(3.0, 4.0) != 5.0 { return 70; }
+    let hbig: f64 = 1e300;
+    let hb: f64 = hypot_f64(hbig, hbig);
+    if hb != hb { return 71; }
+    let hinf: f64 = 1.0 / 0.0;
+    if hb == hinf { return 72; }
+
+    /* REQ: ARITH-007 (pow_f64's own half — pow_i64's half is in
+     * arith_test.sv0) — exp_f64(exp*ln_f64(base)) form, plus exp_f64/
+     * ln_f64/ln_checked_f64 themselves (Section 14's shared machinery,
+     * reused by TRIG-005). */
+    let ee1: f64 = abs_f64(exp_f64(1.0) - 2.718281828459045);
+    if ee1 >= 0.0000000000001 { return 80; }
+    let ll1: f64 = abs_f64(ln_f64(2.718281828459045) - 1.0);
+    if ll1 >= 0.0000000000001 { return 81; }
+    let lc2: bool = match ln_checked_f64(0.0 - 1.0) { OptionF64::Some(v) => false, OptionF64::None => true };
+    if !lc2 { return 82; }
+    let pf1: f64 = abs_f64(pow_f64(2.0, 10.0) - 1024.0);
+    if pf1 >= 0.00001 { return 83; }
+    if pow_f64(0.0, 0.0) != 1.0 { return 84; }
+
+    return 0;
+}

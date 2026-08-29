@@ -40,6 +40,25 @@ drift), plus a full compile+run of this project — and runs in GitHub
 Actions on every push/PR (`.github/workflows/ci.yml`, which bootstraps a
 sibling `sv0-toolchain` checkout first).
 
+**TEST-001 is met.** `test/unit/{arith,modular,trig,polar}_test.sv0`
+(each its own standalone, `--project`-compiled `fn main() -> i32`
+binary, per SPEC.md §16.1's own convention) plus `test/unit/
+conv_review.md` (a written review for Section 8's policy-style CONV-*
+requirements, which SPEC.md's own Verification column asks for as an
+inventory/review, not a per-value fixture) cover every requirement ID
+in SPEC.md Sections 8/11/12/13/15/17 except CONV-010 (genuinely
+untestable today — `--project`-mode has no `--contract-mode` flag,
+`conv_review.md` has the full investigation), explicitly deferred with
+rationale rather than silently skipped. `scripts/run_unit_tests.py`
+generates `docs/requirement_test_matrix.md` (the "Generated
+requirement-to-test matrix" TEST-001's own Verification column wants)
+and is wired into `scripts/ci`. Fixing this surfaced two more real
+toolchain gaps (BUGS.md #17, #18) and a genuine CONV-008 gap in this
+library's own code (9 of 34 `loop_invariant` clauses across
+`lib/arith.sv0`/`lib/modular.sv0`/`lib/trig.sv0` were bare
+`loop_invariant(true)` placeholders — all replaced with real,
+prose-explained invariants).
+
 **F0's own surface, including `abs_checked_i64`:** `math::arith`'s ARITH-001..004
 are fully implemented and contract-checked: all i32, i64, and f64 forms
 (`abs_i32`/`abs_i64`/`abs_f64`, `sign_i32`/`sign_i64`/`sign_f64`,
@@ -58,8 +77,8 @@ forms — see BUGS.md #2 for why (VM bytecode has no float representation
 at all, a separate, larger gap) — and a duplicate-type issue once more
 than one file imports the same type; see BUGS.md's "Not yet working".
 
-See [BUGS.md](BUGS.md) for sixteen toolchain gaps found across F0, R0.1,
-R0.2, R0.3, the accuracy-audit pass, and TEST-006's CI-gate setup.
+See [BUGS.md](BUGS.md) for eighteen toolchain gaps found across F0,
+R0.1, R0.2, R0.3, the accuracy-audit pass, and TEST-006/TEST-001's setup.
 **Eleven are fixed**: bug #5
 (`f64` silently compiling as `int`), bug #3 (generic enums like
 `Option<T>` failing to resolve), bug #1 (integer literals wider than i32
@@ -79,7 +98,7 @@ result, no intermediate `let`, mistyping the payload binding), bug #13
 bug #14 (a struct field name token landing at a coincidental source
 position `500-599` was silently misread as an unrelated
 tuple-projection index — found via `math::trig`'s first struct literal).
-**Four remain genuine open gaps, each with a documented, verified
+**Six remain genuine open gaps, each with a documented, verified
 workaround this library uses instead**: bug #9 (generic enums resolve
 but don't monomorphize — `abs_checked_i64` uses a concrete `OptionI64`
 instead of the shared `Option<T>`), bug #12 (`match` used as a value
@@ -88,13 +107,22 @@ used throughout `pow_checked_i64` onward), bug #15 (an inline struct
 literal passed directly as a function-call argument sometimes resolves
 its field names against the wrong struct declaration, found finishing
 CPLX-007 — worked around by binding struct literals to a `let` before
-passing them as arguments), and bug #16 (a bare `return field_a +
+passing them as arguments), bug #16 (a bare `return field_a +
 field_b;` combining two fields of the SAME struct instance mistypes its
 own temp — a regression past bug #13's own fix, found setting up
 `scripts/ci`/TEST-006 against a later upstream revision than the rest of
 this library was tested against — worked around by copying each field
 into its own local first, applied to `ln_f64`/`sin_f64`/`cos_f64`/
-`atan_f64`), plus the VM bytecode float-lowering gap noted above.
+`atan_f64`), bug #17 (`--project` file discovery silently fails — exit
+2, zero diagnostics — when a top-level file/directory sorts
+alphabetically before `lib`, found setting up `test/unit/` — worked
+around in `scripts/run_unit_tests.py` by staging each unit test file
+inside a subdirectory that sorts after `lib`), and bug #18 (`let x:
+StructType = <bare variable already of that type>;` mistypes the new
+local as `int`, found writing `test/unit/polar_test.sv0`'s own
+`Copy`-derivation test — worked around by routing the copy through a
+trivial identity function call instead), plus the VM bytecode
+float-lowering gap noted above.
 
 ## Tier 1 / Tier 2
 
@@ -255,7 +283,8 @@ sv0-mathlib/
 ├── main.sv0         # smoke/demo entry point (also the full test suite today)
 ├── .github/workflows/ci.yml  # TEST-006: CI gate (bootstraps sv0-toolchain, then scripts/ci)
 ├── scripts/
-│   └── ci            # TEST-006: fmt-check + block-comment guard + compile/run, local or CI
+│   ├── ci                  # TEST-006: fmt-check + block-comment guard + compile/run + test/unit
+│   └── run_unit_tests.py   # TEST-001: runs test/unit/*.sv0, generates the requirement-to-test matrix
 ├── lib/
 │   ├── arith.sv0     # module arith — F0 arithmetic core (Section 11)
 │   ├── modular.sv0   # module modular — R0.1/R0.2 modular arithmetic (Section 12)
@@ -263,8 +292,12 @@ sv0-mathlib/
 │   ├── polar.sv0      # module polar — R0.3 polar coordinates (Section 17)
 │   ├── complex.sv0    # module complex — R0.3 complex numbers, incl. CPLX-007 (Section 18)
 │   └── prelude.sv0   # module prelude — shared Option/Result declarations
-├── test/{unit,fixtures,property,parity}/
+├── test/
+│   ├── unit/          # TEST-001: one standalone fn main()->i32 binary per module,
+│   │                  # plus conv_review.md for Section 8's policy-style CONV-* requirements
+│   └── {fixtures,property,parity}/   # not yet populated — TEST-002/003/004/005
 └── docs/
-    ├── accuracy.md            # PERF-001/PERF-002: measured ULP error per non-exact function
-    └── ulp_audit_harness.c    # the standalone C harness used to produce accuracy.md's numbers
+    ├── accuracy.md                     # PERF-001/PERF-002: measured ULP error per non-exact function
+    ├── ulp_audit_harness.c             # the standalone C harness used to produce accuracy.md's numbers
+    └── requirement_test_matrix.md      # generated by scripts/run_unit_tests.py — do not hand-edit
 ```

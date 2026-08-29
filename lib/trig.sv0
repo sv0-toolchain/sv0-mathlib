@@ -328,7 +328,7 @@ fn ln_f64_dd(x: f64) -> Pair2
      * compensated summation (see sin_poly/cos_poly's own fix for why a
      * plain running sum alone isn't enough).
      */
-    while i < 20 loop_invariant(true) {
+    while i < 20 loop_invariant(i <= 20) {
         term = term * y2;
         denom = denom + 2.0;
         let addend: f64 = term / denom;
@@ -525,8 +525,20 @@ fn trig_fold_quadrant(reduced: Pair2) -> QuadrantFold
     let r: f64 = d.hi;
     let r_lo: f64 = (d.lo - kp_lo) + reduced.lo;
     let mut kmod: f64 = k;
-    while kmod >= 4.0 loop_invariant(true) { kmod = kmod - 4.0; }
-    while kmod < 0.0 loop_invariant(true) { kmod = kmod + 4.0; }
+    let k_start: f64 = k;
+    /* loop_invariant: `kmod` only ever decreases here (subtracting
+     * exactly 4.0 per iteration), so it never exceeds where it
+     * started — true regardless of how many iterations run, and shows
+     * each iteration makes real progress toward the `< 4.0` exit
+     * condition. */
+    while kmod >= 4.0 loop_invariant(kmod <= k_start) { kmod = kmod - 4.0; }
+    /* loop_invariant: entering this loop `kmod < 4.0` already holds
+     * (the first loop's own exit condition); each iteration here only
+     * fires while `kmod < 0.0`, and adding `4.0` to a value `< 0.0`
+     * always stays `< 4.0` — so `kmod < 4.0` holds throughout,
+     * regardless of iteration count, without needing to reason about
+     * how many steps the first loop above took. */
+    while kmod < 0.0 loop_invariant(kmod < 4.0) { kmod = kmod + 4.0; }
     return QuadrantFold { r: r, r_lo: r_lo, quadrant: kmod };
 }
 
@@ -559,7 +571,7 @@ fn sin_poly_dd(r: f64) -> Pair2 {
     let mut c: f64 = 0.0;
     let mut n: f64 = 1.0;
     let mut i: u32 = 0;
-    while i < 12 loop_invariant(true) {
+    while i < 12 loop_invariant(i <= 12) {
         term = 0.0 - term * r2 / ((2.0 * n) * (2.0 * n + 1.0));
         let t: f64 = sum + term;
         if abs_f64(sum) >= abs_f64(term) {
@@ -581,7 +593,7 @@ fn cos_poly_dd(r: f64) -> Pair2 {
     let mut c: f64 = 0.0;
     let mut n: f64 = 0.0;
     let mut i: u32 = 0;
-    while i < 12 loop_invariant(true) {
+    while i < 12 loop_invariant(i <= 12) {
         term = 0.0 - term * r2 / ((2.0 * n + 1.0) * (2.0 * n + 2.0));
         let t: f64 = sum + term;
         if abs_f64(sum) >= abs_f64(term) {
@@ -755,7 +767,7 @@ fn atan_small_series_dd(x: f64) -> Pair2 {
     let mut n: f64 = 1.0;
     let mut sign: f64 = 0.0 - 1.0;
     let mut i: u32 = 0;
-    while i < 20 loop_invariant(true) {
+    while i < 20 loop_invariant(i <= 20) {
         term = term * x2;
         let addend: f64 = sign * term / (2.0 * n + 1.0);
         let t: f64 = sum + addend;
@@ -974,7 +986,7 @@ fn sinh_f64(x: f64) -> f64 {
         let mut c: f64 = 0.0;
         let mut n: f64 = 1.0;
         let mut i: u32 = 0;
-        while i < 15 loop_invariant(true) {
+        while i < 15 loop_invariant(i <= 15) {
             term = term * x2 / ((2.0 * n) * (2.0 * n + 1.0));
             let t: f64 = sum + term;
             if abs_f64(sum) >= abs_f64(term) {
