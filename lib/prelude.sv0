@@ -48,9 +48,23 @@ enum OptionF64 { Some(f64), None }
  * eventually) since the straightforward fix here is simply not to
  * duplicate the name, which every module below now does.
  */
+/* Shared i32/i64/u32/u64 MIN/MAX constant helpers, per this file's own
+ * header note above (avoiding duplicate per-module copies that fail at
+ * the `cc` link step). No domain restriction — each takes no arguments
+ * and always returns the same fixed constant for its type. */
 fn i32_min_val() -> i32 { return 0 - 2147483648; }
+/* i32::MAX — largest representable i32, per this file's shared header
+ * note above. */
 fn i32_max_val() -> i32 { return 2147483647; }
+/* i64::MIN — smallest representable i64, per this file's shared
+ * header note above. */
 fn i64_min_val() -> i64 { return 0 - 9223372036854775807 - 1; }
+/* i64::MAX — largest representable i64, per this file's shared header
+ * note above. */
 fn i64_max_val() -> i64 { return 9223372036854775807; }
+/* u32::MAX — largest representable u32, per this file's shared header
+ * note above. */
 fn u32_max_val() -> u32 { return 4294967295; }
+/* u64::MAX — largest representable u64, per this file's shared header
+ * note above. */
 fn u64_max_val() -> u64 { return 18446744073709551615; }

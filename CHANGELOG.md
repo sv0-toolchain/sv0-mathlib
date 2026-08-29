@@ -148,6 +148,24 @@ arbitrary-precision reference), not a defect in this library. See
   `Complex` addition/multiplication commutativity+associativity over 20-
   30 samples each; `scripts/run_unit_tests.py` now also discovers and
   runs `test/property/*.sv0` the same way it runs `test/unit/*.sv0`.
+- `scripts/check_doc_comments.py` (DOC-001, F0) — every public function
+  across `lib/` now has a doc comment stating its domain/contract in
+  prose, with non-exact (ULP-budgeted) functions additionally required
+  to cross-reference `docs/accuracy.md`; internal helper functions are
+  exempted by an explicit allow-list, not by omission. 66 gaps found
+  (missing comments, too-short comments, and missing accuracy.md
+  cross-references) across `lib/arith.sv0`/`lib/prelude.sv0`/
+  `lib/modular.sv0`/`lib/polar.sv0`/`lib/complex.sv0`/`lib/trig.sv0`,
+  all fixed. Wired into `scripts/ci`.
+
+### Repository shape
+
+- **SPEC.md §22 Open Question 2 (repository shape) is now formally
+  resolved**, not just practically worked around: this repository IS
+  the sibling-of-`sv0-toolchain`, `--project`-driven shape, recorded as
+  its own numbered deviation (`README.md` deviation #10) per SPEC.md
+  §21.5's R1-gate wording wanting open questions "resolved or
+  explicitly deferred with rationale."
 
 ### Contracts strengthened
 

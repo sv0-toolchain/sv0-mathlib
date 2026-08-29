@@ -33,6 +33,9 @@ struct Polar { r: f64, theta: f64 }
 /* See this file's own deviation note above. */
 struct Point2 { x: f64, y: f64 }
 
+/* POLAR-002: Cartesian (x, y) -> polar (r, theta), any finite x/y
+ * including the origin (0.0, 0.0); r via hypot_f64 (TRIG-007, so
+ * always ensures result.r >= 0.0), theta via atan2_f64 (TRIG-004). */
 fn to_polar(x: f64, y: f64) -> Polar
     ensures(result.r >= 0.0)
 {
@@ -68,6 +71,9 @@ fn scale_polar(p: Polar, k: f64) -> Polar
     return Polar { r: pr * k, theta: ptheta };
 }
 
+/* POLAR-005: rotate p by delta_theta (any finite value, positive or
+ * negative) — ensures result.r == p.r (rotation never changes radius,
+ * only angle); theta is not normalized into any particular range. */
 fn rotate_polar(p: Polar, delta_theta: f64) -> Polar
     ensures(result.r == p.r)
 {

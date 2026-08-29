@@ -120,6 +120,9 @@ fn complex_neg_im(a: Complex) -> f64 {
     return 0.0 - ai;
 }
 
+/* CPLX-002: componentwise addition, any two Complex values, exact
+ * (each component is a single f64 addition — accuracy inherits from
+ * f64 `+` directly, no accuracy.md row of its own). */
 fn add_complex(a: Complex, b: Complex) -> Complex
     ensures(result.re == complex_re_sum(a, b) && result.im == complex_im_sum(a, b))
 {
@@ -130,6 +133,7 @@ fn add_complex(a: Complex, b: Complex) -> Complex
     return Complex { re: are + bre, im: aim + bim };
 }
 
+/* CPLX-002: componentwise subtraction, any two Complex values, exact. */
 fn sub_complex(a: Complex, b: Complex) -> Complex
     ensures(result.re == complex_re_diff(a, b) && result.im == complex_im_diff(a, b))
 {
@@ -140,6 +144,7 @@ fn sub_complex(a: Complex, b: Complex) -> Complex
     return Complex { re: are - bre, im: aim - bim };
 }
 
+/* CPLX-002: unary negation, any Complex value, exact. */
 fn neg_complex(a: Complex) -> Complex
     ensures(result.re == complex_neg_re(a) && result.im == complex_neg_im(a))
 {
@@ -167,6 +172,9 @@ fn mul_complex(a: Complex, b: Complex) -> Complex {
     return Complex { re: are * bre - aim * bim, im: are * bim + aim * bre };
 }
 
+/* CPLX-003: division a/b, requires b != 0+0i (the origin — division by
+ * zero); via Smith's algorithm (this file's own comment above), so
+ * accurate for any representable b, not just moderate magnitudes. */
 fn div_complex(a: Complex, b: Complex) -> Complex
     requires(b.re != 0.0 || b.im != 0.0)
 {
@@ -189,6 +197,10 @@ fn div_complex(a: Complex, b: Complex) -> Complex
  */
 struct ComplexResult { ok: bool, re: f64, im: f64 }
 
+/* CPLX-003: division a/b for runtime-unknown b — no `requires`, returns
+ * ComplexResult { ok: false, ... } instead of panicking when b is
+ * 0+0i (see this file's own DEVIATION 2 above for why not
+ * Option<Complex>). */
 fn div_checked_complex(a: Complex, b: Complex) -> ComplexResult {
     if b.re == 0.0 {
         if b.im == 0.0 {
@@ -211,6 +223,11 @@ fn modulus(c: Complex) -> f64
     return hypot_f64(c.re, c.im);
 }
 
+/* CPLX-004: the angle of c from the positive real axis, any Complex
+ * value including the origin (argument(0+0i) = 0.0, TRIG-004's own
+ * pinned atan2_f64(0.0,0.0) convention). Non-exact — see
+ * docs/accuracy.md's `atan2_f64` row (this function is a direct
+ * pass-through, no separate accuracy.md row of its own). */
 fn argument(c: Complex) -> f64 {
     return atan2_f64(c.im, c.re);
 }
@@ -225,6 +242,8 @@ fn complex_neg_im_of(c: Complex) -> f64 {
     return 0.0 - ci;
 }
 
+/* CPLX-005: complex conjugate, any Complex value, exact (negates the
+ * imaginary part, leaves the real part unchanged). */
 fn conjugate(c: Complex) -> Complex
     ensures(result.re == c.re && result.im == complex_neg_im_of(c))
 {
@@ -233,10 +252,15 @@ fn conjugate(c: Complex) -> Complex
     return Complex { re: cre, im: 0.0 - cim };
 }
 
+/* CPLX-005: c in polar form (r, theta), any Complex value — see
+ * `modulus`/`argument` above for each component's own accuracy. */
 fn to_polar_complex(c: Complex) -> Polar {
     return Polar { r: modulus(c), theta: argument(c) };
 }
 
+/* CPLX-005: polar (r, theta) back to Complex (re, im), any Polar
+ * value. Non-exact — see docs/accuracy.md's `sin_f64`/`cos_f64` rows
+ * (direct pass-through, no separate accuracy.md row of its own). */
 fn from_polar_complex(p: Polar) -> Complex {
     let pr: f64 = p.r;
     let ptheta: f64 = p.theta;
@@ -260,6 +284,9 @@ fn complex_im_close(a: Complex, b: Complex, epsilon: f64) -> bool {
     return abs_f64(d) <= epsilon;
 }
 
+/* CPLX-006: a and b are within epsilon componentwise (any Complex
+ * a/b, any epsilon >= 0.0) — the documented comparison for computed
+ * Complex values, never a bare `==`. */
 fn approx_eq(a: Complex, b: Complex, epsilon: f64) -> bool
     ensures(result == (complex_re_close(a, b, epsilon) && complex_im_close(a, b, epsilon)))
 {
@@ -355,6 +382,11 @@ fn ln_complex(c: Complex) -> Complex
  * power identity, built directly on `exp_complex`/`ln_complex`/
  * `mul_complex` above; inherits `ln_complex`'s own `requires` (`base`
  * away from the origin) since it's the only partial step in the chain.
+ * Non-exact — see docs/accuracy.md's CPLX-007 row: the nominal
+ * measured ULP figure there is a reference-quality artifact (system
+ * libm's own cpow/cexp isn't correctly rounded either), documented in
+ * full rather than chased further, since SPEC.md pins no ULP
+ * requirement for CPLX-007.
  */
 fn pow_complex(base: Complex, exp: Complex) -> Complex
     requires(base.re != 0.0 || base.im != 0.0)
