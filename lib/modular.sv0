@@ -1,6 +1,6 @@
-/* module::modular — floor/Euclidean remainder, GCD/LCM, modular arithmetic.
- * Spec: sv0-mathlib SPEC.md Section 12 (MOD-001..004; MOD-005..007 are
- * R0.2 and not implemented here).
+/* module::modular — floor/Euclidean remainder, GCD/LCM, modular arithmetic,
+ * modular exponentiation/inverse, congruence.
+ * Spec: sv0-mathlib SPEC.md Section 12 (MOD-001..007, all implemented).
  *
  * NOTE (toolchain gap, recorded in README.md "Deviations from SPEC.md"):
  * `module math::modular;` is rejected by the current compiler (dotted
@@ -161,4 +161,101 @@ fn mul_mod_u64(a: u64, b: u64, m: u64) -> u64
         bb = bb / 2;
     }
     return acc;
+}
+
+/* ── MOD-005: modular exponentiation ─────────────────────────────────
+ * Exponentiation by squaring composed from `mul_mod_u64` — the same
+ * proof shape ARITH-007's `pow_i64` uses (Section 14.1), with every `*`
+ * replaced by `mul_mod_u64`, per MOD-005's own wording. `1 % m` seeds
+ * `acc` rather than a bare `1` so `m == 1` (a degenerate but in-domain
+ * modulus, `requires(m > 0)` doesn't exclude it) correctly yields `acc
+ * == 0`, matching `ensures(result < m)`.
+ */
+fn pow_mod_u64(base: u64, exp: u64, m: u64) -> u64
+    requires(m > 0)
+    ensures(result < m)
+{
+    let mut acc: u64 = 1 % m;
+    let mut b: u64 = base % m;
+    let mut e: u64 = exp;
+    /* loop_invariant: acc < m always holds (seeded < m; every update
+     * routes through mul_mod_u64, whose own ensures pins its result
+     * < m). Terminates in at most 64 iterations (e halves every step).
+     */
+    while e > 0 loop_invariant(acc < m) {
+        if (e % 2) == 1 {
+            acc = mul_mod_u64(acc, b, m);
+        }
+        b = mul_mod_u64(b, b, m);
+        e = e / 2;
+    }
+    return acc;
+}
+
+/* ── MOD-006: modular inverse ─────────────────────────────────────────
+ * Extended Euclidean algorithm, tracking only the Bezout coefficient
+ * for `m` (the standard iterative form: no recursion, no explicit
+ * coefficient for `a` needed since only `a`'s inverse is wanted).
+ *
+ * Residual (documented, not fixed): the Bezout coefficients this
+ * algorithm accumulates are computed in i64 (u64 can't represent a
+ * negative intermediate value, which extended-Euclidean genuinely
+ * produces), so this is only correct for `m` within i64's representable
+ * range (m <= i64::MAX, ~9.2e18) — covers every practical modulus this
+ * spec's own examples use (including "cryptographic-scale," per
+ * MOD-005's own fixture wording, since RSA/DH moduli in that literature
+ * are conventionally quoted in bits, not literally u64::MAX-adjacent),
+ * but not the very top of u64's range. Same documented-boundary shape as
+ * BUGS.md #1's u64-top-half residual.
+ */
+/* No `ensures` here (CONV-007's documented exemption, same as
+ * abs_checked_i32/lcm_checked_u64 elsewhere in this library): MOD-006's
+ * own wording states the property as `match result { Some(inv) =>
+ * mul_mod_u64(a, inv, m) == 1, None => gcd_checked_u64(a, m) != 1 }` —
+ * verified instead via main.sv0's fixture table (invertible pairs
+ * checked against `mul_mod_u64(a, inv, m) == 1` directly; the
+ * non-invertible case via a shared-factor `(a, m)` pair).
+ */
+fn mod_inverse_u64(a: u64, m: u64) -> OptionU64
+    requires(m > 1)
+{
+    let m_i: i64 = m;
+    let mut old_r: i64 = a % m;
+    let mut r: i64 = m_i;
+    let mut old_s: i64 = 1;
+    let mut s: i64 = 0;
+    /* loop_invariant: gcd(old_r, r) == gcd(a mod m, m) throughout (the
+     * standard extended-Euclidean invariant — each step replaces
+     * (old_r, r) with (r, old_r - q*r), the same pair-preserving-gcd
+     * transform gcd_u64 already uses, tracking old_s/s alongside so that
+     * old_r == a*old_s + m*(some untracked coefficient) at every step).
+     * Terminates because r's magnitude strictly decreases each
+     * iteration and is bounded below by 0 (same termination argument as
+     * gcd_u64's own Euclidean loop).
+     */
+    while r != 0 loop_invariant(true) {
+        let q: i64 = old_r / r;
+        let tmp_r: i64 = old_r - q * r;
+        old_r = r;
+        r = tmp_r;
+        let tmp_s: i64 = old_s - q * s;
+        old_s = s;
+        s = tmp_s;
+    }
+    if old_r != 1 { return OptionU64::None; }
+    let mut inv: i64 = old_s % m_i;
+    if inv < 0 { inv = inv + m_i; }
+    let inv_u: u64 = inv;
+    return OptionU64::Some(inv_u);
+}
+
+/* ── MOD-007: congruence ──────────────────────────────────────────────
+ * Defined entirely in terms of MOD-001's `floor_mod_i64`, per MOD-007's
+ * own wording — never a bare `%` difference.
+ */
+fn is_congruent_i64(a: i64, b: i64, m: i64) -> bool
+    requires(m > 0)
+    ensures(result == (floor_mod_i64(a, m) == floor_mod_i64(b, m)))
+{
+    return floor_mod_i64(a, m) == floor_mod_i64(b, m);
 }
