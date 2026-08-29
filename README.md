@@ -7,19 +7,30 @@ coordinates, and complex numbers, built contract-first per
 
 ## Status
 
-**F0 complete. R0.1 complete. R0.2 complete.** R0.3 in progress:
+**F0 complete. R0.1 complete. R0.2 complete. R0.3 complete.**
 `math::polar` (`Polar` struct, `to_polar`/`from_polar`, `scale_polar`/
 `rotate_polar`) and `math::complex` (`Complex` struct, componentwise +
 multiplicative arithmetic as free functions, `modulus`/`argument`/
-`conjugate`, polar interoperability, `approx_eq`) are both done —
-CPLX-007 (`exp_complex`/`ln_complex`/`pow_complex`) is explicitly
-"Future" in SPEC.md, gated on a formal ULP accuracy audit this library
-hasn't done, and is not implemented. See README's "Deviations from
-SPEC.md" for why `math::complex`'s operators are free functions (not
-`impl Add`/etc.), `from_polar` returns a struct (not a tuple), and
-`div_checked_complex` returns a plain struct (not `Option<Complex>`) —
-three more real, confirmed toolchain gaps found finishing this module.
-This closes SPEC.md's full backlog except CPLX-007.
+`conjugate`, polar interoperability, `approx_eq`) are both done. See
+README's "Deviations from SPEC.md" for why `math::complex`'s operators
+are free functions (not `impl Add`/etc.), `from_polar` returns a struct
+(not a tuple), and `div_checked_complex` returns a plain struct (not
+`Option<Complex>`) — three more real, confirmed toolchain gaps found
+finishing this module.
+
+**PERF-002's accuracy budget is now formally met and CPLX-007 is
+unblocked.** `docs/accuracy.md` records a measured maximum ULP error for
+every non-exact `math::trig` function (PERF-001); all ten
+(`sqrt_f64`/`sin_f64`/`cos_f64`/`tan_f64`/`asin_f64`/`acos_f64`/
+`atan_f64`/`atan2_f64`/`exp_f64`/`ln_f64`) now pass their pinned budget —
+several started this audit pass off by orders of magnitude (`acos_f64`
+measured 3029 ULP against a 3 ULP budget; `exp_f64` measured 714 against
+2) and were fixed via double-double (Dekker/Knuth-Møller) arithmetic
+carried through range reduction, quadrant folding, and series
+evaluation, the same technique `fma_f64` (ARITH-010) already used —
+see `docs/accuracy.md` for the full table and root-cause notes.
+`exp_complex`/`ln_complex`/`pow_complex` (CPLX-007) are implemented in
+`lib/complex.sv0`, verified via Euler's identity.
 
 **F0's own surface, including `abs_checked_i64`:** `math::arith`'s ARITH-001..004
 are fully implemented and contract-checked: all i32, i64, and f64 forms
@@ -39,34 +50,37 @@ forms — see BUGS.md #2 for why (VM bytecode has no float representation
 at all, a separate, larger gap) — and a duplicate-type issue once more
 than one file imports the same type; see BUGS.md's "Not yet working".
 
-See [BUGS.md](BUGS.md) for fourteen toolchain gaps found across F0,
-R0.1, and R0.2. **Ten are fixed**: bug #5 (`f64` silently compiling as
-`int`), bug #3 (generic enums like `Option<T>` failing to resolve), bug
-#1 (integer literals wider than i32 truncating), bug #7 (an explicit
-`let x: f64 = <arithmetic-expr>;` local silently defaulting to `int`),
-bug #8 (enum payload slots and match-arm payload bindings always `int`),
-bug #6's silent-diagnostics half (a parse failure used to exit nonzero
-with zero error text — the same fix also surfaced and fixed a real,
-sv0-mathlib-unrelated pre-existing bug in sv0c's own test corpus, bare
-struct-field assignment statements silently compiling to nothing), bug
-#2's checker-level half (the VM-path checker rejected i64/u32/f64
-arithmetic anywhere, not just in contracts — VM bytecode float
-*lowering* remains a separate, larger, unfixed gap), bug #10
-(`loop_invariant` anywhere in a file corrupting name resolution for an
-unrelated earlier function), bug #11 (`match` on a direct call result,
-no intermediate `let`, mistyping the payload binding), and bug #14 (a
-struct field name token landing at a coincidental source position
-`500-599` was silently misread as an unrelated tuple-projection index —
-found via `math::trig`'s first struct literal). **Four remain genuine
-open gaps, each with a documented, verified workaround this library uses
-instead**: bug #9 (generic enums resolve but don't monomorphize —
-`abs_checked_i64` uses a concrete `OptionI64` instead of the shared
-`Option<T>`), bug #12 (`match` used as a value mistypes its own result
-temp — worked around via match-as-statement, used throughout
-`pow_checked_i64` onward), bug #13 (a binop directly on a struct field
-access mistypes its own temp — worked around by copying fields into
-locals first, used throughout `fma_f64`'s Dekker-splitting
-implementation), and the VM bytecode float-lowering gap noted above.
+See [BUGS.md](BUGS.md) for fifteen toolchain gaps found across F0, R0.1,
+R0.2, R0.3, and the accuracy-audit pass. **Eleven are fixed**: bug #5
+(`f64` silently compiling as `int`), bug #3 (generic enums like
+`Option<T>` failing to resolve), bug #1 (integer literals wider than i32
+truncating), bug #7 (an explicit `let x: f64 = <arithmetic-expr>;` local
+silently defaulting to `int`), bug #8 (enum payload slots and match-arm
+payload bindings always `int`), bug #6's silent-diagnostics half (a
+parse failure used to exit nonzero with zero error text — the same fix
+also surfaced and fixed a real, sv0-mathlib-unrelated pre-existing bug in
+sv0c's own test corpus, bare struct-field assignment statements silently
+compiling to nothing), bug #2's checker-level half (the VM-path checker
+rejected i64/u32/f64 arithmetic anywhere, not just in contracts — VM
+bytecode float *lowering* remains a separate, larger, unfixed gap), bug
+#10 (`loop_invariant` anywhere in a file corrupting name resolution for
+an unrelated earlier function), bug #11 (`match` on a direct call
+result, no intermediate `let`, mistyping the payload binding), bug #13
+(a binop directly on a struct field access mistyping its own temp), and
+bug #14 (a struct field name token landing at a coincidental source
+position `500-599` was silently misread as an unrelated
+tuple-projection index — found via `math::trig`'s first struct literal).
+**Three remain genuine open gaps, each with a documented, verified
+workaround this library uses instead**: bug #9 (generic enums resolve
+but don't monomorphize — `abs_checked_i64` uses a concrete `OptionI64`
+instead of the shared `Option<T>`), bug #12 (`match` used as a value
+mistypes its own result temp — worked around via match-as-statement,
+used throughout `pow_checked_i64` onward), and bug #15 (an inline struct
+literal passed directly as a function-call argument sometimes resolves
+its field names against the wrong struct declaration, found finishing
+CPLX-007 — worked around by binding struct literals to a `let` before
+passing them as arguments), plus the VM bytecode float-lowering gap
+noted above.
 
 ## Tier 1 / Tier 2
 
@@ -146,6 +160,16 @@ toolchain and the spec disagree — write down the deviation and why).
    confirmed empirically). `div_checked_complex` returns the same
    "no panic on runtime-unknown input" behavior AD-005 wants without
    needing an enum payload to hold a struct at all.
+8. **`atan_f64`'s `ensures` uses `>=`/`<=`, not TRIG-004's literal
+   strict `>`/`<`.** True `atan(x)` lies in the open interval
+   `(-pi/2, pi/2)`, but a correctly-rounded `f64` `atan` legitimately
+   returns exactly the nearest representable double to `pi/2` for
+   sufficiently large `|x|` — confirmed against the system libm directly
+   (`atan(1e50)`, `atan(1e300)`, etc. all return `== M_PI/2` in plain C,
+   not `sv0-mathlib`-specific). A strict inequality is unsatisfiable for
+   an accurate double-precision implementation; the non-strict form
+   matches `sin_f64`/`cos_f64`'s own boundary-inclusive convention. See
+   `docs/accuracy.md` for the full accuracy audit this was found during.
 
 ## Build and test
 
@@ -181,10 +205,15 @@ confirmed works).
 sv0-mathlib/
 ├── README.md
 ├── BUGS.md          # toolchain gaps found during development
-├── main.sv0         # smoke/demo entry point (also ARITH-001's test today)
+├── main.sv0         # smoke/demo entry point (also the full test suite today)
 ├── lib/
 │   ├── arith.sv0     # module arith — F0 arithmetic core (Section 11)
+│   ├── modular.sv0   # module modular — R0.1/R0.2 modular arithmetic (Section 12)
+│   ├── trig.sv0       # module trig — R0.2 sqrt/trig/exp/ln (Section 13-14)
+│   ├── polar.sv0      # module polar — R0.3 polar coordinates (Section 17)
+│   ├── complex.sv0    # module complex — R0.3 complex numbers, incl. CPLX-007 (Section 18)
 │   └── prelude.sv0   # module prelude — shared Option/Result declarations
 ├── test/{unit,fixtures,property,parity}/
 └── docs/
+    └── accuracy.md   # PERF-001/PERF-002: measured ULP error per non-exact function
 ```

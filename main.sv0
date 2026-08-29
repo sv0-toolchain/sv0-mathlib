@@ -119,6 +119,9 @@ use complex::conjugate;
 use complex::to_polar_complex;
 use complex::from_polar_complex;
 use complex::approx_eq;
+use complex::exp_complex;
+use complex::ln_complex;
+use complex::pow_complex;
 
 fn main() -> i32 {
     if abs_i32(5) != 5 { return 1; }
@@ -601,6 +604,29 @@ fn main() -> i32 {
     if !approx_eq(cc, c1, 0.000000000001) { return 329; }
     if approx_eq(c1, c2, 0.000000000001) { return 330; }
     if !approx_eq(c1, c1, 0.0) { return 331; }
+
+    /* CPLX-007: exp_complex/ln_complex/pow_complex — gated on
+     * math::trig's accuracy budgets (PERF-002), now met (docs/accuracy.md).
+     */
+    let i_pi: Complex = Complex { re: 0.0, im: pi_f64() };
+    let euler: Complex = exp_complex(i_pi);
+    let neg_one: Complex = Complex { re: 0.0 - 1.0, im: 0.0 };
+    if !approx_eq(euler, neg_one, 0.000000000001) { return 332; }
+    let e_real: Complex = Complex { re: 2.718281828459045, im: 0.0 };
+    let ln_e: Complex = ln_complex(e_real);
+    let one_complex: Complex = Complex { re: 1.0, im: 0.0 };
+    if !approx_eq(ln_e, one_complex, 0.000000000001) { return 333; }
+    let z: Complex = Complex { re: 1.0, im: 1.0 };
+    let z_ln: Complex = ln_complex(z);
+    let z_exp: Complex = exp_complex(z_ln);
+    if !approx_eq(z_exp, z, 0.000000000001) { return 334; }
+    let two_complex: Complex = Complex { re: 2.0, im: 0.0 };
+    let sq: Complex = pow_complex(z, two_complex);
+    let z_sq: Complex = mul_complex(z, z);
+    if !approx_eq(sq, z_sq, 0.000000000001) { return 335; }
+    let zero_complex: Complex = Complex { re: 0.0, im: 0.0 };
+    let unit: Complex = pow_complex(two_complex, zero_complex);
+    if !approx_eq(unit, one_complex, 0.000000000001) { return 336; }
 
     return 0;
 }

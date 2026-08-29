@@ -2,17 +2,20 @@
 
 Filed here first (this repo has no upstream tracker yet); each should become
 a real `sv0-toolchain`/`sv0c` issue. Audited against sv0-toolchain HEAD
-`840fe73` / sv0c HEAD `0705d68` (2026-08-23), updated through R0.1 work.
+`43ee2b0` / sv0c HEAD `d0fa706` (2026-08-28), updated through the R0.3 +
+accuracy-audit work.
 **Bugs #1, #2 (checker-level half), #3, #5, #6 (diagnostics half), #7, #8,
-#10, #11, and #14 are fixed.** Bug #9 (generic enums resolve but don't
-monomorphize), #12 (`match` used as a value mistypes its own result
-temp), and #13 (a binop directly on a struct field access mistypes its
-own temp) remain open, genuine gaps — each has a documented, verified
-workaround this library uses instead. Bug #6's fix also surfaced and
-fixed a real, sv0-mathlib-unrelated parser/lowering defect in sv0c's own
-test corpus (bare struct-field assignment statements silently compiling
-to nothing) — noted under bug #6 rather than given its own number, since
-it was never a blocker for this library.
+#10, #11, #13, and #14 are fixed.** Bug #9 (generic enums resolve but
+don't monomorphize) and #12 (`match` used as a value mistypes its own
+result temp) remain open, genuine gaps — each has a documented, verified
+workaround this library uses instead. Bug #15 (an inline struct literal
+passed directly as a function-call argument sometimes resolves its field
+names against the wrong struct declaration), found finishing CPLX-007, is
+newly open — also with a documented, verified workaround. Bug #6's fix
+also surfaced and fixed a real, sv0-mathlib-unrelated parser/lowering
+defect in sv0c's own test corpus (bare struct-field assignment statements
+silently compiling to nothing) — noted under bug #6 rather than given its
+own number, since it was never a blocker for this library.
 
 ## 1. Integer literals wider than i32 are silently truncated to 32 bits
 
@@ -792,6 +795,49 @@ usage; would have blocked `math::polar`/`math::complex` (both
 large file with ANY struct field access — this wasn't specific to
 `math::trig`'s particular size, just the first place in this project
 that happened to cross the threshold.
+
+## 15. An inline struct literal passed directly as a function-call argument sometimes resolves its field names against the wrong struct declaration
+
+**STATUS (2026-08-28): OPEN, workaround verified.** Found finishing
+CPLX-007 (`exp_complex`/`ln_complex`/`pow_complex`, `main.sv0`'s new
+test cases). `Complex { re: 0.0 - 1.0, im: 0.0 }` passed directly as the
+2nd argument to `approx_eq(euler, Complex { re: 0.0 - 1.0, im: 0.0 },
+epsilon)` compiled to:
+
+```c
+Complex _sv0t521;
+_sv0t521.hi = hi;
+_sv0t521.lo = lo;
+```
+
+— `.hi`/`.lo` are `Pair2`'s field names (`arith.sv0`'s double-double
+helper struct, unrelated to `Complex`), and `hi`/`lo` as bare
+identifiers don't even exist in this scope (a second, independent
+compile error). The SAME struct literal shape, immediately bound to a
+`let` first (`let neg_one: Complex = Complex { re: 0.0 - 1.0, im: 0.0 };
+approx_eq(euler, neg_one, epsilon)`), compiles correctly with `.re`/
+`.im`. Not reproduced for every inline struct-literal argument —
+`div_checked_complex(c1, Complex { re: 0.0, im: 0.0 })` a few lines
+earlier in this same file compiles fine — so this looks like a
+stateful/positional bug in whatever tracks "the current struct type" for
+literal field-name resolution (the same subsystem bug #13/#14 touched),
+not a blanket "inline struct literal arguments never work." Not yet
+root-caused in `sv0c` itself — no repro isolated smaller than this
+file's own real usage, and no time spent bisecting which specific
+preceding construct flips the resolver's state.
+
+**Workaround (used throughout `main.sv0`'s CPLX-007 tests)**: always
+bind a struct literal to a `let` before passing it as a function-call
+argument, never inline `Fn(a, Struct { field: v, ... }, b)` — matches
+this library's existing convention (nearly everywhere else in
+`main.sv0`) of naming intermediate values anyway.
+
+**Impact on this library**: low — the workaround is free (no field-copy
+overhead beyond what emits either way), and this file already leaned
+toward named intermediates before this bug was found. Worth a focused
+follow-up to isolate a minimal repro and find the actual root cause in
+`sv0c`, since "sometimes, not always" bugs are the ones most likely to
+bite a future consumer who doesn't know to work around them.
 
 ## Working today — genuinely verified (emitted C inspected, not just exit code)
 
