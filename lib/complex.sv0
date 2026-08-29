@@ -45,6 +45,8 @@ use trig::hypot_f64;
 use trig::atan2_f64;
 use trig::sin_f64;
 use trig::cos_f64;
+use trig::exp_f64;
+use trig::ln_f64;
 use arith::abs_f64;
 
 /* CPLX-001: matches `sv0doc/type-system/rules.md` §2.4's worked example
@@ -175,4 +177,40 @@ fn approx_eq(a: Complex, b: Complex, epsilon: f64) -> bool
     ensures(result == (abs_f64(a.re - b.re) <= epsilon && abs_f64(a.im - b.im) <= epsilon))
 {
     return abs_f64(a.re - b.re) <= epsilon && abs_f64(a.im - b.im) <= epsilon;
+}
+
+/* ── CPLX-007: complex exponential form ──────────────────────────────
+ * Gated on `math::trig`'s `sin_f64`/`cos_f64`/`exp_f64`/`ln_f64` all
+ * meeting PERF-002's accuracy budgets first (Section 15) — see
+ * `docs/accuracy.md`: all four now pass, so this is implemented rather
+ * than left "Future".
+ *
+ * `exp_complex(c) = exp(c.re) * (cos(c.im) + i*sin(c.im))` — the
+ * standard Euler's-formula expansion, reusing `exp_f64`/`cos_f64`/
+ * `sin_f64` directly.
+ */
+fn exp_complex(c: Complex) -> Complex {
+    let mag: f64 = exp_f64(c.re);
+    return Complex { re: mag * cos_f64(c.im), im: mag * sin_f64(c.im) };
+}
+
+/* `ln_complex(c) = ln(|c|) + i*arg(c)` for `c != 0` — undefined (a branch
+ * point) at the origin, per the standard complex logarithm's own domain;
+ * `requires` excludes it the same way `div_complex` excludes `b == 0`.
+ */
+fn ln_complex(c: Complex) -> Complex
+    requires(c.re != 0.0 || c.im != 0.0)
+{
+    return Complex { re: ln_f64(modulus(c)), im: argument(c) };
+}
+
+/* `pow_complex(base, exp) = exp(exp * ln(base))` — the standard complex
+ * power identity, built directly on `exp_complex`/`ln_complex`/
+ * `mul_complex` above; inherits `ln_complex`'s own `requires` (`base`
+ * away from the origin) since it's the only partial step in the chain.
+ */
+fn pow_complex(base: Complex, exp: Complex) -> Complex
+    requires(base.re != 0.0 || base.im != 0.0)
+{
+    return exp_complex(mul_complex(exp, ln_complex(base)));
 }
