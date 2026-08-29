@@ -489,7 +489,7 @@ fn pow_checked_i64(base: i64, exp: u32) -> OptionI64 {
     let mut b: i64 = base;
     let mut e: u32 = exp;
     let mut overflowed: bool = false;
-    while e > 0 loop_invariant(true) {
+    while e > 0 loop_invariant(e <= exp) {
         if (e % 2) == 1 {
             let m1: OptionI64 = mul_checked_i64(acc, b);
             match m1 {

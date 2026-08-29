@@ -108,9 +108,39 @@ arbitrary-precision reference), not a defect in this library. See
   and in GitHub Actions on every push/PR (which bootstraps a sibling
   `sv0-toolchain` checkout first: SML/NJ install, `./scripts/sv0
   check`, then `build-sv0-megatu-native.sh`).
+- `test/unit/{arith,modular,trig,polar}_test.sv0` + `test/unit/
+  conv_review.md` + `scripts/run_unit_tests.py` (TEST-001, F0) — every
+  requirement ID in SPEC.md Sections 8/11/12/13/15/17 now maps to at
+  least one test, generated into `docs/requirement_test_matrix.md`
+  and wired into `scripts/ci`. Only CONV-010 is deferred (explicitly,
+  with rationale — `--project`-mode has no `--contract-mode` flag
+  today, genuinely untestable, not unimplemented on this library's own
+  side).
+
+### Contracts strengthened
+
+- **9 of 34 `loop_invariant` clauses** across `lib/arith.sv0`/
+  `lib/modular.sv0`/`lib/trig.sv0` were bare `loop_invariant(true)`
+  placeholders (CONV-008 wants a real, prose-explained invariant, not
+  just syntax satisfied) — found and fixed while writing `test/unit/
+  conv_review.md`. All 9 replaced with real, checked-true invariants
+  (e.g. `mod_inverse_u64`'s `loop_invariant(m_i > 1)`,
+  `pow_checked_i64`'s `loop_invariant(e <= exp)`, the fixed-iteration
+  series loops' `loop_invariant(i <= <bound>)`,
+  `trig_fold_quadrant`'s two quadrant-normalization loops proven for
+  ANY iteration count, not just the realistic few).
 
 ### Toolchain gaps found (informational — see `BUGS.md` for full detail)
 
+- Bug #17: `--project` file discovery silently fails (exit 2, zero
+  diagnostics) when a top-level file or directory sorts alphabetically
+  before `lib` — found setting up `test/unit/`. Open, workaround in
+  place (stage each unit test file inside a subdirectory that sorts
+  after `lib`).
+- Bug #18: `let x: StructType = <bare variable already of that
+  type>;` mistypes the new local as `int` — found writing `test/unit/
+  polar_test.sv0`'s own `Copy`-derivation test. Open, workaround in
+  place (route the copy through a trivial identity function call).
 - Bug #15: an inline `Complex { ... }` struct literal passed directly
   as a function-call argument sometimes resolves its field names
   against the wrong struct declaration. Open, workaround in place

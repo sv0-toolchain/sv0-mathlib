@@ -3,10 +3,11 @@
 Filed here first (this repo has no upstream tracker yet); each should become
 a real `sv0-toolchain`/`sv0c` issue. Audited against sv0-toolchain HEAD
 `43ee2b0` / sv0c HEAD `d0fa706` (2026-08-28), updated through the R0.3 +
-accuracy-audit + TEST-006 CI-gate work — bug #16 was found and worked
-around against a LATER upstream revision (`sv0-toolchain` `c318513` /
-`sv0c` `53de895`) than the rest of this file's own pin, since this
-library's CI tracks the moving upstream default branch, not a fixed SHA.
+accuracy-audit + TEST-006 CI-gate + TEST-001 test-suite work — bugs #16/
+#17/#18 were found and worked around against a LATER upstream revision
+(`sv0-toolchain` `c318513` / `sv0c` `53de895`) than the rest of this
+file's own pin, since this library's CI tracks the moving upstream
+default branch, not a fixed SHA.
 **Bugs #1, #2 (checker-level half), #3, #5, #6 (diagnostics half), #7, #8,
 #10, #11, #13, and #14 are fixed.** Bug #9 (generic enums resolve but
 don't monomorphize) and #12 (`match` used as a value mistypes its own
@@ -17,8 +18,13 @@ names against the wrong struct declaration), found finishing CPLX-007, is
 open — also with a documented, verified workaround. Bug #16 (a bare
 `return field_a + field_b;` combining two fields of the SAME struct
 instance mistypes its own temp — a regression past bug #13's own fix,
-found setting up `scripts/ci`/TEST-006), is newly open — workaround
-applied to all four affected functions in `lib/trig.sv0`. Bug #6's fix
+found setting up `scripts/ci`/TEST-006), is open — workaround applied to
+all four affected functions in `lib/trig.sv0`. Bug #17 (`--project` file
+discovery silently fails — exit 2, zero diagnostics — when a top-level
+file/directory sorts alphabetically before `lib`) and bug #18 (`let x:
+StructType = <bare variable already of that type>;` mistypes the new
+local as `int`), both found setting up `test/unit/` (TEST-001), are
+newly open — both with documented, verified workarounds. Bug #6's fix
 also surfaced and fixed a real, sv0-mathlib-unrelated parser/lowering
 defect in sv0c's own test corpus (bare struct-field assignment statements
 silently compiling to nothing) — noted under bug #6 rather than given its
@@ -934,6 +940,123 @@ elsewhere in that revision, not a new regression from this fix).
 test to `sv0c`'s own test corpus for the narrower "same-struct,
 two-field binop" shape specifically (bug #13's existing regression
 coverage, if any, evidently didn't catch this).
+
+## 17. `--project` file discovery silently fails (exit 2, zero diagnostics) when a top-level file/directory sorts alphabetically before `lib`
+
+**STATUS (2026-08-29): OPEN, workaround verified.** Found setting up
+`test/unit/` (TEST-001). A `--project <dir>` compile that has always
+worked (`lib/` plus one extra `.sv0` file at the project root) started
+failing — `exit code 2`, `stdout` AND `stderr` both completely empty,
+no diagnostic text at all (the same failure shape bug #6's own fix was
+supposed to close — silent parse/link failures — but this isn't a parse
+error; the SAME file compiles fine under a different name). Bisected by
+renaming the one variable (the extra file's name, keeping its content
+byte-identical) across a matrix of names:
+
+```
+arith_test.sv0   -> exit 2   (fails)
+arithtest.sv0    -> exit 2   (fails)
+foo.sv0          -> exit 2   (fails)
+aaa.sv0          -> exit 2   (fails)
+kkk.sv0          -> exit 2   (fails)
+zz_arith_test.sv0  -> exit 0 (works)
+my_arith_test.sv0  -> exit 0 (works)
+trig_test.sv0      -> exit 0 (works)
+mmm.sv0            -> exit 0 (works)
+zzz.sv0            -> exit 0 (works)
+```
+
+The pattern: whether the file's name sorts alphabetically BEFORE or
+AFTER `lib` (the project's own subdirectory) — `a`/`f`/`k` fail, `m`/
+`t`/`z` succeed. Confirmed it's really about DIRECTORY sort order, not
+the file's own name: moving the exact same file into a subdirectory
+(`tests/arith_test.sv0` — `tests` sorts after `lib`) succeeds, while
+moving it into a differently-named subdirectory (`aaa/arith_test.sv0` —
+`aaa` sorts before `lib`) fails with the identical exit-2/no-diagnostic
+shape. So `--project`'s file-discovery walk is order-sensitive in a way
+that has nothing to do with imports or module structure — something
+about processing a project-root entry before it reaches `lib/` breaks
+silently, most likely (not yet root-caused inside `sv0c` itself)
+whatever populates the module/prelude registry expects `lib/` (or
+whichever directory a real multi-file sv0 project conventionally puts
+its library code in) to be visited first.
+
+**Workaround** (used in `scripts/run_unit_tests.py`, which builds a
+fresh temp project per `test/unit/*.sv0` file — see that script's own
+comment): put the extra file inside a subdirectory whose name sorts
+alphabetically AFTER `lib` (the script uses `under_test/`), never at
+the project root or in a before-`lib` subdirectory.
+
+**Impact on this library**: would have silently blocked `test/unit/`
+entirely (TEST-001) with zero indication of WHY — every one of this
+library's own module names (`arith`, `complex`, `modular`, `polar`)
+sorts before `lib` alphabetically, so a naive
+`<module>_test.sv0`-at-the-project-root convention (the shape SPEC.md
+§16.1 describes) would have hit this for `arith_test.sv0`/
+`complex_test.sv0`/`modular_test.sv0` specifically, while
+`trig_test.sv0`/`polar_test.sv0` (sorting after `lib`) would have
+worked — an intermittent, filename-dependent failure that's exactly the
+kind of thing that looks like flakiness rather than a real, deterministic
+bug until bisected.
+
+## 18. `let x: StructType = <plain variable already of that struct type>;` mistypes the new local as `int`
+
+**STATUS (2026-08-29): OPEN, workaround verified.** Found writing
+`test/unit/polar_test.sv0` (POLAR-001's own "`Copy`-derivation test").
+Minimal repro:
+
+```sv0
+use polar::Polar;
+fn main() -> i32 {
+    let p0: Polar = Polar { r: 1.0, theta: 2.0 };
+    let p0_copy: Polar = p0;   /* RHS is a bare variable, not a call/literal */
+    if p0.r != p0_copy.r { return 1; }
+    return 0;
+}
+```
+
+compiles to:
+
+```c
+int p0_copy;
+p0_copy = p0;
+if ((p0.r != p0_copy.r)) {   /* p0.r on an `int` — compile error */
+```
+
+— the same "everything defaults to `int`" family as bugs #5/#7/#8/#13/
+#16, but for yet another specific shape none of those fixes covered:
+a `let` binding whose right-hand side is a BARE VARIABLE already of the
+target struct type (not a function call, not a struct literal, not an
+enum constructor). `p1: Polar = to_polar(3.0, 4.0)` (a call result) and
+`p3: Polar = Polar { r: 5.0, theta: ... }` (a struct literal) both work
+correctly elsewhere in this same file — this is specifically the
+"identifier expression" `let`-init shape that's uncovered. Not
+root-caused inside `sv0c` itself this session (likely the same
+`expr_init_cty`-style "infer purely from the init expression's shape"
+logic bug #7's own fix note describes, just missing an `Identifier`
+case alongside the `Call`/`StructLit`/`EnumCtor` ones it already
+handles).
+
+**Workaround**: route the copy through a trivial identity function
+(a `Call`, which resolves its type correctly) instead of a bare `let x:
+T = y;`:
+
+```sv0
+fn identity_polar(p: Polar) -> Polar { return p; }
+...
+let p0_copy: Polar = identity_polar(p0);
+```
+
+used in `test/unit/polar_test.sv0`'s own POLAR-001 test.
+
+**Impact on this library**: low so far — this exact shape (binding a
+`let` directly to an already-in-scope struct-typed variable, with no
+intervening call or literal) doesn't appear to occur anywhere in
+`lib/*.sv0`'s own real code (every struct-typed `let` in this library's
+actual functions is either a call result or a struct literal), only in
+this new test file's own attempt to demonstrate `Copy` directly. Worth
+a follow-up to root-cause and fix upstream regardless, since it's a
+natural pattern for any future consumer to reach for.
 
 ## Working today — genuinely verified (emitted C inspected, not just exit code)
 

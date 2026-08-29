@@ -1,0 +1,88 @@
+/* TEST-001 unit test for math::polar — covers POLAR-001..005. */
+use polar::Polar;
+use polar::Point2;
+use polar::to_polar;
+use polar::from_polar;
+use polar::scale_polar;
+use polar::rotate_polar;
+use trig::pi_f64;
+use arith::abs_f64;
+
+/* BUGS.md #18 workaround: `let x: Polar = <bare variable already of
+ * type Polar>;` mistypes the new local as `int` — route the copy
+ * through a trivial identity call instead (a `Call`, which resolves
+ * its type correctly), used by POLAR-001's own test below. */
+fn identity_polar(p: Polar) -> Polar { return p; }
+
+fn main() -> i32 {
+    /* REQ: POLAR-001 — struct Polar { r, theta } (both f64, Copy). A
+     * plain assignment from one binding to another after use exercises
+     * Copy (no move-then-use-after-move error, which sv0's own struct
+     * semantics would otherwise reject). */
+    let p0: Polar = Polar { r: 1.0, theta: 2.0 };
+    let p0_copy: Polar = identity_polar(p0);
+    if p0.r != p0_copy.r { return 1; }
+    if p0.theta != p0_copy.theta { return 2; }
+
+    /* REQ: POLAR-002 — to_polar(x,y): r via hypot_f64 (ensures r>=0),
+     * theta via atan2_f64; origin case. */
+    let p1: Polar = to_polar(3.0, 4.0);
+    if p1.r != 5.0 { return 10; }
+    let p1_theta_diff: f64 = abs_f64(p1.theta - 0.9272952180016122);
+    if p1_theta_diff >= 0.000000000000001 { return 11; }
+    let p2: Polar = to_polar(0.0, 0.0);
+    if p2.r != 0.0 { return 12; }
+    let p_neg: Polar = to_polar(0.0 - 1.0, 0.0 - 1.0);
+    if p_neg.r < 0.0 { return 13; }
+
+    /* REQ: POLAR-003 — from_polar(p) -> Point2 (this library's own
+     * struct-not-tuple deviation, README #6), known angle/radius pairs
+     * at 0, pi/2, pi. */
+    let p3: Polar = Polar { r: 5.0, theta: pi_f64() / 2.0 };
+    let xy: Point2 = from_polar(p3);
+    let x_diff: f64 = abs_f64(xy.x - 0.0);
+    if x_diff >= 0.000000000001 { return 20; }
+    let y_diff: f64 = abs_f64(xy.y - 5.0);
+    if y_diff >= 0.000000000001 { return 21; }
+    let p3b: Polar = Polar { r: 2.0, theta: 0.0 };
+    let xy_b: Point2 = from_polar(p3b);
+    if abs_f64(xy_b.x - 2.0) >= 0.000000000001 { return 22; }
+    if abs_f64(xy_b.y - 0.0) >= 0.000000000001 { return 23; }
+    let p3c: Polar = Polar { r: 2.0, theta: pi_f64() };
+    let xy_c: Point2 = from_polar(p3c);
+    if abs_f64(xy_c.x - (0.0 - 2.0)) >= 0.000000000001 { return 24; }
+
+    /* REQ: POLAR-004 — to_polar . from_polar round-trips within budget,
+     * over a representative sample including near-origin and
+     * large-magnitude points. */
+    let p4: Polar = to_polar(1.0, 1.0);
+    let xy2: Point2 = from_polar(p4);
+    if abs_f64(xy2.x - 1.0) >= 0.000000000001 { return 30; }
+    if abs_f64(xy2.y - 1.0) >= 0.000000000001 { return 31; }
+    let p5: Polar = to_polar(0.0001, 0.0001);
+    let xy3: Point2 = from_polar(p5);
+    if abs_f64(xy3.x - 0.0001) >= 0.00000000001 { return 32; }
+    let p6: Polar = to_polar(1000000.0, 0.0 - 500000.0);
+    let xy4: Point2 = from_polar(p6);
+    if abs_f64(xy4.x - 1000000.0) >= 0.001 { return 33; }
+    if abs_f64(xy4.y - (0.0 - 500000.0)) >= 0.001 { return 34; }
+
+    /* REQ: POLAR-005 — scale_polar (k=0,1,>1), rotate_polar (r
+     * unchanged across several delta_theta values). */
+    let ps0: Polar = scale_polar(Polar { r: 3.0, theta: 1.0 }, 0.0);
+    if ps0.r != 0.0 { return 40; }
+    let ps1: Polar = scale_polar(Polar { r: 3.0, theta: 1.0 }, 1.0);
+    if ps1.r != 3.0 { return 41; }
+    let ps2: Polar = scale_polar(Polar { r: 3.0, theta: 1.0 }, 2.0);
+    if ps2.r != 6.0 { return 42; }
+    let pr1: Polar = rotate_polar(Polar { r: 3.0, theta: 1.0 }, 0.5);
+    if pr1.r != 3.0 { return 43; }
+    let theta_diff: f64 = abs_f64(pr1.theta - 1.5);
+    if theta_diff >= 0.000000000000001 { return 44; }
+    let pr2: Polar = rotate_polar(Polar { r: 3.0, theta: 1.0 }, 0.0 - 0.5);
+    if pr2.r != 3.0 { return 45; }
+    let pr3: Polar = rotate_polar(Polar { r: 3.0, theta: 1.0 }, 0.0);
+    if pr3.r != 3.0 { return 46; }
+
+    return 0;
+}

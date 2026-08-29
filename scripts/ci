@@ -8,7 +8,7 @@
 # library's own README "Deviations from SPEC.md" #2) — set
 # SV0_TOOLCHAIN_ROOT to point elsewhere if it isn't.
 #
-# Usage: scripts/ci [--skip-fmt] [--skip-guard] [--skip-run]
+# Usage: scripts/ci [--skip-fmt] [--skip-guard] [--skip-run] [--skip-unit]
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -17,11 +17,13 @@ TOOLCHAIN="${SV0_TOOLCHAIN_ROOT:-$HERE/../sv0-toolchain}"
 SKIP_FMT=0
 SKIP_GUARD=0
 SKIP_RUN=0
+SKIP_UNIT=0
 for arg in "$@"; do
   case "$arg" in
     --skip-fmt) SKIP_FMT=1 ;;
     --skip-guard) SKIP_GUARD=1 ;;
     --skip-run) SKIP_RUN=1 ;;
+    --skip-unit) SKIP_UNIT=1 ;;
     *)
       echo "sv0-mathlib ci: unknown argument: $arg" >&2
       exit 2
@@ -45,7 +47,7 @@ if [[ "$SKIP_FMT" -eq 0 ]]; then
     echo "sv0-mathlib ci: missing $FMT_SCRIPT" >&2
     exit 1
   fi
-  python3 "$FMT_SCRIPT" --check "$HERE/lib" "$HERE/main.sv0"
+  python3 "$FMT_SCRIPT" --check "$HERE/lib" "$HERE/main.sv0" "$HERE/test"
   echo "sv0-mathlib ci: fmt --check OK"
 fi
 
@@ -76,6 +78,13 @@ if [[ "$SKIP_RUN" -eq 0 ]]; then
     -o "$WORK/mathlib_bin"
   "$WORK/mathlib_bin"
   echo "sv0-mathlib ci: compile + run OK (exit 0)"
+fi
+
+if [[ "$SKIP_UNIT" -eq 0 ]]; then
+  echo "== sv0-mathlib ci: test/unit/*.sv0 + requirement-to-test matrix (TEST-001) =="
+  printf '' > /tmp/.sv0_drv_path
+  SV0_TOOLCHAIN_ROOT="$TOOLCHAIN" python3 "$HERE/scripts/run_unit_tests.py"
+  echo "sv0-mathlib ci: test/unit + matrix OK"
 fi
 
 echo "sv0-mathlib ci: PASS"
