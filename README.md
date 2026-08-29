@@ -10,16 +10,24 @@ coordinates, and complex numbers, built contract-first per
 **F0 complete. R0.1 complete.** R0.2 in progress: `math::modular`'s
 MOD-005..007 (modular exponentiation, modular inverse, congruence) are
 done, closing out `math::modular` entirely. `math::trig`'s shared
-`PI_F64` constant and `sqrt_f64`/`sqrt_checked_f64` (a genuine
+`PI_F64` constant, `sqrt_f64`/`sqrt_checked_f64` (a genuine
 Newton-Raphson square root, seeded via a portable exponent-doubling
 bracket rather than the bit-reinterpretation trick SPEC.md offers as one
-option — no safe cast/bit-reinterpretation exists in this toolchain) are
-done — see README's "Deviations from SPEC.md" for why sqrt lives in
-`math::trig` rather than `math::arith`. Remaining for R0.2: `exp_f64`/
-`ln_f64` (shared machinery, needed for `pow_f64` and `sinh`/`cosh`/
-`tanh`), `sin_f64`/`cos_f64`/`tan_f64` (range reduction + polynomial),
-inverse trig, hyperbolic forms, `to_radians_f64`/`to_degrees_f64`, and
-`hypot_f64`. R0.3 (`polar`, `complex`) is not yet started.
+option — no safe cast/bit-reinterpretation exists in this toolchain),
+`exp_f64`/`ln_f64`/`ln_checked_f64` (shared machinery — range reduction
+plus a Taylor/atanh series, no minimax coefficients needed), `pow_f64`
+(ARITH-007's float form, now complete via `exp_f64`/`ln_f64`), and
+`sin_f64`/`cos_f64`/`tan_f64`/`tan_checked_f64` (AD-004's four-step
+range-reduction design, each step its own private function) are done.
+See README's "Deviations from SPEC.md" for why `sqrt` lives in
+`math::trig` rather than `math::arith`. **R0.2 is now complete**:
+`atan_f64`/`atan2_f64` (argument-reduction + series, no minimax
+coefficients), `asin_f64`/`acos_f64`/`asin_checked_f64`/
+`acos_checked_f64` (via `atan_f64`/`sqrt_f64`, no new series),
+`sinh_f64`/`cosh_f64`/`tanh_f64` (via `exp_f64`, cancellation-avoiding
+near zero, overflow-avoiding for large `|x|`), `to_radians_f64`/
+`to_degrees_f64`, and `hypot_f64` (overflow/underflow-avoiding scaled
+form) are all done. R0.3 (`polar`, `complex`) is not yet started.
 
 **F0's own surface, including `abs_checked_i64`:** `math::arith`'s ARITH-001..004
 are fully implemented and contract-checked: all i32, i64, and f64 forms
@@ -39,10 +47,10 @@ forms — see BUGS.md #2 for why (VM bytecode has no float representation
 at all, a separate, larger gap) — and a duplicate-type issue once more
 than one file imports the same type; see BUGS.md's "Not yet working".
 
-See [BUGS.md](BUGS.md) for thirteen toolchain gaps found across F0 and
-R0.1. **Nine are fixed**: bug #5 (`f64` silently compiling as `int`),
-bug #3 (generic enums like `Option<T>` failing to resolve), bug #1
-(integer literals wider than i32 truncating), bug #7 (an explicit
+See [BUGS.md](BUGS.md) for fourteen toolchain gaps found across F0,
+R0.1, and R0.2. **Ten are fixed**: bug #5 (`f64` silently compiling as
+`int`), bug #3 (generic enums like `Option<T>` failing to resolve), bug
+#1 (integer literals wider than i32 truncating), bug #7 (an explicit
 `let x: f64 = <arithmetic-expr>;` local silently defaulting to `int`),
 bug #8 (enum payload slots and match-arm payload bindings always `int`),
 bug #6's silent-diagnostics half (a parse failure used to exit nonzero
@@ -53,13 +61,16 @@ struct-field assignment statements silently compiling to nothing), bug
 arithmetic anywhere, not just in contracts — VM bytecode float
 *lowering* remains a separate, larger, unfixed gap), bug #10
 (`loop_invariant` anywhere in a file corrupting name resolution for an
-unrelated earlier function), and bug #11 (`match` on a direct call
-result, no intermediate `let`, mistyping the payload binding). **Four
-remain genuine open gaps, each with a documented, verified workaround
-this library uses instead**: bug #9 (generic enums resolve but don't
-monomorphize — `abs_checked_i64` uses a concrete `OptionI64` instead of
-the shared `Option<T>`), bug #12 (`match` used as a value mistypes its
-own result temp — worked around via match-as-statement, used throughout
+unrelated earlier function), bug #11 (`match` on a direct call result,
+no intermediate `let`, mistyping the payload binding), and bug #14 (a
+struct field name token landing at a coincidental source position
+`500-599` was silently misread as an unrelated tuple-projection index —
+found via `math::trig`'s first struct literal). **Four remain genuine
+open gaps, each with a documented, verified workaround this library uses
+instead**: bug #9 (generic enums resolve but don't monomorphize —
+`abs_checked_i64` uses a concrete `OptionI64` instead of the shared
+`Option<T>`), bug #12 (`match` used as a value mistypes its own result
+temp — worked around via match-as-statement, used throughout
 `pow_checked_i64` onward), bug #13 (a binop directly on a struct field
 access mistypes its own temp — worked around by copying fields into
 locals first, used throughout `fma_f64`'s Dekker-splitting

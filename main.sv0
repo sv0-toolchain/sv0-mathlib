@@ -81,6 +81,22 @@ use trig::sqrt_checked_f64;
 use trig::exp_f64;
 use trig::ln_f64;
 use trig::ln_checked_f64;
+use trig::sin_f64;
+use trig::cos_f64;
+use trig::tan_f64;
+use trig::tan_checked_f64;
+use trig::to_radians_f64;
+use trig::to_degrees_f64;
+use trig::hypot_f64;
+use trig::atan_f64;
+use trig::atan2_f64;
+use trig::asin_f64;
+use trig::acos_f64;
+use trig::asin_checked_f64;
+use trig::acos_checked_f64;
+use trig::sinh_f64;
+use trig::cosh_f64;
+use trig::tanh_f64;
 use prelude::OptionF64;
 use prelude::OptionU64;
 
@@ -409,6 +425,95 @@ fn main() -> i32 {
     if pow_f64(0.0, 0.0) != 1.0 { return 237; }
     let pf3: f64 = abs_f64(pow_f64(10.0, 3.0) - 1000.0);
     if pf3 >= 0.00001 { return 238; }
+
+    let sn0: f64 = abs_f64(sin_f64(0.0) - 0.0);
+    if sn0 >= 0.0000000000001 { return 240; }
+    let cs0: f64 = abs_f64(cos_f64(0.0) - 1.0);
+    if cs0 >= 0.0000000000001 { return 241; }
+    let sn1: f64 = abs_f64(sin_f64(pi_f64() / 2.0) - 1.0);
+    if sn1 >= 0.0000000000001 { return 242; }
+    let cs1: f64 = abs_f64(cos_f64(pi_f64() / 2.0) - 0.0);
+    if cs1 >= 0.0000000000001 { return 243; }
+    let sn2: f64 = abs_f64(sin_f64(pi_f64()) - 0.0);
+    if sn2 >= 0.0000000000001 { return 244; }
+    let cs2: f64 = abs_f64(cos_f64(pi_f64()) - (0.0 - 1.0));
+    if cs2 >= 0.0000000000001 { return 245; }
+    let sn3: f64 = abs_f64(sin_f64(pi_f64() / 6.0) - 0.49999999999999994);
+    if sn3 >= 0.0000000000001 { return 246; }
+    let sn4: f64 = abs_f64(sin_f64(100.0) - (0.0 - 0.5063656411097588));
+    if sn4 >= 0.000000001 { return 247; }
+    let cs4: f64 = abs_f64(cos_f64(100.0) - 0.8623188722876839);
+    if cs4 >= 0.000000001 { return 248; }
+    let sn5: f64 = abs_f64(sin_f64(0.0 - 3.0) - (0.0 - 0.1411200080598672));
+    if sn5 >= 0.000000000001 { return 249; }
+    let nan2: f64 = 0.0 / 0.0;
+    if sin_f64(nan2) == sin_f64(nan2) { return 250; }
+    let inf: f64 = 1.0 / 0.0;
+    if sin_f64(inf) == sin_f64(inf) { return 251; }
+
+    let tn1: f64 = abs_f64(tan_f64(1.0) - 1.557407724654902);
+    if tn1 >= 0.00000000001 { return 252; }
+    let tc1: bool = match tan_checked_f64(1.0) { OptionF64::Some(v) => abs_f64(v - 1.557407724654902) < 0.00000000001, OptionF64::None => false };
+    if !tc1 { return 253; }
+
+    let rad_diff: f64 = abs_f64(to_radians_f64(180.0) - pi_f64());
+    if rad_diff >= 0.0000000000000001 { return 260; }
+    let deg_diff: f64 = abs_f64(to_degrees_f64(pi_f64()) - 180.0);
+    if deg_diff >= 0.0000000000001 { return 261; }
+    let rt_diff: f64 = abs_f64(to_degrees_f64(to_radians_f64(37.5)) - 37.5);
+    if rt_diff >= 0.0000000000001 { return 262; }
+
+    if hypot_f64(3.0, 4.0) != 5.0 { return 263; }
+    let hbig: f64 = 100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000.0;
+    let hb: f64 = hypot_f64(hbig, hbig);
+    if hb != hb { return 264; }
+    let hinf: f64 = 1.0 / 0.0;
+    if hb == hinf { return 265; }
+
+    let at1: f64 = abs_f64(atan_f64(1.0) - 0.7853981633974483);
+    if at1 >= 0.000000000000001 { return 266; }
+    let at2: f64 = abs_f64(atan_f64(0.5) - 0.46364760900080615);
+    if at2 >= 0.000000000000001 { return 267; }
+    let at3: f64 = abs_f64(atan_f64(10.0) - 1.4711276743037345);
+    if at3 >= 0.000000000000001 { return 268; }
+    let at4: f64 = abs_f64(atan_f64(0.0 - 3.0) - (0.0 - 1.2490457723982544));
+    if at4 >= 0.000000000000001 { return 269; }
+
+    let a2t1: f64 = abs_f64(atan2_f64(1.0, 1.0) - 0.7853981633974483);
+    if a2t1 >= 0.000000000000001 { return 270; }
+    let a2t2: f64 = abs_f64(atan2_f64(1.0, 0.0 - 1.0) - 2.356194490192345);
+    if a2t2 >= 0.000000000000001 { return 271; }
+    let a2t3: f64 = abs_f64(atan2_f64(0.0 - 1.0, 0.0 - 1.0) - (0.0 - 2.356194490192345));
+    if a2t3 >= 0.000000000000001 { return 272; }
+    let a2t4: f64 = abs_f64(atan2_f64(0.0 - 1.0, 1.0) - (0.0 - 0.7853981633974483));
+    if a2t4 >= 0.000000000000001 { return 273; }
+    if atan2_f64(0.0, 0.0) != 0.0 { return 274; }
+    let a2t5: f64 = abs_f64(atan2_f64(0.0, 0.0 - 1.0) - 3.141592653589793);
+    if a2t5 >= 0.000000000000001 { return 275; }
+
+    let as1: f64 = abs_f64(asin_f64(0.5) - 0.5235987755982988);
+    if as1 >= 0.000000000000001 { return 276; }
+    let ac1: f64 = abs_f64(acos_f64(0.5) - 1.0471975511965976);
+    if ac1 >= 0.000000000000001 { return 277; }
+    if asin_f64(1.0) != (pi_f64() / 2.0) { return 278; }
+    let asc1: bool = match asin_checked_f64(0.5) { OptionF64::Some(v) => abs_f64(v - 0.5235987755982988) < 0.000000000000001, OptionF64::None => false };
+    if !asc1 { return 279; }
+    let asc2: bool = match asin_checked_f64(2.0) { OptionF64::Some(v) => false, OptionF64::None => true };
+    if !asc2 { return 280; }
+    let acc1: bool = match acos_checked_f64(0.0 - 2.0) { OptionF64::Some(v) => false, OptionF64::None => true };
+    if !acc1 { return 281; }
+
+    let sh1: f64 = abs_f64(sinh_f64(0.5) - 0.5210953054937474);
+    if sh1 >= 0.00000000000001 { return 282; }
+    let ch1: f64 = abs_f64(cosh_f64(0.5) - 1.1276259652063807);
+    if ch1 >= 0.00000000000001 { return 283; }
+    let th1: f64 = abs_f64(tanh_f64(0.5) - 0.46211715726000974);
+    if th1 >= 0.00000000000001 { return 284; }
+    let sh2: f64 = abs_f64(sinh_f64(0.001) - 0.001000000166666675);
+    if sh2 >= 0.0000000000000001 { return 285; }
+    if tanh_f64(100.0) >= 1.0 { return 286; }
+    if tanh_f64(0.0 - 100.0) <= (0.0 - 1.0) { return 287; }
+    if cosh_f64(0.0) != 1.0 { return 288; }
 
     return 0;
 }

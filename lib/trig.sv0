@@ -25,6 +25,7 @@ module trig;
 
 use arith::abs_f64;
 use arith::round_f64;
+use arith::floor_f64;
 use prelude::OptionF64;
 
 /* ln(2) to 17 significant decimal digits — the standard range-reduction
@@ -251,4 +252,352 @@ fn ln_f64(x: f64) -> f64
 fn ln_checked_f64(x: f64) -> OptionF64 {
     if x <= 0.0 { return OptionF64::None; }
     return OptionF64::Some(ln_f64(x));
+}
+
+/* ── TRIG-001: sin_f64/cos_f64 ────────────────────────────────────────
+ * AD-004's four-step design (Section 14.4), each step its own private
+ * function with its own contract, "so a fixture failure localizes to
+ * range reduction, quadrant folding, or polynomial evaluation instead
+ * of 'sin is wrong somewhere'":
+ *   1. trig_reduce_2pi   — reduce x modulo 2*PI_F64 into [0, 2*PI_F64).
+ *   2. trig_fold_quadrant — fold the reduced angle into [-pi/4, pi/4],
+ *      tracking which quadrant (0-3) it came from.
+ *   3. sin_poly/cos_poly — Taylor polynomial evaluation on the small
+ *      reduced argument (AD-004 allows "minimax (or truncated Taylor,
+ *      documented either way)" — this uses Taylor: no minimax
+ *      coefficients are needed once the argument is this small, and
+ *      Taylor coefficients (1/n!) need no numerical fitting to derive).
+ *   4. trig_apply_quadrant — apply the quadrant's sign/swap pattern
+ *      (the standard angle-addition-formula expansion of
+ *      sin/cos(k*pi/2 + r) for k = 0,1,2,3) to produce the final value.
+ */
+
+/* f64-domain adaptation of MOD-001's floor_mod contract shape, per
+ * Section 14.4 step 1's own wording. */
+fn trig_reduce_2pi(x: f64) -> f64
+    requires(x == x)
+    ensures(result >= 0.0 && result < 2.0 * pi_f64())
+{
+    let two_pi: f64 = 2.0 * pi_f64();
+    let q: f64 = floor_f64(x / two_pi);
+    return x - q * two_pi;
+}
+
+struct QuadrantFold { r: f64, quadrant: f64 }
+
+/* Step 2: fold `reduced` (already in [0, 2*PI_F64)) into [-pi/4, pi/4]
+ * by locating the nearest quarter-turn boundary `k*(pi/2)` and taking
+ * the residual — `quadrant` records `k mod 4` (as an f64, matching this
+ * module's all-f64 loop-counter convention elsewhere) for
+ * trig_apply_quadrant to read.
+ */
+fn trig_fold_quadrant(reduced: f64) -> QuadrantFold
+    requires(reduced >= 0.0 && reduced < 2.0 * pi_f64())
+{
+    let half_pi: f64 = pi_f64() / 2.0;
+    let k: f64 = round_f64(reduced / half_pi);
+    let r: f64 = reduced - k * half_pi;
+    let mut kmod: f64 = k;
+    while kmod >= 4.0 loop_invariant(true) { kmod = kmod - 4.0; }
+    while kmod < 0.0 loop_invariant(true) { kmod = kmod + 4.0; }
+    return QuadrantFold { r: r, quadrant: kmod };
+}
+
+/* Step 3: Taylor series for sin/cos on a small `r` (|r| <= pi/4 after
+ * folding). Fixed 12-term bound — |r| <= pi/4 (~0.785) makes each
+ * successive term shrink by roughly r^2/((2n)(2n+1)), well past double
+ * precision long before the 12th term.
+ */
+fn sin_poly(r: f64) -> f64 {
+    let r2: f64 = r * r;
+    let mut term: f64 = r;
+    let mut sum: f64 = r;
+    let mut n: f64 = 1.0;
+    let mut i: u32 = 0;
+    while i < 12 loop_invariant(true) {
+        term = 0.0 - term * r2 / ((2.0 * n) * (2.0 * n + 1.0));
+        sum = sum + term;
+        n = n + 1.0;
+        i = i + 1;
+    }
+    return sum;
+}
+
+fn cos_poly(r: f64) -> f64 {
+    let r2: f64 = r * r;
+    let mut term: f64 = 1.0;
+    let mut sum: f64 = 1.0;
+    let mut n: f64 = 0.0;
+    let mut i: u32 = 0;
+    while i < 12 loop_invariant(true) {
+        term = 0.0 - term * r2 / ((2.0 * n + 1.0) * (2.0 * n + 2.0));
+        sum = sum + term;
+        n = n + 1.0;
+        i = i + 1;
+    }
+    return sum;
+}
+
+struct SinCos { sin: f64, cos: f64 }
+
+/* Step 4: the standard angle-addition-formula expansion of
+ * sin/cos(k*(pi/2) + r) for k mod 4 = 0,1,2,3.
+ */
+fn trig_apply_quadrant(fold: QuadrantFold) -> SinCos {
+    let r: f64 = fold.r;
+    let q: f64 = fold.quadrant;
+    let s: f64 = sin_poly(r);
+    let c: f64 = cos_poly(r);
+    if q == 0.0 { return SinCos { sin: s, cos: c }; }
+    if q == 1.0 { return SinCos { sin: c, cos: 0.0 - s }; }
+    if q == 2.0 { return SinCos { sin: 0.0 - s, cos: 0.0 - c }; }
+    return SinCos { sin: 0.0 - c, cos: s };
+}
+
+/* Total functions over all finite f64 (no `requires` on domain, per
+ * TRIG-001's own wording); NaN/Infinity input propagates NaN.
+ */
+fn sin_f64(x: f64) -> f64
+    ensures((result >= (0.0 - 1.0) && result <= 1.0) || result != result)
+{
+    if x != x { return x; }
+    let pos_inf: f64 = 1.0 / 0.0;
+    if x == pos_inf { return 0.0 / 0.0; }
+    if x == (0.0 - pos_inf) { return 0.0 / 0.0; }
+    let reduced: f64 = trig_reduce_2pi(x);
+    let fold: QuadrantFold = trig_fold_quadrant(reduced);
+    let sc: SinCos = trig_apply_quadrant(fold);
+    return sc.sin;
+}
+
+fn cos_f64(x: f64) -> f64
+    ensures((result >= (0.0 - 1.0) && result <= 1.0) || result != result)
+{
+    if x != x { return x; }
+    let pos_inf: f64 = 1.0 / 0.0;
+    if x == pos_inf { return 0.0 / 0.0; }
+    if x == (0.0 - pos_inf) { return 0.0 / 0.0; }
+    let reduced: f64 = trig_reduce_2pi(x);
+    let fold: QuadrantFold = trig_fold_quadrant(reduced);
+    let sc: SinCos = trig_apply_quadrant(fold);
+    return sc.cos;
+}
+
+/* TRIG-002: `tan_f64(x)` is `sin_f64(x) / cos_f64(x)` — deliberately
+ * WITHOUT a `requires` excluding the asymptote (`cos_f64(x) == 0.0`):
+ * TRIG-002's own wording notes a `requires` there isn't practical (the
+ * domain is dense reals, no input is "statically known" to hit the
+ * asymptote), so `tan_f64` is instead a total function, returning
+ * `Infinity`/`-Infinity`/`NaN` at the asymptote per ordinary IEEE-754
+ * division semantics — the CONV-005(b) path (documented propagation),
+ * not 5(a) (a `requires`/`_checked` pair). `tan_checked_f64` is kept
+ * anyway for API consistency with every other domain-adjacent function
+ * in this module, even though TRIG-002 doesn't require it (`cos_f64(x)
+ * == 0.0` is itself the only "domain violation," already handled by the
+ * unchecked form's own IEEE-754 behavior).
+ */
+fn tan_f64(x: f64) -> f64 {
+    return sin_f64(x) / cos_f64(x);
+}
+
+fn tan_checked_f64(x: f64) -> OptionF64 {
+    let c: f64 = cos_f64(x);
+    if c == 0.0 { return OptionF64::None; }
+    return OptionF64::Some(sin_f64(x) / c);
+}
+
+/* ── TRIG-006: degree/radian conversion ──────────────────────────────
+ * Both use the one shared `pi_f64()` constant (TRIG-006's own
+ * "not a re-literalized value per call site" requirement) — no separate
+ * `180.0`-based constant is introduced, just `pi_f64()` scaled inline.
+ */
+fn to_radians_f64(deg: f64) -> f64 {
+    return deg * (pi_f64() / 180.0);
+}
+
+fn to_degrees_f64(rad: f64) -> f64 {
+    return rad * (180.0 / pi_f64());
+}
+
+/* ── TRIG-007: hypot ──────────────────────────────────────────────────
+ * The standard overflow/underflow-avoiding SCALED form: factor out the
+ * larger magnitude first (`mx`), so the only squaring performed is on
+ * `mn/mx`, a ratio always in `[0.0, 1.0]` — `x*x + y*y` directly would
+ * overflow to Infinity for any `x`/`y` whose magnitude exceeds roughly
+ * `sqrt(f64::MAX)` (~1.34e154) even when the TRUE hypot result is still
+ * comfortably representable.
+ */
+fn hypot_f64(x: f64, y: f64) -> f64
+    ensures(result >= 0.0)
+{
+    let ax: f64 = abs_f64(x);
+    let ay: f64 = abs_f64(y);
+    let mut mx: f64 = ax;
+    let mut mn: f64 = ay;
+    if ay > ax {
+        mx = ay;
+        mn = ax;
+    }
+    if mx == 0.0 { return 0.0; }
+    let ratio: f64 = mn / mx;
+    return mx * sqrt_f64(1.0 + ratio * ratio);
+}
+
+/* ── TRIG-004: atan/atan2 ─────────────────────────────────────────────
+ * `atan_f64`'s own Taylor series (`x - x^3/3 + x^5/5 - ...`) converges
+ * far too slowly near `|x| = 1` for any practical fixed term count (the
+ * error only shrinks like `1/n`, not geometrically) — so this reduces
+ * the argument down to `|x| <= tan(pi/12) ~ 0.268` first, via at most
+ * two classical identities, before evaluating the series:
+ *   1. `atan(x) = -atan(-x)` for `x < 0` (work with `x >= 0` from here).
+ *   2. `atan(x) = pi/2 - atan(1/x)` for `x > 1` (now `x` in `[0, 1]`).
+ *   3. `atan(x) = pi/6 + atan((x*sqrt(3) - 1) / (sqrt(3) + x))` for
+ *      `x > tan(pi/12)` (the tangent-subtraction-formula identity for
+ *      `atan(x) - pi/6`) — the reduced argument is now within
+ *      `[0, tan(pi/12)]`, where the series converges to well past
+ *      double precision within 20 terms.
+ */
+fn atan_small_series(x: f64) -> f64 {
+    let x2: f64 = x * x;
+    let mut term: f64 = x;
+    let mut sum: f64 = x;
+    let mut n: f64 = 1.0;
+    let mut sign: f64 = 0.0 - 1.0;
+    let mut i: u32 = 0;
+    while i < 20 loop_invariant(true) {
+        term = term * x2;
+        sum = sum + sign * term / (2.0 * n + 1.0);
+        sign = 0.0 - sign;
+        n = n + 1.0;
+        i = i + 1;
+    }
+    return sum;
+}
+
+fn atan_f64(x: f64) -> f64
+    ensures((result > (0.0 - pi_f64()) / 2.0 && result < pi_f64() / 2.0) || result != result)
+{
+    if x != x { return x; }
+    if x < 0.0 { return 0.0 - atan_f64(0.0 - x); }
+    if x > 1.0 { return (pi_f64() / 2.0) - atan_f64(1.0 / x); }
+    let sqrt3: f64 = sqrt_f64(3.0);
+    let tan_pi12: f64 = 2.0 - sqrt3;
+    if x > tan_pi12 {
+        let xp: f64 = (x * sqrt3 - 1.0) / (sqrt3 + x);
+        return (pi_f64() / 6.0) + atan_small_series(xp);
+    }
+    return atan_small_series(x);
+}
+
+/* Standard four-quadrant form, per TRIG-004's own wording; `atan2_f64(0.0,
+ * 0.0)` is explicitly defined as `0.0` rather than left unspecified.
+ */
+fn atan2_f64(y: f64, x: f64) -> f64
+    ensures(result >= (0.0 - pi_f64()) && result <= pi_f64())
+{
+    if x > 0.0 { return atan_f64(y / x); }
+    if x < 0.0 {
+        if y >= 0.0 { return atan_f64(y / x) + pi_f64(); }
+        return atan_f64(y / x) - pi_f64();
+    }
+    if y > 0.0 { return pi_f64() / 2.0; }
+    if y < 0.0 { return 0.0 - pi_f64() / 2.0; }
+    return 0.0;
+}
+
+/* ── TRIG-003: asin/acos ──────────────────────────────────────────────
+ * Both built on `atan_f64`/`sqrt_f64` via the standard identity
+ * `asin(x) = atan(x / sqrt(1 - x^2))` for `|x| < 1` (special-cased at
+ * the exact endpoints `x = 1.0`/`x = -1.0`, where `1 - x^2 == 0.0` would
+ * otherwise divide by zero) — no new series needed.
+ */
+fn asin_f64(x: f64) -> f64
+    requires(x >= (0.0 - 1.0) && x <= 1.0)
+    ensures(result >= (0.0 - pi_f64()) / 2.0 && result <= pi_f64() / 2.0)
+{
+    if x == 1.0 { return pi_f64() / 2.0; }
+    if x == (0.0 - 1.0) { return 0.0 - pi_f64() / 2.0; }
+    return atan_f64(x / sqrt_f64(1.0 - x * x));
+}
+
+fn acos_f64(x: f64) -> f64
+    requires(x >= (0.0 - 1.0) && x <= 1.0)
+    ensures(result >= 0.0 && result <= pi_f64())
+{
+    return pi_f64() / 2.0 - asin_f64(x);
+}
+
+fn asin_checked_f64(x: f64) -> OptionF64 {
+    if x < (0.0 - 1.0) { return OptionF64::None; }
+    if x > 1.0 { return OptionF64::None; }
+    return OptionF64::Some(asin_f64(x));
+}
+
+fn acos_checked_f64(x: f64) -> OptionF64 {
+    if x < (0.0 - 1.0) { return OptionF64::None; }
+    if x > 1.0 { return OptionF64::None; }
+    return OptionF64::Some(acos_f64(x));
+}
+
+/* ── TRIG-005: hyperbolic forms ───────────────────────────────────────
+ * `sinh_f64` near zero: the naive `(exp(x) - exp(-x)) / 2` form
+ * catastrophically cancels for small `|x|` (`exp(x)` and `exp(-x)` are
+ * both near `1.0`, so their difference loses most of its significant
+ * digits before the subtraction even happens) — so for `|x| < 1.0` this
+ * uses `sinh`'s own Taylor series instead (`x + x^3/3! + x^5/5! + ...`,
+ * no cancellation, converges to well past double precision in 15 terms
+ * given `|x| < 1.0`), falling back to the `exp_f64`-based form only once
+ * `exp(x)` genuinely dominates `exp(-x)` and cancellation isn't a
+ * concern.
+ *
+ * `tanh_f64` for large `|x|`: `exp_f64(2x)` overflows to `Infinity` well
+ * before `tanh(x)` itself would ever meaningfully differ from its
+ * asymptote (`tanh(20.0)` already differs from `1.0` by less than
+ * `1e-17`, past `f64` precision) — clamped explicitly rather than
+ * letting `(Infinity - 1) / (Infinity + 1)` produce `NaN`.
+ */
+fn sinh_f64(x: f64) -> f64 {
+    if abs_f64(x) < 1.0 {
+        let x2: f64 = x * x;
+        let mut term: f64 = x;
+        let mut sum: f64 = x;
+        let mut n: f64 = 1.0;
+        let mut i: u32 = 0;
+        while i < 15 loop_invariant(true) {
+            term = term * x2 / ((2.0 * n) * (2.0 * n + 1.0));
+            sum = sum + term;
+            n = n + 1.0;
+            i = i + 1;
+        }
+        return sum;
+    }
+    let ex: f64 = exp_f64(x);
+    let enx: f64 = exp_f64(0.0 - x);
+    return (ex - enx) / 2.0;
+}
+
+fn cosh_f64(x: f64) -> f64
+    ensures(result >= 1.0)
+{
+    let ex: f64 = exp_f64(x);
+    let enx: f64 = exp_f64(0.0 - x);
+    return (ex + enx) / 2.0;
+}
+
+/* `tanh_f64`'s clamp branches return the nearest double STRICTLY inside
+ * `(-1.0, 1.0)` (`0.9999999999999999`, one ULP below `1.0` — the
+ * largest double `< 1.0`), not literally `1.0`/`-1.0`. Mathematically
+ * `tanh(20.0)` is already indistinguishable from `1.0` at double
+ * precision (differs by under `1e-17`), so `1.0` itself would be the
+ * more numerically "honest" rounding — but TRIG-005's own `ensures`
+ * demands a STRICT bound, so this favors satisfying the contract as
+ * written over that extra, unobservable-at-this-precision honesty.
+ */
+fn tanh_f64(x: f64) -> f64
+    ensures(result > (0.0 - 1.0) && result < 1.0)
+{
+    if x > 20.0 { return 0.9999999999999999; }
+    if x < (0.0 - 20.0) { return 0.0 - 0.9999999999999999; }
+    let e2x: f64 = exp_f64(2.0 * x);
+    return (e2x - 1.0) / (e2x + 1.0);
 }
