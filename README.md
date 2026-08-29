@@ -7,27 +7,19 @@ coordinates, and complex numbers, built contract-first per
 
 ## Status
 
-**F0 complete. R0.1 complete.** R0.2 in progress: `math::modular`'s
-MOD-005..007 (modular exponentiation, modular inverse, congruence) are
-done, closing out `math::modular` entirely. `math::trig`'s shared
-`PI_F64` constant, `sqrt_f64`/`sqrt_checked_f64` (a genuine
-Newton-Raphson square root, seeded via a portable exponent-doubling
-bracket rather than the bit-reinterpretation trick SPEC.md offers as one
-option — no safe cast/bit-reinterpretation exists in this toolchain),
-`exp_f64`/`ln_f64`/`ln_checked_f64` (shared machinery — range reduction
-plus a Taylor/atanh series, no minimax coefficients needed), `pow_f64`
-(ARITH-007's float form, now complete via `exp_f64`/`ln_f64`), and
-`sin_f64`/`cos_f64`/`tan_f64`/`tan_checked_f64` (AD-004's four-step
-range-reduction design, each step its own private function) are done.
-See README's "Deviations from SPEC.md" for why `sqrt` lives in
-`math::trig` rather than `math::arith`. **R0.2 is now complete**:
-`atan_f64`/`atan2_f64` (argument-reduction + series, no minimax
-coefficients), `asin_f64`/`acos_f64`/`asin_checked_f64`/
-`acos_checked_f64` (via `atan_f64`/`sqrt_f64`, no new series),
-`sinh_f64`/`cosh_f64`/`tanh_f64` (via `exp_f64`, cancellation-avoiding
-near zero, overflow-avoiding for large `|x|`), `to_radians_f64`/
-`to_degrees_f64`, and `hypot_f64` (overflow/underflow-avoiding scaled
-form) are all done. R0.3 (`polar`, `complex`) is not yet started.
+**F0 complete. R0.1 complete. R0.2 complete.** R0.3 in progress:
+`math::polar` (`Polar` struct, `to_polar`/`from_polar`, `scale_polar`/
+`rotate_polar`) and `math::complex` (`Complex` struct, componentwise +
+multiplicative arithmetic as free functions, `modulus`/`argument`/
+`conjugate`, polar interoperability, `approx_eq`) are both done —
+CPLX-007 (`exp_complex`/`ln_complex`/`pow_complex`) is explicitly
+"Future" in SPEC.md, gated on a formal ULP accuracy audit this library
+hasn't done, and is not implemented. See README's "Deviations from
+SPEC.md" for why `math::complex`'s operators are free functions (not
+`impl Add`/etc.), `from_polar` returns a struct (not a tuple), and
+`div_checked_complex` returns a plain struct (not `Option<Complex>`) —
+three more real, confirmed toolchain gaps found finishing this module.
+This closes SPEC.md's full backlog except CPLX-007.
 
 **F0's own surface, including `abs_checked_i64`:** `math::arith`'s ARITH-001..004
 are fully implemented and contract-checked: all i32, i64, and f64 forms
@@ -130,6 +122,30 @@ toolchain and the spec disagree — write down the deviation and why).
    "Newton-Raphson for roots" with "trig" as one combined design
    decision — see `lib/trig.sv0`'s own header comment for the full
    reasoning.
+5. **`math::complex`'s operators are free functions, not `impl Add`/
+   `impl Sub`/`impl Neg`/`impl Mul`/`impl Div for Complex`.** CPLX-002/
+   CPLX-003 specify operator-trait desugaring; this compiler slice does
+   not parse `impl <Trait> for <Type>` at all (`error[E0100]: syntax
+   error`, confirmed empirically — not merely an unimplemented
+   desugaring), matching an already-known gap from earlier in this
+   project's toolchain audit. `add_complex`/`sub_complex`/`neg_complex`/
+   `mul_complex`/`div_complex` provide the same operations, called
+   explicitly instead of via `+`/`-`/`-x`/`*`/`/`.
+6. **`math::polar`'s `from_polar` returns a `Point2` struct, not a
+   tuple.** POLAR-003 specifies `(f64, f64)`; this compiler slice
+   rejects multi-element tuples outright (`E0446: multi-element tuples
+   are not supported in this slice`, confirmed empirically).
+7. **`math::complex`'s `div_checked_complex` returns a `ComplexResult
+   { ok: bool, re: f64, im: f64 }` struct, not `Option<Complex>`.**
+   Beyond BUGS.md #9 (the shared generic `Option<T>` doesn't
+   monomorphize), a STRUCT payload hits a deeper wall: an enum's
+   payload slot in this compiler is always a single scalar C word — no
+   slot category exists for "a whole struct," so even a concrete
+   `enum OptionComplex { Some(Complex), None }` fails at the C level
+   (`error: assigning to 'int' from incompatible type 'Complex'`,
+   confirmed empirically). `div_checked_complex` returns the same
+   "no panic on runtime-unknown input" behavior AD-005 wants without
+   needing an enum payload to hold a struct at all.
 
 ## Build and test
 
