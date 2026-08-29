@@ -246,7 +246,19 @@ fn exp_f64(x: f64) -> f64
     return rv;
 }
 
-fn ln_f64(x: f64) -> f64
+/* `ln_f64_dd` is `ln_f64`'s actual implementation, carried in
+ * double-double precision throughout — `ln_f64` itself just rounds the
+ * result once, at the very end. Exposed separately (not just inlined
+ * into `ln_f64`) so `math::complex`'s `ln_complex` can combine TWO calls
+ * to this (`ln(mx)` and `0.5*ln(1+ratio^2)`, per its own
+ * overflow-avoiding decomposition) in double-double before rounding
+ * once, rather than adding two already-rounded `ln_f64` results and
+ * losing precision a second time right where `ln_complex`'s own
+ * cancellation is worst (`\|c\| ~= 1`, where `ln\|c\|` itself is near
+ * zero) — see `complex.sv0`'s own comment on `ln_complex` for the
+ * measured before/after.
+ */
+fn ln_f64_dd(x: f64) -> Pair2
     requires(x > 0.0)
 {
     let mut m: f64 = x;
@@ -357,7 +369,14 @@ fn ln_f64(x: f64) -> f64
     let e_lo: f64 = eprod.lo + e * ln2_lo;
     let total: Pair2 = two_sum(eprod.hi, lnm_hi);
     let total_lo: f64 = (total.lo + e_lo) + lnm_lo;
-    return total.hi + total_lo;
+    return Pair2 { hi: total.hi, lo: total_lo };
+}
+
+fn ln_f64(x: f64) -> f64
+    requires(x > 0.0)
+{
+    let p: Pair2 = ln_f64_dd(x);
+    return p.hi + p.lo;
 }
 
 fn ln_checked_f64(x: f64) -> OptionF64 {
