@@ -3,7 +3,10 @@
 Filed here first (this repo has no upstream tracker yet); each should become
 a real `sv0-toolchain`/`sv0c` issue. Audited against sv0-toolchain HEAD
 `43ee2b0` / sv0c HEAD `d0fa706` (2026-08-28), updated through the R0.3 +
-accuracy-audit work.
+accuracy-audit + TEST-006 CI-gate work — bug #16 was found and worked
+around against a LATER upstream revision (`sv0-toolchain` `c318513` /
+`sv0c` `53de895`) than the rest of this file's own pin, since this
+library's CI tracks the moving upstream default branch, not a fixed SHA.
 **Bugs #1, #2 (checker-level half), #3, #5, #6 (diagnostics half), #7, #8,
 #10, #11, #13, and #14 are fixed.** Bug #9 (generic enums resolve but
 don't monomorphize) and #12 (`match` used as a value mistypes its own
@@ -11,7 +14,11 @@ result temp) remain open, genuine gaps — each has a documented, verified
 workaround this library uses instead. Bug #15 (an inline struct literal
 passed directly as a function-call argument sometimes resolves its field
 names against the wrong struct declaration), found finishing CPLX-007, is
-newly open — also with a documented, verified workaround. Bug #6's fix
+open — also with a documented, verified workaround. Bug #16 (a bare
+`return field_a + field_b;` combining two fields of the SAME struct
+instance mistypes its own temp — a regression past bug #13's own fix,
+found setting up `scripts/ci`/TEST-006), is newly open — workaround
+applied to all four affected functions in `lib/trig.sv0`. Bug #6's fix
 also surfaced and fixed a real, sv0-mathlib-unrelated parser/lowering
 defect in sv0c's own test corpus (bare struct-field assignment statements
 silently compiling to nothing) — noted under bug #6 rather than given its
@@ -838,6 +845,95 @@ toward named intermediates before this bug was found. Worth a focused
 follow-up to isolate a minimal repro and find the actual root cause in
 `sv0c`, since "sometimes, not always" bugs are the ones most likely to
 bite a future consumer who doesn't know to work around them.
+
+## 16. A bare `return field_a + field_b;` combining two field accesses of the SAME struct instance mistypes its own temp — a regression past bug #13's fix
+
+**STATUS (2026-08-28): FIXED in `sv0-mathlib` via workaround; the
+underlying `sv0c` regression is NOT fixed, and NOT yet root-caused.**
+Found setting up `scripts/ci` (TEST-006): `sv0-mathlib`'s CI, which
+checks out `sv0-toolchain`'s default branch fresh (not pinned to any
+particular commit — this library tracks the moving upstream, per its
+own README "Deviations from SPEC.md" #2), failed at `ln_f64`'s own
+`main.sv0` assertion (`ln_f64(10.0)` off by more than its stated
+accuracy budget) against `sv0-toolchain` `c318513` / `sv0c` `53de895` —
+a LATER revision than the `sv0c` `d0fa706` this library's own accuracy
+audit was measured against (BUGS.md #13's own fix commit). Bisected by
+building the native compiler at both revisions and comparing emitted C
+for the exact same `sv0-mathlib` source: at `d0fa706`,
+
+```c
+static double ln_f64(double x) {
+  ...
+  Pair2 p = ln_f64_dd(x);
+  double _sv0t1 = (p.hi + p.lo);   // correct
+  return _sv0t1;
+}
+```
+
+at `53de895`, the IDENTICAL `sv0-mathlib` source (`return p.hi + p.lo;`)
+instead emits:
+
+```c
+static double ln_f64(double x) {
+  ...
+  Pair2 p = ln_f64_dd(x);
+  int _sv0t1 = (p.hi + p.lo);      // WRONG — silently truncates to int 2
+  return _sv0t1;
+}
+```
+
+— `ln_f64(10.0)` returned exactly `2` (an `int`-truncated `2.30258...`)
+under the newer compiler, not merely a small accuracy miss. This is the
+exact "everything numeric defaults to int" family bug #13's fix was
+supposed to close (a binop directly on a struct field access mistyping
+its own temp), but here BOTH operands are field accesses of the SAME
+struct local (`p.hi + p.lo`), not two different structs — bug #13's own
+repro (`sa.hi * sb.hi`) used two different `Pair2` locals `sa`/`sb`.
+Something in `sv0c`'s struct-field-category resolution regressed (or
+was never fully covered) for this narrower shape between `d0fa706` and
+`53de895` — not yet bisected further or root-caused within `sv0c`
+itself; that's real, separate `sv0-toolchain` work, not something this
+session had scope to chase down.
+
+**Impact on this library**: significant — this exact `return
+X.field_a + X.field_b;` pattern is the standard "round a double-double
+result to a single `f64`" idiom this library's own accuracy work
+(BUGS.md's accuracy-audit commits) introduced pervasively:
+`ln_f64`/`sin_f64`/`cos_f64`/`atan_f64` all ended with exactly this
+shape. All four were silently broken (truncated to `int`) under the
+newer compiler — confirmed via a full local reproduction (cloned
+`sv0-toolchain` at the exact `c318513`/`53de895` pins CI used, built the
+native compiler fresh, ran this library's full test suite: failed at
+`ln_f64` first, the earliest such call in `main.sv0`'s test sequence;
+`sin_f64`/`cos_f64`/`atan_f64` would very likely have failed too had the
+suite gotten past `ln_f64`).
+
+**Workaround (applied to all four affected functions in
+`lib/trig.sv0`)**: copy each field into its own local before the binop,
+mirroring bug #13's own original workaround exactly:
+
+```sv0
+let p: Pair2 = ln_f64_dd(x);
+let p_hi: f64 = p.hi;
+let p_lo: f64 = p.lo;
+return p_hi + p_lo;
+```
+
+Verified: rebuilt the native compiler at BOTH the `d0fa706`-era pin this
+library was previously tested against AND the current `c318513`/`53de895`
+upstream HEAD; `scripts/ci` and the full `docs/ulp_audit_harness.c`
+sweep pass identically on both (same ULP numbers on the `d0fa706` build
+as before this fix — confirming the fix is a pure typing correction with
+no effect on the actual computed values; `ln_complex`/`pow_complex`'s
+own already-documented informational residuals shifted slightly on the
+newer `53de895` build, consistent with unrelated codegen changes
+elsewhere in that revision, not a new regression from this fix).
+
+**Follow-up**: a session should bisect `sv0c` between `d0fa706` and
+`53de895` to find and fix the actual regression, and add a regression
+test to `sv0c`'s own test corpus for the narrower "same-struct,
+two-field binop" shape specifically (bug #13's existing regression
+coverage, if any, evidently didn't catch this).
 
 ## Working today — genuinely verified (emitted C inspected, not just exit code)
 

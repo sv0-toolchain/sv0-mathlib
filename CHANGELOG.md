@@ -73,6 +73,16 @@ arbitrary-precision reference), not a defect in this library. See
   `tanh_f64` (unlike `sinh_f64`, which already had a near-zero Taylor
   branch) had no cancellation-free path there at all. Fixed by
   delegating to `sinh_f64(x) / cosh_f64(x)` for `|x| < 1.0`.
+- **`ln_f64`/`sin_f64`/`cos_f64`/`atan_f64` silently truncated to `int`**
+  under a newer upstream `sv0c` revision than this library had
+  previously been tested against (found setting up TEST-006's CI gate,
+  which tracks the moving upstream default branch rather than a pinned
+  SHA): each ended with a bare `return field_a + field_b;` combining two
+  fields of the same double-double `Pair2` struct instance, a regression
+  past `sv0c` bug #13's own fix (`BUGS.md` #16) that silently mistyped
+  the result as `int` (`ln_f64(10.0)` returned exactly `2`, not a small
+  accuracy miss). Fixed by copying each field into its own local before
+  the addition, mirroring bug #13's own established workaround.
 
 ### Added
 

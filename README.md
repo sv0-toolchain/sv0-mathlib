@@ -58,8 +58,9 @@ forms — see BUGS.md #2 for why (VM bytecode has no float representation
 at all, a separate, larger gap) — and a duplicate-type issue once more
 than one file imports the same type; see BUGS.md's "Not yet working".
 
-See [BUGS.md](BUGS.md) for fifteen toolchain gaps found across F0, R0.1,
-R0.2, R0.3, and the accuracy-audit pass. **Eleven are fixed**: bug #5
+See [BUGS.md](BUGS.md) for sixteen toolchain gaps found across F0, R0.1,
+R0.2, R0.3, the accuracy-audit pass, and TEST-006's CI-gate setup.
+**Eleven are fixed**: bug #5
 (`f64` silently compiling as `int`), bug #3 (generic enums like
 `Option<T>` failing to resolve), bug #1 (integer literals wider than i32
 truncating), bug #7 (an explicit `let x: f64 = <arithmetic-expr>;` local
@@ -78,17 +79,22 @@ result, no intermediate `let`, mistyping the payload binding), bug #13
 bug #14 (a struct field name token landing at a coincidental source
 position `500-599` was silently misread as an unrelated
 tuple-projection index — found via `math::trig`'s first struct literal).
-**Three remain genuine open gaps, each with a documented, verified
+**Four remain genuine open gaps, each with a documented, verified
 workaround this library uses instead**: bug #9 (generic enums resolve
 but don't monomorphize — `abs_checked_i64` uses a concrete `OptionI64`
 instead of the shared `Option<T>`), bug #12 (`match` used as a value
 mistypes its own result temp — worked around via match-as-statement,
-used throughout `pow_checked_i64` onward), and bug #15 (an inline struct
+used throughout `pow_checked_i64` onward), bug #15 (an inline struct
 literal passed directly as a function-call argument sometimes resolves
 its field names against the wrong struct declaration, found finishing
 CPLX-007 — worked around by binding struct literals to a `let` before
-passing them as arguments), plus the VM bytecode float-lowering gap
-noted above.
+passing them as arguments), and bug #16 (a bare `return field_a +
+field_b;` combining two fields of the SAME struct instance mistypes its
+own temp — a regression past bug #13's own fix, found setting up
+`scripts/ci`/TEST-006 against a later upstream revision than the rest of
+this library was tested against — worked around by copying each field
+into its own local first, applied to `ln_f64`/`sin_f64`/`cos_f64`/
+`atan_f64`), plus the VM bytecode float-lowering gap noted above.
 
 ## Tier 1 / Tier 2
 
