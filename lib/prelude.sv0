@@ -31,6 +31,10 @@ enum OptionU64 { Some(u64), None }
  * `add_checked_u32`/`sub_checked_u32`/`mul_checked_u32`. */
 enum OptionU32 { Some(u32), None }
 
+/* OptionF64: same rationale, for f64 payloads — `math::trig`'s
+ * `sqrt_checked_f64` and its siblings (Appendix C's worked example). */
+enum OptionF64 { Some(f64), None }
+
 /* Integer MIN/MAX constant helpers, shared across modules — sv0 has no
  * `T::MAX`/`T::MIN` associated-constant syntax in this compiler slice.
  * Declared once here (not duplicated per module) after a real bug: two

@@ -74,6 +74,10 @@ use modular::mul_mod_u64;
 use modular::pow_mod_u64;
 use modular::mod_inverse_u64;
 use modular::is_congruent_i64;
+use trig::pi_f64;
+use trig::sqrt_f64;
+use trig::sqrt_checked_f64;
+use prelude::OptionF64;
 use prelude::OptionU64;
 
 fn main() -> i32 {
@@ -345,6 +349,24 @@ fn main() -> i32 {
     if !is_congruent_i64(7, 22, 5) { return 198; }
     if is_congruent_i64(7, 23, 5) { return 199; }
     if !is_congruent_i64(0 - 3, 7, 5) { return 200; }
+
+    if sqrt_f64(4.0) != 2.0 { return 210; }
+    let sq2: f64 = abs_f64(sqrt_f64(2.0) - 1.4142135623730951);
+    if sq2 >= 0.000000000000001 { return 211; }
+    if sqrt_f64(0.0) != 0.0 { return 212; }
+    if sqrt_f64(1.0) != 1.0 { return 213; }
+    let sq3: f64 = abs_f64(sqrt_f64(1000000.0) - 1000.0);
+    if sq3 >= 0.0000001 { return 214; }
+    let sq4: f64 = abs_f64(sqrt_f64(0.0001) - 0.01);
+    if sq4 >= 0.0000000001 { return 215; }
+
+    let scf1: bool = match sqrt_checked_f64(4.0) { OptionF64::Some(v) => v == 2.0, OptionF64::None => false };
+    if !scf1 { return 216; }
+    let scf2: bool = match sqrt_checked_f64(0.0 - 1.0) { OptionF64::Some(v) => false, OptionF64::None => true };
+    if !scf2 { return 217; }
+
+    let pi_diff: f64 = abs_f64(pi_f64() - 3.141592653589793);
+    if pi_diff >= 0.0000000000000001 { return 218; }
 
     return 0;
 }
