@@ -103,11 +103,12 @@ contract-result slots, call-result temps, enum payload struct fields, and
 match-arm payload bindings), real `i64`-magnitude values round-tripping
 correctly, and `Option`/`Result`/`OptionI64` compiling to real
 tagged-struct types with working `Some`/`None` match logic. The **VM
-backend** now type-checks and lowers this library's i32/i64 forms
-correctly (bug #2's checker-level fix) but still can't compile the f64
-forms — see BUGS.md #2 for why (VM bytecode has no float representation
-at all, a separate, larger gap) — and a duplicate-type issue once more
-than one file imports the same type; see BUGS.md's "Not yet working".
+backend** now compiles **and runs** the entire library — i32, i64/u64,
+and f64 — with results identical to the C backend (`sv0-toolchain`'s
+`sv0c-vm-float-parity` work, 2026-08-29; see BUGS.md #2). Cross-backend
+parity is checked by `scripts/ci` (`test/parity/README.md`). The legacy
+SML `--target=vm` path still lacks f64 — use `./scripts/sv0
+vm-native-compile --project` instead.
 
 See [BUGS.md](BUGS.md) for nineteen toolchain gaps found across F0,
 R0.1, R0.2, R0.3, the accuracy-audit pass, and TEST-006/TEST-001/
@@ -120,9 +121,10 @@ payload bindings always `int`), bug #6's silent-diagnostics half (a
 parse failure used to exit nonzero with zero error text — the same fix
 also surfaced and fixed a real, sv0-mathlib-unrelated pre-existing bug in
 sv0c's own test corpus, bare struct-field assignment statements silently
-compiling to nothing), bug #2's checker-level half (the VM-path checker
-rejected i64/u32/f64 arithmetic anywhere, not just in contracts — VM
-bytecode float *lowering* remains a separate, larger, unfixed gap), bug
+compiling to nothing), bug #2 (the VM-path checker
+rejected i64/u32/f64 arithmetic anywhere; and, as of 2026-08-29, the
+native VM emitter + `sv0vm` gained full f64/i64/wide-int + contract
+support so this library now runs on the VM backend), bug
 #10 (`loop_invariant` anywhere in a file corrupting name resolution for
 an unrelated earlier function), bug #11 (`match` on a direct call
 result, no intermediate `let`, mistyping the payload binding), bug #13
@@ -312,11 +314,13 @@ build/sv0-megatu-compiler-native --project /path/to/sv0-mathlib > /tmp/mathlib.c
 cc -std=c99 -O0 -w -I sv0c/runtime /tmp/mathlib.c sv0c/runtime/sv0_runtime.c -o /tmp/mathlib_bin
 /tmp/mathlib_bin; echo $?   # 0 = pass
 
-# VM backend — still doesn't compile this library end to end: the
-# duplicate-Option-type issue (BUGS.md "Not yet working") blocks it before
-# the f64 forms' own separate bytecode-float gap (BUGS.md #2) would.
-./scripts/sv0 vm-project-compile ../../sv0-mathlib
-./scripts/sv0 vm-run sv0c/build/vm/main.sv0b
+# VM backend (native emitter — f64/i64 capable; the SML --target=vm path
+# still lacks f64). From the sv0-toolchain checkout:
+./scripts/sv0 vm-native-compile --project ../sv0-mathlib /tmp/mathlib.sv0b
+./scripts/sv0 vm-run /tmp/mathlib.sv0b   # vm_exit:0 — matches the C backend
+
+# Cross-backend parity (both of the above, exit codes compared):
+./scripts/sv0 vm-behavioral-parity
 ```
 
 When touching `f64` code, don't trust an exit code alone — grep the emitted
@@ -354,7 +358,7 @@ sv0-mathlib/
 │   │                  # plus conv_review.md for Section 8's policy-style CONV-* requirements
 │   ├── property/      # TEST-004: property_test.sv0 — seeded-PRNG algebraic-invariant checks
 │   ├── fixtures/      # TEST-002/TEST-003: rounding.csv, trig.csv, manifest.md
-│   └── parity/        # not yet populated — TEST-005 (blocked on the VM backend, see BUGS.md)
+│   └── parity/        # COMPAT-001/002 / TEST-005 — cross-backend parity via scripts/ci (see parity/README.md)
 └── docs/
     ├── accuracy.md                     # PERF-001/PERF-002: measured ULP error per non-exact function
     ├── ulp_audit_harness.c             # the standalone C harness used to produce accuracy.md's numbers

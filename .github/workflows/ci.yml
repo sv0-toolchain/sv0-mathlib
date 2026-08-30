@@ -65,6 +65,10 @@ jobs:
         working-directory: sv0-toolchain
         run: bash scripts/build-sv0-megatu-native.sh
 
-      - name: sv0-mathlib CI gate (fmt + block-comment guard + compile/run)
+      - name: Build the native VM bytecode emitter (for cross-backend parity)
+        working-directory: sv0-toolchain
+        run: bash scripts/build-sv0-megatu-vm-native.sh
+
+      - name: sv0-mathlib CI gate (fmt + block-comment guard + compile/run + cross-backend parity)
         working-directory: sv0-mathlib
         run: bash scripts/ci
