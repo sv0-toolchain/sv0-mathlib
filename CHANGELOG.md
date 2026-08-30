@@ -116,16 +116,16 @@ arbitrary-precision reference), not a defect in this library. See
 - **Per-fixture value check (COMPAT-002 / TEST-005).**
   `scripts/run_fixture_parity.py` generates a `fn main() -> i32` with one
   check per (row, function) from `test/fixtures/{rounding,trig}.csv`,
-  compiles + runs it on both backends, and checks each result against
-  the row's own EXPECTED column — the reproducible form of the one-time
-  manual fixture check the manifest used to describe. Wired into
-  `scripts/ci` (`--strict-vm`, so both legs gate; `--skip-fixture-parity`
-  to skip). Building it surfaced a real `sv0vm` bug — an `Unsafe.cast`
-  f64 codec that mis-decoded 2^52 under the SML/NJ 110.99.9 the CI runner
-  installs, fixed upstream in sv0vm `d990ef9` (`BUGS.md`). Sign-of-zero
-  is compared by value only (`ceil_f64`/`trunc_f64` of a small negative
-  return `+0.0` here vs libm's `-0.0`; SPEC pins none) and `PANIC` rows
-  are listed as skipped; see `test/fixtures/manifest.md`.
+  compiles + runs it, and checks each result against the row's own
+  EXPECTED column — the reproducible form of the one-time manual fixture
+  check the manifest used to describe. Wired into `scripts/ci`
+  (`--skip-fixture-parity`). The **C-backend leg gates**; the
+  **VM-backend leg is advisory** — it passes on SML/NJ 2026.1 but a
+  transcendental `ensures` aborts the run under the SML/NJ 110.99.9 the
+  CI runner installs (`BUGS.md`; `--strict-vm` to gate on it). Sign-of-
+  zero is compared by value only (`ceil_f64`/`trunc_f64` of a small
+  negative return `+0.0` here vs libm's `-0.0`; SPEC pins none) and
+  `PANIC` rows are listed as skipped; see `test/fixtures/manifest.md`.
 - `exp_complex`/`ln_complex`/`pow_complex` (CPLX-007) — gated on
   `sin_f64`/`cos_f64`/`exp_f64`/`ln_f64` meeting PERF-002, now
   confirmed met, so implemented rather than left "Future". Verified
