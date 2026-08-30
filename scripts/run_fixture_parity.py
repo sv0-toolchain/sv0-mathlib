@@ -33,14 +33,14 @@ function it came from, on whichever backend disagreed.
 `PANIC` rows in `trig.csv` (documented `requires`-violation cases) can't
 be exercised inside one non-crashing binary and are listed as skipped.
 
-The **C backend leg gates** (a mismatch fails). The **VM backend leg is
-advisory by default**: every check passes on SML/NJ 2026.1, but under the
-SML/NJ 110.99.9 the CI runner uses, a transcendental `ensures` aborts the
-run (a `sv0 contract violation` on the VM, not a value mismatch) — see
-`BUGS.md`. The exit-code cross-backend gate (`vm_behavioral_parity.py`)
-already proves both backends agree on every self-test the library ships;
-this per-fixture VM leg becomes gating once that discrepancy is
-root-caused. Pass `--strict-vm` to make the VM leg fail too.
+The **C backend leg always gates**. The **VM backend leg gates under
+`--strict-vm`** (which `scripts/ci` passes). The VM leg was advisory for
+one day: building this runner surfaced an `Unsafe.cast` f64 codec in
+`sv0vm/src/bytecode/bytecode.sml` that mis-decoded 2^52 under the SML/NJ
+110.99.9 the CI runner installs, so `frac_floor_of_nonneg`'s `ensures`
+aborted (a `sv0 contract violation` on the VM, not a value mismatch);
+fixed in sv0vm `d990ef9` — see `BUGS.md`. Without `--strict-vm` a VM
+miss is a WARN, not a failure.
 
 Usage:
   python3 scripts/run_fixture_parity.py [--toolchain-root DIR] [--emit-only PATH]
@@ -289,8 +289,8 @@ def main() -> int:
     ap.add_argument("--c-only", action="store_true")
     ap.add_argument("--vm-only", action="store_true")
     ap.add_argument("--strict-vm", action="store_true",
-                    help="fail (exit 1) on a VM-backend miss too; by default the "
-                         "VM leg is advisory (see the SML-110.99.9 note below)")
+                    help="gate on the VM-backend leg too (scripts/ci passes this); "
+                         "without it a VM miss is a WARN, not a failure")
     args = ap.parse_args()
 
     with (FIXTURES / "rounding.csv").open() as f:
@@ -334,16 +334,17 @@ def main() -> int:
             print("run_fixture_parity: VM backend  — all fixture rows match (exit 0)")
         else:
             vm_ok = False
-            tag = "FAIL" if args.strict_vm else "WARN (advisory)"
+            tag = "FAIL" if args.strict_vm else "WARN (not gating without --strict-vm)"
             if v_exit == "CONTRACT_VIOLATION":
                 detail = f"a requires/ensures aborted the run — {v_out}"
             else:
                 detail = decode(v_exit, checks)
             print(f"run_fixture_parity: VM backend  — {tag}: {detail}", file=sys.stderr)
-            print("  The VM leg is advisory by default: it passes on SML/NJ 2026.1 but a "
-                  "transcendental\n  ensures aborts under the SML/NJ 110.99.9 the CI runner "
-                  "uses (BUGS.md). The exit-code\n  cross-backend gate (vm_behavioral_parity) "
-                  "and the C-backend row check above are unaffected.", file=sys.stderr)
+            print("  A regression here most likely means the sv0vm f64 bytecode codec "
+                  "(sv0vm/src/bytecode/bytecode.sml)\n  again disagrees with the C backend on "
+                  "some bit pattern — see BUGS.md 'Per-fixture value check'. The exit-code\n  "
+                  "cross-backend gate (vm_behavioral_parity) and the C-backend row check above "
+                  "are separate.", file=sys.stderr)
     if (c_exit is not None and v_exit is not None
             and isinstance(c_exit, int) and isinstance(v_exit, int) and c_exit != v_exit):
         gate = args.strict_vm
@@ -358,7 +359,7 @@ def main() -> int:
 
     passed = ok and (vm_ok or not args.strict_vm)
     if passed and not vm_ok:
-        print("run_fixture_parity: PASS (C backend gated; VM leg advisory — see WARN above)")
+        print("run_fixture_parity: PASS (C backend gated; VM leg WARN — pass --strict-vm to gate)")
     else:
         print("run_fixture_parity: PASS" if passed else "run_fixture_parity: FAIL")
     return 0 if passed else 1
