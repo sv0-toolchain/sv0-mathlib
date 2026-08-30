@@ -68,10 +68,11 @@ validated under (TEST-002), and `scripts/check_fixtures.py` (wired into
 `scripts/ci`) lints both for boundary/special-value coverage per
 non-exact function (TEST-003). `scripts/run_fixture_parity.py` (also in
 `scripts/ci`) additionally drives every row of both CSVs through a live
-`sv0`-compiled build on the C **and** VM backends and checks each result
-against its expected value — the reproducible form of the one-time
-manual check the manifest used to describe (COMPAT-002 / TEST-005,
-per-fixture). `test/property/property_test.sv0` (also
+`sv0`-compiled build and checks each result against its expected value —
+the reproducible form of the one-time manual check the manifest used to
+describe (COMPAT-002 / TEST-005, per-fixture). The C-backend leg gates;
+the VM-backend leg is advisory pending a not-yet-root-caused SML/NJ
+110.99.9 discrepancy (see `BUGS.md` / `test/fixtures/manifest.md`). `test/property/property_test.sv0` (also
 wired into `scripts/ci` via `scripts/run_unit_tests.py`) checks
 `sin_f64(x)^2 + cos_f64(x)^2 ~= 1.0`, `to_polar`/`from_polar`
 round-tripping, `mod_inverse_u64` composed with `mul_mod_u64`, and
@@ -351,7 +352,7 @@ sv0-mathlib/
 │   ├── ci                    # TEST-006: fmt-check + block-comment guard + compile/run + test/unit + fixtures + cross-backend parity
 │   ├── run_unit_tests.py     # TEST-001/TEST-004: runs test/unit + test/property, generates the requirement-to-test matrix
 │   ├── check_fixtures.py     # TEST-002/TEST-003: fixture-manifest completeness + boundary-coverage lint
-│   └── run_fixture_parity.py # COMPAT-002/TEST-005: drives every rounding.csv/trig.csv row through BOTH backends, checks each vs its expected value
+│   └── run_fixture_parity.py # COMPAT-002/TEST-005: drives every rounding.csv/trig.csv row through a live build, checks each vs its expected value (C gates; VM advisory)
 ├── lib/
 │   ├── arith.sv0     # module arith — F0 arithmetic core (Section 11)
 │   ├── modular.sv0   # module modular — R0.1/R0.2 modular arithmetic (Section 12)
