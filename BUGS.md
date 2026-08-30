@@ -116,11 +116,51 @@ specifically, since Ed25519's field prime (`2^255 - 19`) is far outside
 even `u64` range and would need real bignum literal support regardless —
 this fix doesn't reach that far, and isn't intended to.
 
-## 2. The VM-target toolchain path can't type-check non-i32/bool contracts
+## 2. The VM-target toolchain path can't type-check / lower / run f64
 
-**STATUS (2026-08-23): the checker-level restriction is FIXED in
-`sv0-toolchain` (sv0c commit `69ae8a5`); VM bytecode float support is a
-separate, larger, NOT-fixed gap — see below.** `./scripts/sv0
+**STATUS (2026-08-29): FIXED end to end for the *native* VM path.**
+`sv0-toolchain`'s `sv0c-vm-float-parity` work (task
+`task/sv0c-vm-float-parity.Rmd`, slices VMF-###) added f64 + i64/u64
+to the native mega-TU VM bytecode emitter (`build/sv0-megatu-vm-native`),
+the `.sv0b` codec, and the `sv0vm` interpreter: typed `ADD_F64`/`ADD_I64`
+opcode selection, a pure-integer correctly-rounded decimal→IEEE-754
+converter (no float in the toolchain itself), `CF64`/`CI64` cells with
+mixed-width coercion, and contract (`requires`/`ensures`) support. It
+also fixed two pre-existing native-VM-emitter bugs surfaced along the
+way (a contract-message pool panic; a struct-typed `result` contract
+slot).
+
+**This entire library now compiles AND runs on the VM backend, matching
+the C backend.** `SV0_DRV_REQUEST="--project /path/to/sv0-mathlib"
+build/sv0-megatu-vm-native` emits a runnable `.sv0b`; `sv0vm` executes
+`main.sv0`'s full self-test suite to `vm_exit:0`, identical to the C
+backend's exit 0. `./scripts/ci` (no `--skip-parity`) runs the
+toolchain's `scripts/vm_behavioral_parity.py`, which diffs exit codes
+across both backends for every fixture including `--project
+../sv0-mathlib`. See `test/parity/README.md`.
+
+**Invocation** (the SML `--target=vm` path below is unchanged and still
+lacks f64 — use the native path):
+```bash
+# from the sv0-toolchain checkout
+./scripts/sv0 vm-native-compile --project ../sv0-mathlib /tmp/mathlib.sv0b
+./scripts/sv0 vm-run /tmp/mathlib.sv0b     # vm_exit:0
+```
+
+**Remaining refinement (not a blocker):** SPEC §16.2's per-fixture
+bit/ULP-for-ULP diff over `test/fixtures/{rounding,trig}.csv` still runs
+C-backend-only in `docs/ulp_audit_harness.c`; extending it to also run
+each fixture through `sv0vm` is future polish. The exit-code parity gate
+already establishes both backends agree on every self-test the library
+ships.
+
+---
+
+Historical detail (the state before 2026-08-29):
+
+**The checker-level restriction was FIXED (2026-08-23, sv0c `69ae8a5`);
+VM bytecode float support was a separate, larger gap — now also fixed
+per the status above.** `./scripts/sv0
 vm-project-compile`/`vm-compile` invoke the SML-legacy bootstrap compiler
 (`sml-legacy/`). Re-investigating this while fixing it found the original
 framing undersold the scope: `sml-legacy/type_checker/checker.sml`'s
@@ -1189,18 +1229,14 @@ test layer (Section 16.2) exists to catch.
 
 ## Not yet working
 
-- **VM backend for the current `main.sv0` at all** — two independent,
-  layered reasons, both bug #2's subsystem (SML-legacy, untouched by any
-  fix this session): (a) `abs_f64`'s `ensures(result >= 0.0)` fails to
-  type-check (the original bug #2 finding), and (b) newly found — once
-  `main.sv0` and `lib/arith.sv0` **both** `use prelude::Option;`,
-  `vm-project-compile` fails with `error[E0309]: E0304: duplicate type
-  Option`. SML-legacy appears to inline/duplicate an imported type per
-  importing file rather than sharing one declaration; the native compiler
-  (used for the C backend) has no such issue. Not investigated further —
-  bug #2's existing "SML-legacy has real gaps, not planned to be
-  extended" framing already covers this; noting it here rather than as a
-  new bug number.
+- **The SML `--target=vm` path** (`./scripts/sv0 vm-project-compile`) still
+  cannot compile this library: (a) `abs_f64`'s `ensures(result >= 0.0)`
+  fails to type-check on that path, and (b) `error[E0304]: duplicate type
+  Option` once two files `use prelude::Option;` (SML-legacy inlines an
+  imported type per importing file). **Both are moot** — the *native* VM
+  path (`./scripts/sv0 vm-native-compile --project`, bug #2 status above)
+  compiles + runs the whole library. SML-legacy is frozen and not planned
+  to be extended.
 - Struct and function generics (bug #3's fix is enum-only) — untested,
   presumed still broken.
 - `let x: T = match { ... };` for a wide (non-i32/bool) `T` (bug #12, not

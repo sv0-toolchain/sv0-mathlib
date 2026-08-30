@@ -103,6 +103,18 @@ arbitrary-precision reference), not a defect in this library. See
 
 ### Added
 
+- **Cross-backend parity (COMPAT-001 / COMPAT-002 / TEST-005).** The
+  `sv0-toolchain` native VM bytecode emitter + `sv0vm` gained f64 +
+  i64/u64 + contract support (`sv0c-vm-float-parity`, 2026-08-29), so
+  this entire library now compiles **and runs** on the VM backend with
+  results identical to the C backend. `scripts/ci` grew a `--skip-parity`
+  section that runs the toolchain's `vm_behavioral_parity.py` (both
+  backends, exit codes compared, including `--project ../sv0-mathlib`);
+  `test/parity/README.md` documents it. `BUGS.md #2` (the long-standing
+  "VM bytecode has no float representation" blocker) is resolved for the
+  native VM path. No library code changed. The per-fixture bit/ULP
+  fixture-table diff (SPEC §16.2) is still C-backend-only and noted as
+  future polish.
 - `exp_complex`/`ln_complex`/`pow_complex` (CPLX-007) — gated on
   `sin_f64`/`cos_f64`/`exp_f64`/`ln_f64` meeting PERF-002, now
   confirmed met, so implemented rather than left "Future". Verified
