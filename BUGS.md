@@ -147,18 +147,36 @@ lacks f64 — use the native path):
 ./scripts/sv0 vm-run /tmp/mathlib.sv0b     # vm_exit:0
 ```
 
-**Per-fixture cross-backend check — done (2026-08-30).**
+**Per-fixture value check — added (2026-08-30).**
 `scripts/run_fixture_parity.py` generates a `fn main() -> i32` with one
 check per (row, function) from `test/fixtures/{rounding,trig}.csv`,
-compiles + runs it on BOTH backends (C: native `--project` → `cc`; VM:
-native VM emitter → `.sv0b` → `sv0vm`), and asserts each result matches
-the row's own EXPECTED column and that the C and VM exit codes agree.
-Wired into `scripts/ci` (`--skip-fixture-parity`). `PANIC` rows are
-skipped (a `requires`-violation can't run inside one non-crashing
-binary) and zero results are compared by value only (SPEC pins no
-sign-of-zero for `ceil_f64`/`trunc_f64` of small negatives). The broad
-full-domain ULP sweep in `docs/ulp_audit_harness.c` stays C-backend-only
-by design — it needs `<math.h>` as its reference oracle.
+compiles + runs it on both backends (C: native `--project` → `cc`; VM:
+native VM emitter → `.sv0b` → `sv0vm`), and checks each result against
+the row's own EXPECTED column. Wired into `scripts/ci`
+(`--skip-fixture-parity`). `PANIC` rows are skipped (a `requires`
+violation can't run inside one non-crashing binary) and zero results are
+compared by value only (SPEC pins no sign-of-zero for
+`ceil_f64`/`trunc_f64` of small negatives). The broad full-domain ULP
+sweep in `docs/ulp_audit_harness.c` stays C-backend-only by design — it
+needs `<math.h>` as its reference oracle.
+
+**Open — the VM leg of that check is advisory, not gating.** Every row
+passes on the C backend, and on the VM backend under SML/NJ **2026.1**
+(the version on the dev machine it was written on). Under SML/NJ
+**110.99.9** (what the GitHub Actions runner installs), running the
+generated program on `sv0vm` aborts with a `sv0 contract violation` — a
+transcendental `ensures` that holds under 2026.1's `Real` behaviour does
+not hold under 110.99.9's. Not yet root-caused: it needs a real amd64
+Linux environment (SML/NJ 110.99.9 segfaults under QEMU user-mode
+emulation on Apple Silicon, so it can't be reproduced locally here) or
+CI iteration. Candidates: the `Unsafe.cast`-based `real`↔`Word64`
+round-trip in `sv0vm/src/bytecode/bytecode.sml` (`f64Le`/`f64AtVec`)
+behaving differently across SML/NJ major versions, or a version-sensitive
+`Real` rounding/`Real.==` difference feeding one of the accuracy-audit's
+tightened `ensures` clauses. `run_fixture_parity.py --strict-vm` turns
+the VM leg into a hard failure for whoever picks this up. The exit-code
+cross-backend gate (`vm_behavioral_parity.py`, COMPAT-001) and the
+C-backend per-fixture leg are unaffected and green.
 
 ---
 
