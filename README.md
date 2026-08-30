@@ -66,7 +66,12 @@ ULP-budgeted `math::trig` function) each have a `test/fixtures/
 manifest.md` row recording provenance and the toolchain revision
 validated under (TEST-002), and `scripts/check_fixtures.py` (wired into
 `scripts/ci`) lints both for boundary/special-value coverage per
-non-exact function (TEST-003). `test/property/property_test.sv0` (also
+non-exact function (TEST-003). `scripts/run_fixture_parity.py` (also in
+`scripts/ci`) additionally drives every row of both CSVs through a live
+`sv0`-compiled build on the C **and** VM backends and checks each result
+against its expected value — the reproducible form of the one-time
+manual check the manifest used to describe (COMPAT-002 / TEST-005,
+per-fixture). `test/property/property_test.sv0` (also
 wired into `scripts/ci` via `scripts/run_unit_tests.py`) checks
 `sin_f64(x)^2 + cos_f64(x)^2 ~= 1.0`, `to_polar`/`from_polar`
 round-tripping, `mod_inverse_u64` composed with `mul_mod_u64`, and
@@ -343,9 +348,10 @@ sv0-mathlib/
 ├── main.sv0         # smoke/demo entry point (also the full test suite today)
 ├── .github/workflows/ci.yml  # TEST-006: CI gate (bootstraps sv0-toolchain, then scripts/ci)
 ├── scripts/
-│   ├── ci                    # TEST-006: fmt-check + block-comment guard + compile/run + test/unit + fixtures
+│   ├── ci                    # TEST-006: fmt-check + block-comment guard + compile/run + test/unit + fixtures + cross-backend parity
 │   ├── run_unit_tests.py     # TEST-001/TEST-004: runs test/unit + test/property, generates the requirement-to-test matrix
-│   └── check_fixtures.py     # TEST-002/TEST-003: fixture-manifest completeness + boundary-coverage lint
+│   ├── check_fixtures.py     # TEST-002/TEST-003: fixture-manifest completeness + boundary-coverage lint
+│   └── run_fixture_parity.py # COMPAT-002/TEST-005: drives every rounding.csv/trig.csv row through BOTH backends, checks each vs its expected value
 ├── lib/
 │   ├── arith.sv0     # module arith — F0 arithmetic core (Section 11)
 │   ├── modular.sv0   # module modular — R0.1/R0.2 modular arithmetic (Section 12)

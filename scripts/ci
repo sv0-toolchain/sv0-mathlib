@@ -8,7 +8,7 @@
 # library's own README "Deviations from SPEC.md" #2) — set
 # SV0_TOOLCHAIN_ROOT to point elsewhere if it isn't.
 #
-# Usage: scripts/ci [--skip-fmt] [--skip-guard] [--skip-run] [--skip-unit] [--skip-fixtures] [--skip-doc] [--skip-parity]
+# Usage: scripts/ci [--skip-fmt] [--skip-guard] [--skip-run] [--skip-unit] [--skip-fixtures] [--skip-doc] [--skip-parity] [--skip-fixture-parity]
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -21,6 +21,7 @@ SKIP_UNIT=0
 SKIP_FIXTURES=0
 SKIP_DOC=0
 SKIP_PARITY=0
+SKIP_FIXTURE_PARITY=0
 for arg in "$@"; do
   case "$arg" in
     --skip-fmt) SKIP_FMT=1 ;;
@@ -30,6 +31,7 @@ for arg in "$@"; do
     --skip-fixtures) SKIP_FIXTURES=1 ;;
     --skip-doc) SKIP_DOC=1 ;;
     --skip-parity) SKIP_PARITY=1 ;;
+    --skip-fixture-parity) SKIP_FIXTURE_PARITY=1 ;;
     *)
       echo "sv0-mathlib ci: unknown argument: $arg" >&2
       exit 2
@@ -120,6 +122,21 @@ if [[ "$SKIP_PARITY" -eq 0 ]]; then
   fi
   python3 "$PARITY"
   echo "sv0-mathlib ci: cross-backend parity OK"
+fi
+
+if [[ "$SKIP_FIXTURE_PARITY" -eq 0 ]]; then
+  echo "== sv0-mathlib ci: per-fixture cross-backend value check (COMPAT-002 / TEST-005) =="
+  # vm_behavioral_parity.py above compares only the whole-library exit
+  # code between backends. run_fixture_parity.py goes row-by-row: it
+  # generates one fn main()->i32 from test/fixtures/{rounding,trig}.csv
+  # (one check per row+function), then compiles+runs it on BOTH backends
+  # and asserts each result matches the fixture's own EXPECTED column and
+  # that the C and VM exit codes agree. This is the reproducible form of
+  # the one-time manual check the fixture manifest used to describe, now
+  # also covering the VM backend. Needs SML/NJ + the sv0vm submodule.
+  printf '' > /tmp/.sv0_drv_path
+  SV0_TOOLCHAIN_ROOT="$TOOLCHAIN" python3 "$HERE/scripts/run_fixture_parity.py"
+  echo "sv0-mathlib ci: per-fixture cross-backend value check OK"
 fi
 
 echo "sv0-mathlib ci: PASS"

@@ -147,12 +147,18 @@ lacks f64 — use the native path):
 ./scripts/sv0 vm-run /tmp/mathlib.sv0b     # vm_exit:0
 ```
 
-**Remaining refinement (not a blocker):** SPEC §16.2's per-fixture
-bit/ULP-for-ULP diff over `test/fixtures/{rounding,trig}.csv` still runs
-C-backend-only in `docs/ulp_audit_harness.c`; extending it to also run
-each fixture through `sv0vm` is future polish. The exit-code parity gate
-already establishes both backends agree on every self-test the library
-ships.
+**Per-fixture cross-backend check — done (2026-08-30).**
+`scripts/run_fixture_parity.py` generates a `fn main() -> i32` with one
+check per (row, function) from `test/fixtures/{rounding,trig}.csv`,
+compiles + runs it on BOTH backends (C: native `--project` → `cc`; VM:
+native VM emitter → `.sv0b` → `sv0vm`), and asserts each result matches
+the row's own EXPECTED column and that the C and VM exit codes agree.
+Wired into `scripts/ci` (`--skip-fixture-parity`). `PANIC` rows are
+skipped (a `requires`-violation can't run inside one non-crashing
+binary) and zero results are compared by value only (SPEC pins no
+sign-of-zero for `ceil_f64`/`trunc_f64` of small negatives). The broad
+full-domain ULP sweep in `docs/ulp_audit_harness.c` stays C-backend-only
+by design — it needs `<math.h>` as its reference oracle.
 
 ---
 
