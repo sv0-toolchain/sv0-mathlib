@@ -160,11 +160,8 @@ compared by value only (SPEC pins no sign-of-zero for
 sweep in `docs/ulp_audit_harness.c` stays C-backend-only by design — it
 needs `<math.h>` as its reference oracle.
 
-**Open — the VM leg of that check is advisory, not gating.** Every row
-passes on the C backend, and on the VM backend under SML/NJ **2026.1**
-(the version on the dev machine it was written on). Under SML/NJ
-**110.99.9** (what the GitHub Actions runner installs), running the
-generated program on `sv0vm` aborts with, verbatim from CI:
+**Fixed (2026-08-30) — the VM leg now gates.** The abort, verbatim from
+CI (SML/NJ 110.99.9):
 
 ```
 run_fixture_parity: VM backend  — WARN (advisory): a requires/ensures aborted the run — ensures failed: frac_floor_of_nonneg
@@ -172,31 +169,35 @@ run_fixture_parity: VM backend  — WARN (advisory): a requires/ensures aborted 
 
 `frac_floor_of_nonneg` (`lib/arith.sv0`) is the shared bounded binary-
 search primitive behind `floor_f64`/`ceil_f64`/`round_f64`/`trunc_f64`;
-its `ensures` is `result <= x` and `result > x - 1.0 || result == x`. It
-is pure `f64` `+ - / <= >=` over exact powers of two — nothing that
-should differ across a correct IEEE-754 backend — so the leading
-suspect is the `Unsafe.cast`-based `real`↔`Word64` round-trip in
-`sv0vm/src/bytecode/bytecode.sml` (`f64Le`/`f64AtVec`) mis-decoding a
-literal like `4503599627370496.0` (2^52, the loop's starting `bit`)
-under 110.99.9's object representation, so the search accumulates a
-`result > x`. Alternatively a version-sensitive `Real` op in the
-interpreter's `arithFF`/`cmp` (`sv0vm/src/interpreter/interpreter.sml`).
-SML/NJ 110.99.9 segfaults under QEMU user-mode emulation on Apple
-Silicon, so it can't be reproduced on the dev machine — it needs a real
-amd64 Linux env.
+its `ensures` is `result <= x` and `result > x - 1.0 || result == x`,
+pure `f64` `+ - / <= >=` over exact powers of two. Root cause was in
+`sv0vm/src/bytecode/bytecode.sml`: `f64Le`/`f64AtVec` reinterpreted a
+`real` as a `Word64.word` via `Unsafe.cast`, which is not a reliable bit
+reinterpretation across SML/NJ major versions. Under 110.99.9 it
+mis-decoded a large-exponent `PUSH_F64` payload such as
+`4503599627370496.0` (2^52, the loop's starting `bit`), so the search
+overshot to `result > x`; every small-magnitude f64 program still
+passed, which is why nothing else caught it.
 
-**Attempted 2026-08-30, reverted.** A field-math codec replacing the
-`Unsafe.cast` (reconstruct the IEEE-754 fields with pure Basis `Real`
-ops) round-tripped every value on SML/NJ 2026.1 and passed the 7 small
-f64 behavioral-parity fixtures on 110.99.9 in CI — but regressed
-`--project ../sv0-mathlib` on 110.99.9 (`main.sv0` failed at case 1,
-`abs_i32(5)`, pure i32: a decode desync or an exception in the decode
-path for some bit pattern in the full library — possibly building NaN
-via a runtime `0.0/0.0` at decode time). Reverted (sv0vm `d990ef9`
-revert, sv0-mathlib `4945f8e` revert). Whoever retries needs the amd64
-Linux env to iterate; notes are in the follow-up task and this file's
-git history. The exit-code cross-backend gate (`vm_behavioral_parity.py`,
-COMPAT-001) and the C-backend per-fixture leg are unaffected and green.
+Fixed in **sv0vm `d990ef9`** (re-landed as `7a4faeb` after a false-alarm
+revert): the codec now assembles / decomposes the IEEE-754 sign /
+exponent / mantissa fields with pure Basis `Real` operations
+(`toManExp` / `fromManExp` / `toLargeInt` / `signBit`), no `Unsafe`; the
+little-endian `.sv0b` bit layout is unchanged. A `PUSH_F64` bit-pattern
+round-trip block was added to `sv0vm/test/bytecode_test.sml` (2^52, 2^53,
+17-digit values, +/-0.0, +/-inf, NaN, exact on-disk bytes). CI on SML/NJ
+110.99.9 with this codec ran the per-fixture VM leg 84/84 green and
+`vm_behavioral_parity` 8/8. `sv0-mathlib/scripts/ci` now runs
+`run_fixture_parity.py --strict-vm`, so both legs gate.
+
+It could not be reproduced on the dev machine (SML/NJ 110.99.9 segfaults
+under QEMU user-mode emulation on Apple Silicon), so the fix was verified
+through CI. One CI run with this exact codec flaked once
+(`vm_behavioral_parity --project ../sv0-mathlib` 1/8, then 8/8 on a
+re-run) -- a separate, pre-existing nondeterminism in the `--project` VM
+path (stale `/tmp/.sv0_drv_path` or emitter output ordering), mitigated
+by resetting `/tmp/.sv0_drv_path` before the parity steps in
+`scripts/ci`.
 
 ---
 

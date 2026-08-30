@@ -120,6 +120,9 @@ if [[ "$SKIP_PARITY" -eq 0 ]]; then
     echo "sv0-mathlib ci: missing $PARITY (update sv0-toolchain checkout)" >&2
     exit 1
   fi
+  # feedback_drv_path_reset: a stale /tmp/.sv0_drv_path (read as a PATH by
+  # the driver) has flaked the --project VM leg once; reset it here too.
+  printf '' > /tmp/.sv0_drv_path
   python3 "$PARITY"
   echo "sv0-mathlib ci: cross-backend parity OK"
 fi
@@ -129,15 +132,14 @@ if [[ "$SKIP_FIXTURE_PARITY" -eq 0 ]]; then
   # vm_behavioral_parity.py above compares only the whole-library exit
   # code between backends. run_fixture_parity.py goes row-by-row: it
   # generates one fn main()->i32 from test/fixtures/{rounding,trig}.csv
-  # (one check per row+function), then compiles+runs it and checks each
-  # result against the fixture's own EXPECTED column. The C-backend leg
-  # GATES (this is the reproducible form of the one-time manual check the
-  # fixture manifest used to describe). The VM-backend leg is ADVISORY:
-  # it passes on SML/NJ 2026.1 but a transcendental ensures aborts under
-  # the SML/NJ 110.99.9 this CI runner uses -- see BUGS.md. Pass
-  # --strict-vm to gate on it too. Needs SML/NJ + the sv0vm submodule.
+  # (one check per row+function), then compiles+runs it on BOTH backends
+  # and checks each result against the fixture's own EXPECTED column.
+  # --strict-vm makes the VM leg gate too (it did until sv0vm d990ef9
+  # replaced an Unsafe.cast f64 codec that mis-decoded 2^52 under the
+  # SML/NJ 110.99.9 this runner uses -- see BUGS.md). Needs SML/NJ + the
+  # sv0vm submodule.
   printf '' > /tmp/.sv0_drv_path
-  SV0_TOOLCHAIN_ROOT="$TOOLCHAIN" python3 "$HERE/scripts/run_fixture_parity.py"
+  SV0_TOOLCHAIN_ROOT="$TOOLCHAIN" python3 "$HERE/scripts/run_fixture_parity.py" --strict-vm
   echo "sv0-mathlib ci: per-fixture value check OK"
 fi
 
