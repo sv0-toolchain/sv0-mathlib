@@ -164,19 +164,29 @@ needs `<math.h>` as its reference oracle.
 passes on the C backend, and on the VM backend under SML/NJ **2026.1**
 (the version on the dev machine it was written on). Under SML/NJ
 **110.99.9** (what the GitHub Actions runner installs), running the
-generated program on `sv0vm` aborts with a `sv0 contract violation` — a
-transcendental `ensures` that holds under 2026.1's `Real` behaviour does
-not hold under 110.99.9's. Not yet root-caused: it needs a real amd64
-Linux environment (SML/NJ 110.99.9 segfaults under QEMU user-mode
-emulation on Apple Silicon, so it can't be reproduced locally here) or
-CI iteration. Candidates: the `Unsafe.cast`-based `real`↔`Word64`
-round-trip in `sv0vm/src/bytecode/bytecode.sml` (`f64Le`/`f64AtVec`)
-behaving differently across SML/NJ major versions, or a version-sensitive
-`Real` rounding/`Real.==` difference feeding one of the accuracy-audit's
-tightened `ensures` clauses. `run_fixture_parity.py --strict-vm` turns
-the VM leg into a hard failure for whoever picks this up. The exit-code
-cross-backend gate (`vm_behavioral_parity.py`, COMPAT-001) and the
-C-backend per-fixture leg are unaffected and green.
+generated program on `sv0vm` aborts with, verbatim from CI:
+
+```
+run_fixture_parity: VM backend  — WARN (advisory): a requires/ensures aborted the run — ensures failed: frac_floor_of_nonneg
+```
+
+`frac_floor_of_nonneg` (`lib/arith.sv0`) is the shared bounded binary-
+search primitive behind `floor_f64`/`ceil_f64`/`round_f64`/`trunc_f64`;
+its `ensures` is `result <= x` and `result > x - 1.0 || result == x`. It
+is pure `f64` `+ - / <= >=` over exact powers of two — nothing that
+should differ across a correct IEEE-754 backend — so the leading
+suspect is the `Unsafe.cast`-based `real`↔`Word64` round-trip in
+`sv0vm/src/bytecode/bytecode.sml` (`f64Le`/`f64AtVec`) mis-decoding a
+literal like `4503599627370496.0` (2^52, the loop's starting `bit`)
+under 110.99.9's object representation, so the search accumulates a
+`result > x`. Alternatively a version-sensitive `Real` op in the
+interpreter's `arithFF`/`cmp` (`sv0vm/src/interpreter/interpreter.sml`).
+Not yet root-caused: SML/NJ 110.99.9 segfaults under QEMU user-mode
+emulation on Apple Silicon, so it can't be reproduced on the dev
+machine — needs a real amd64 Linux env or a CI branch running
+`run_fixture_parity.py --strict-vm`. The exit-code cross-backend gate
+(`vm_behavioral_parity.py`, COMPAT-001) and the C-backend per-fixture
+leg are unaffected and green.
 
 ---
 
