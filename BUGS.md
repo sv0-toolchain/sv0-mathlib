@@ -181,12 +181,22 @@ literal like `4503599627370496.0` (2^52, the loop's starting `bit`)
 under 110.99.9's object representation, so the search accumulates a
 `result > x`. Alternatively a version-sensitive `Real` op in the
 interpreter's `arithFF`/`cmp` (`sv0vm/src/interpreter/interpreter.sml`).
-Not yet root-caused: SML/NJ 110.99.9 segfaults under QEMU user-mode
-emulation on Apple Silicon, so it can't be reproduced on the dev
-machine — needs a real amd64 Linux env or a CI branch running
-`run_fixture_parity.py --strict-vm`. The exit-code cross-backend gate
-(`vm_behavioral_parity.py`, COMPAT-001) and the C-backend per-fixture
-leg are unaffected and green.
+SML/NJ 110.99.9 segfaults under QEMU user-mode emulation on Apple
+Silicon, so it can't be reproduced on the dev machine — it needs a real
+amd64 Linux env.
+
+**Attempted 2026-08-30, reverted.** A field-math codec replacing the
+`Unsafe.cast` (reconstruct the IEEE-754 fields with pure Basis `Real`
+ops) round-tripped every value on SML/NJ 2026.1 and passed the 7 small
+f64 behavioral-parity fixtures on 110.99.9 in CI — but regressed
+`--project ../sv0-mathlib` on 110.99.9 (`main.sv0` failed at case 1,
+`abs_i32(5)`, pure i32: a decode desync or an exception in the decode
+path for some bit pattern in the full library — possibly building NaN
+via a runtime `0.0/0.0` at decode time). Reverted (sv0vm `d990ef9`
+revert, sv0-mathlib `4945f8e` revert). Whoever retries needs the amd64
+Linux env to iterate; notes are in the follow-up task and this file's
+git history. The exit-code cross-backend gate (`vm_behavioral_parity.py`,
+COMPAT-001) and the C-backend per-fixture leg are unaffected and green.
 
 ---
 
