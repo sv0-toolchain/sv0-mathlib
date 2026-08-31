@@ -7,6 +7,12 @@ strengthened or weakened. Versions follow [Semantic Versioning](https://semver.o
 
 ## [Unreleased]
 
+### Licensing
+
+- **Dual-licensed Apache-2.0 OR MIT** (`LICENSE-APACHE`, `LICENSE-MIT`),
+  matching the rest of the `sv0-toolchain` project. Previously the repo
+  carried no LICENSE files of its own.
+
 ### Repository shape
 
 - **This repo is now a git submodule of `sv0-toolchain`
