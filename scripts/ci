@@ -4,15 +4,25 @@
 # parity with the upstream toolchain (via the SAME upstream scripts,
 # not a local copy that could drift).
 #
-# Assumes sv0-mathlib is checked out as a sibling of sv0-toolchain (this
-# library's own README "Deviations from SPEC.md" #2) — set
-# SV0_TOOLCHAIN_ROOT to point elsewhere if it isn't.
+# sv0-mathlib is a submodule of sv0-toolchain (README "Deviations from
+# SPEC.md" #2/#10) — the toolchain root is this repo's parent directory.
+# The legacy sibling layout (../sv0-toolchain) is still auto-detected, and
+# SV0_TOOLCHAIN_ROOT overrides either (sv0-mathlib's own CI sets it).
 #
 # Usage: scripts/ci [--skip-fmt] [--skip-guard] [--skip-run] [--skip-unit] [--skip-fixtures] [--skip-doc] [--skip-parity] [--skip-fixture-parity]
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-TOOLCHAIN="${SV0_TOOLCHAIN_ROOT:-$HERE/../sv0-toolchain}"
+if [[ -n "${SV0_TOOLCHAIN_ROOT:-}" ]]; then
+  TOOLCHAIN="$SV0_TOOLCHAIN_ROOT"
+elif [[ -d "$HERE/../sv0c" && -f "$HERE/../scripts/sv0" ]]; then
+  TOOLCHAIN="$HERE/.."                 # submodule of sv0-toolchain
+elif [[ -d "$HERE/../sv0-toolchain" ]]; then
+  TOOLCHAIN="$HERE/../sv0-toolchain"   # legacy sibling layout
+else
+  TOOLCHAIN="$HERE/.."
+fi
+TOOLCHAIN="$(cd "$TOOLCHAIN" && pwd)"
 
 SKIP_FMT=0
 SKIP_GUARD=0

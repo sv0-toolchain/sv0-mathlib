@@ -284,7 +284,9 @@ def decode(ordv, checks: list[str]) -> str:
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--toolchain-root", type=Path,
-                    default=Path(os.environ.get("SV0_TOOLCHAIN_ROOT", HERE.parent / "sv0-toolchain")))
+                    default=Path(os.environ.get("SV0_TOOLCHAIN_ROOT")
+                                 or (HERE.parent if (HERE.parent / "sv0c").is_dir()
+                                     else HERE.parent / "sv0-toolchain")))
     ap.add_argument("--emit-only", type=Path, help="write the generated sv0 program here and exit")
     ap.add_argument("--c-only", action="store_true")
     ap.add_argument("--vm-only", action="store_true")

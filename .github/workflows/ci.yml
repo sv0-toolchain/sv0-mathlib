@@ -1,11 +1,13 @@
-# TEST-006 (R1): sv0-mathlib's own CI gate. Checks out sv0-toolchain as a
-# sibling directory (this library's own README "Deviations from SPEC.md"
-# #2 — driven by relative --project paths), bootstraps just enough of it
-# to get the native mega-TU compiler (build/sv0-megatu-compiler-native)
-# built, then runs scripts/ci — the SAME formatter/lint scripts the
-# upstream toolchain's own `./scripts/sv0 test-guards` uses (parity by
-# calling the canonical script, not a local copy that could drift), plus
-# a full compile+run of this project.
+# TEST-006 (R1): sv0-mathlib's own CI gate. sv0-mathlib is a submodule of
+# sv0-toolchain (README "Deviations from SPEC.md" #2/#10), but this
+# workflow runs when sv0-mathlib is pushed on its own, so it checks out a
+# fresh sv0-toolchain alongside and points SV0_TOOLCHAIN_ROOT at it. It
+# bootstraps just enough of the toolchain to get the native mega-TU
+# compiler + VM emitter built, then runs scripts/ci — the SAME
+# formatter/lint scripts the upstream toolchain's own
+# `./scripts/sv0 test-guards` uses (parity by calling the canonical
+# script, not a local copy that could drift), plus a full compile+run of
+# this project and the cross-backend parity checks.
 name: CI
 
 on:
@@ -34,7 +36,7 @@ jobs:
       - name: Use HTTPS for SSH-form submodule URLs in sv0-toolchain's .gitmodules
         run: git config --global url."https://github.com/".insteadOf "git@github.com:"
 
-      - name: Checkout sv0-toolchain (sibling directory, submodules recursive)
+      - name: Checkout sv0-toolchain alongside (submodules recursive)
         uses: actions/checkout@v4
         with:
           repository: sv0-toolchain/sv0-toolchain
@@ -71,4 +73,6 @@ jobs:
 
       - name: sv0-mathlib CI gate (fmt + block-comment guard + compile/run + cross-backend parity)
         working-directory: sv0-mathlib
+        env:
+          SV0_TOOLCHAIN_ROOT: ${{ github.workspace }}/sv0-toolchain
         run: bash scripts/ci

@@ -143,7 +143,7 @@ across both backends for every fixture including `--project
 lacks f64 — use the native path):
 ```bash
 # from the sv0-toolchain checkout
-./scripts/sv0 vm-native-compile --project ../sv0-mathlib /tmp/mathlib.sv0b
+./scripts/sv0 vm-native-compile --project sv0-mathlib /tmp/mathlib.sv0b
 ./scripts/sv0 vm-run /tmp/mathlib.sv0b     # vm_exit:0
 ```
 
