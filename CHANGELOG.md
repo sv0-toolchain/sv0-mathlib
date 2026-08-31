@@ -7,7 +7,21 @@ strengthened or weakened. Versions follow [Semantic Versioning](https://semver.o
 
 ## [Unreleased]
 
-_Nothing yet._
+### Repository shape
+
+- **This repo is now a git submodule of `sv0-toolchain`
+  (`sv0-toolchain/sv0-mathlib/`)**, not a separate sibling checkout —
+  a mechanical consolidation of SPEC.md §22 OQ-002's "a tree inside
+  `sv0-toolchain` itself" answer (README deviations #2 and #10 updated).
+  It stays its own GitHub repository with its own history, tags and
+  releases; the superproject pins a commit. No API, contract, accuracy
+  bound, or test changed. `scripts/ci` / `scripts/run_*.py` now find the
+  toolchain at this repo's parent directory by default (the legacy
+  sibling layout is still auto-detected, and `SV0_TOOLCHAIN_ROOT`
+  overrides both). `sv0-toolchain`'s own `./scripts/sv0 test` now
+  exercises this library via the always-present `--project sv0-mathlib`
+  behavioral-parity entry (previously skipped when the checkout was
+  absent).
 
 ## [0.1.0] — 2026-08-30
 

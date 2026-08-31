@@ -42,8 +42,8 @@ repo's own CI gate — `.sv0` whitespace formatting and the block-comment
 nesting guard via the SAME scripts `sv0-toolchain`'s own
 `./scripts/sv0 test-guards` uses (real parity, not a copy that could
 drift), plus a full compile+run of this project — and runs in GitHub
-Actions on every push/PR (`.github/workflows/ci.yml`, which bootstraps a
-sibling `sv0-toolchain` checkout first).
+Actions on every push/PR (`.github/workflows/ci.yml`, which checks out a
+fresh `sv0-toolchain` alongside first).
 
 **TEST-001 is met.** `test/unit/{arith,modular,trig,polar}_test.sv0`
 (each its own standalone, `--project`-compiled `fn main() -> i32`
@@ -200,14 +200,16 @@ toolchain and the spec disagree — write down the deviation and why).
    `lib/lib.sv0` (the umbrella re-export SPEC.md's CONV-001 describes) is
    not present — no `pub use` re-export syntax exists in sv0 today, so
    there's nothing for it to do yet.
-2. **Repo lives as a sibling of `sv0-toolchain`, driven by relative
-   `--project` paths** — see deviation #10 below for this being this
-   library's own formal resolution of SPEC.md §22 OQ-002, not just a
-   practical workaround: `./scripts/sv0 vm-project-compile
-   ../../sv0-mathlib` and `build/sv0-megatu-compiler-native --project
-   /path/to/sv0-mathlib` both work today from a `sv0-toolchain`
-   checkout. No `sv0.toml` exists in the toolchain to root a project a
-   different way.
+2. **Repo lives as a git submodule of `sv0-toolchain`
+   (`sv0-toolchain/sv0-mathlib/`), driven by `--project` paths** — see
+   deviation #10 below for this being this library's own formal
+   resolution of SPEC.md §22 OQ-002, not just a practical workaround:
+   `./scripts/sv0 vm-native-compile --project sv0-mathlib` and
+   `build/sv0-megatu-compiler-native --project /path/to/sv0-mathlib`
+   both work from a `sv0-toolchain` checkout. No `sv0.toml` exists in
+   the toolchain to root a project a different way. (It stays its own
+   GitHub repository with its own history, tags and releases; the
+   superproject just pins a commit.)
 3. **`abs_checked_i64` returns `OptionI64`, a second concrete enum, not
    `Option<T>` instantiated at `i64`.** sv0 generic enums resolve (BUGS.md
    #3) but the compiler doesn't monomorphize them: there is exactly one
@@ -287,35 +289,45 @@ toolchain and the spec disagree — write down the deviation and why).
    not a full checked-in reference table for the broad ULP sweep itself;
    that broad sweep still runs against system libm directly, live, per
    this deviation's own resolution.
-10. **This repository IS the sibling-of-`sv0-toolchain`, `--project`-
-    driven shape — resolving SPEC.md §22 Open Question 2.** Deviation
-    #2 above already described this as the PRACTICAL answer; recorded
-    here explicitly as the deviation's own formal resolution (SPEC.md
-    §21.5's R1-gate wording wants open questions "resolved or
-    explicitly deferred with rationale," not merely worked around).
-    No `sv0.toml`-rooted project convention exists anywhere in the
-    audited toolchain to root a project a different way (confirmed
-    empirically, not merely absent from documentation) — until one
-    does, `--project <dir>` against a sibling checkout is this
-    library's own repository shape, not a placeholder for something
-    else.
+10. **This repository is a git submodule of `sv0-toolchain`
+    (`sv0-toolchain/sv0-mathlib/`), `--project`-driven — resolving
+    SPEC.md §22 Open Question 2.** OQ-002 asked whether the library
+    ships as its own `sv0.toml`-rooted project *or* "as a copyable
+    tree inside `sv0-toolchain` itself" — this is the latter, made
+    concrete: a pinned submodule alongside `sv0c`/`sv0vm`/`sv0doc`,
+    so a `sv0-toolchain` checkout is the single working tree and the
+    `--project sv0-mathlib` cross-backend parity entry is always
+    present (`sv0-toolchain/scripts/vm_behavioral_parity.py`). It
+    keeps its own history, tags and releases as an independent
+    GitHub repo. (Through v0.1.0 this deviation recorded the
+    *sibling* layout; the submodule is a mechanical consolidation of
+    the same "tree inside sv0-toolchain" answer — no `sv0.toml`-rooted
+    convention exists in the toolchain to root a project a different
+    way, confirmed empirically.)
 
 ## Build and test
 
 **`scripts/ci`** (TEST-006) is the fastest way to check everything at
-once — from an `sv0-toolchain` checkout with `sv0-mathlib` checked out
-as a sibling directory (set `SV0_TOOLCHAIN_ROOT` if it isn't):
-`.sv0` whitespace formatting, the block-comment nesting guard (both via
-the SAME scripts `sv0-toolchain`'s own `./scripts/sv0 test-guards` uses,
-for real parity rather than a copy that could drift), and a full
-compile+run of this project:
+once. From a `sv0-toolchain` checkout with this submodule populated
+(`git submodule update --init sv0-mathlib`), run it from
+`sv0-toolchain/sv0-mathlib/`:
 
 ```bash
 bash scripts/ci
 ```
 
-Runs in CI on every push/PR (`.github/workflows/ci.yml`), which
-bootstraps a sibling `sv0-toolchain` checkout first.
+It finds the toolchain at its own parent directory automatically
+(`SV0_TOOLCHAIN_ROOT` overrides; the legacy sibling layout is still
+detected). It runs `.sv0` whitespace formatting and the block-comment
+nesting guard (via the SAME scripts `sv0-toolchain`'s own
+`./scripts/sv0 test-guards` uses — real parity, not a copy that could
+drift), a full compile+run of this project, `test/unit` + `test/property`,
+the fixture lint, and the cross-backend parity checks.
+
+Runs in CI on every push/PR (`.github/workflows/ci.yml`), which checks
+out a fresh `sv0-toolchain` alongside and points `SV0_TOOLCHAIN_ROOT` at
+it. `sv0-toolchain`'s own `./scripts/sv0 test` also exercises this
+library through the `--project sv0-mathlib` behavioral-parity entry.
 
 The individual steps, run by hand:
 
@@ -327,7 +339,7 @@ cc -std=c99 -O0 -w -I sv0c/runtime /tmp/mathlib.c sv0c/runtime/sv0_runtime.c -o 
 
 # VM backend (native emitter — f64/i64 capable; the SML --target=vm path
 # still lacks f64). From the sv0-toolchain checkout:
-./scripts/sv0 vm-native-compile --project ../sv0-mathlib /tmp/mathlib.sv0b
+./scripts/sv0 vm-native-compile --project sv0-mathlib /tmp/mathlib.sv0b
 ./scripts/sv0 vm-run /tmp/mathlib.sv0b   # vm_exit:0 — matches the C backend
 
 # Cross-backend parity (both of the above, exit codes compared):

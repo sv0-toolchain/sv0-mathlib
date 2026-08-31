@@ -16,8 +16,8 @@ python3 "$SV0_TOOLCHAIN_ROOT/scripts/vm_behavioral_parity.py"
 ```
 
 That harness reads `sv0c/test/vm-parity/behavioral-manifest.txt` in the
-toolchain, whose entries include `--project ../sv0-mathlib` (this checkout, as
-the documented sibling layout — README deviation #10). For each entry it:
+toolchain, whose entries include `--project sv0-mathlib` (this submodule —
+README deviation #10). For each entry it:
 
 1. emits C (`build/sv0-megatu-native`) → compiles → runs → records exit code;
 2. emits `.sv0b` (`build/sv0-megatu-vm-native`) → runs on `sv0vm` → records exit code;
@@ -29,9 +29,9 @@ backends. Running it by hand:
 
 ```bash
 # from the sv0-toolchain checkout
-./scripts/sv0 vm-native-compile --project ../sv0-mathlib /tmp/mathlib.sv0b
+./scripts/sv0 vm-native-compile --project sv0-mathlib /tmp/mathlib.sv0b
 ./scripts/sv0 vm-run /tmp/mathlib.sv0b            # expect vm_exit:0
-build/sv0-megatu-native --project ../sv0-mathlib > /tmp/mathlib.c
+build/sv0-megatu-native --project sv0-mathlib > /tmp/mathlib.c
 cc -std=c99 -O0 -w -I sv0c/runtime /tmp/mathlib.c sv0c/runtime/sv0_runtime.c -o /tmp/mathlib_c
 /tmp/mathlib_c; echo $?                            # expect 0
 ```

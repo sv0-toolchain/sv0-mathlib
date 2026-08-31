@@ -236,7 +236,10 @@ def main() -> int:
     p.add_argument(
         "--toolchain-root",
         type=Path,
-        default=Path(__import__("os").environ.get("SV0_TOOLCHAIN_ROOT", HERE.parent / "sv0-toolchain")),
+        default=Path(
+            __import__("os").environ.get("SV0_TOOLCHAIN_ROOT")
+            or (HERE.parent if (HERE.parent / "sv0c").is_dir() else HERE.parent / "sv0-toolchain")
+        ),
     )
     args = p.parse_args()
 
