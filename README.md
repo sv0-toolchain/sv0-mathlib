@@ -7,6 +7,11 @@ coordinates, and complex numbers, built contract-first per
 
 ## Status
 
+**Released: `v0.1.0` (2026-08-30) — the SPEC.md R1 gate (§21.5) is
+closed.** F0 + R0.1 + R0.2 + R0.3 are all shipped; see `CHANGELOG.md`
+for the gate-review record and the two known toolchain-side limitations
+(`CONV-010` deferred; the VM-backend per-fixture check advisory).
+
 **F0 complete. R0.1 complete. R0.2 complete. R0.3 complete.**
 `math::polar` (`Polar` struct, `to_polar`/`from_polar`, `scale_polar`/
 `rotate_polar`) and `math::complex` (`Complex` struct, componentwise +

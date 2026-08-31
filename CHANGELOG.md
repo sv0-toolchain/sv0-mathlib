@@ -2,11 +2,61 @@
 
 Per DOC-003 (R1): every release records user-visible changes, any
 tightened or loosened accuracy bound (PERF-002), and any contract
-strengthened or weakened. No version has been tagged yet — everything
-below is accumulated under `[Unreleased]` until the R1 gate review tags
-one (SPEC.md §21.5).
+strengthened or weakened. Versions follow [Semantic Versioning](https://semver.org/);
+`sv0` itself is pre-1.0, so this library is too.
 
 ## [Unreleased]
+
+_Nothing yet._
+
+## [0.1.0] — 2026-08-30
+
+First tagged release. **Closes the SPEC.md R1 gate (§21.5).** F0, R0.1,
+R0.2 and R0.3 are all implemented, contract-checked, accuracy-audited,
+and covered by the generated requirement-to-test matrix. Everything
+under this heading is the accumulated F0→R1 work; the R1 gate review
+itself is recorded first.
+
+### R1 gate review (SPEC.md §21.5, backlog F.5 / BL-123–BL-127)
+
+- **BL-123** — every requirement ID at or below R1 has at least one
+  passing test (`scripts/run_unit_tests.py`, wired into `scripts/ci`);
+  the generated `docs/requirement_test_matrix.md` has zero uncovered
+  in-scope IDs. `CONV-010` is **explicitly deferred**: the toolchain's
+  `--project` mode has no `--contract-mode` flag, so it is genuinely
+  untestable today — not unimplemented on this library's own side (full
+  investigation in `test/unit/conv_review.md`). `PERF-003` is
+  Future-scoped and out of R1.
+- **BL-124** — no accuracy bound has silently regressed. There is no
+  prior release to diff against; every PERF-002 bound is CI-enforced via
+  `test/unit/trig_test.sv0` and recorded in `docs/accuracy.md`. One
+  contract was *loosened* (see "Contracts loosened" below) with a
+  recorded rationale; a formal SPEC.md amendment to TRIG-004's literal
+  text (Section 24 change control) is the clean follow-up.
+- **BL-125** — SPEC.md §22 open questions: **OQ-002** (repository shape)
+  and **OQ-005** (ULP fixture reference) are **resolved** (README
+  deviations #10 and #9). **OQ-001** (`%` sign on negative operands),
+  **OQ-003** (Tier 2 native builtins) and **OQ-004** (generic numeric
+  facade) are **explicitly deferred with rationale** — none affects
+  shipped functionality (the spec itself scopes them out of F0–R1).
+- **BL-126** — this changelog.
+
+### Known limitations at 0.1.0
+
+These are documented toolchain gaps, not library defects; the public
+API, contracts and accuracy bounds are stable.
+
+- The per-fixture cross-backend check (`scripts/run_fixture_parity.py`,
+  COMPAT-002 / TEST-005) **gates on the C backend** and is **advisory on
+  the VM backend** — an `Unsafe.cast` f64-decode bug in `sv0vm` under
+  the SML/NJ 110.99.9 the CI runner installs (`BUGS.md`, "Per-fixture
+  value check"). The whole-library exit-code cross-backend gate
+  (`vm_behavioral_parity.py`, COMPAT-001) is green 8/8.
+- Workarounds are in place for open upstream `sv0c` bugs — `BUGS.md`
+  #15 (inline struct-literal argument field resolution), #17 (`--project`
+  discovery vs. alphabetical ordering), #18 (`let x: T = <bare var>;`
+  mistyping), #19 (struct-field binop in a struct literal / contract
+  clause mistyping to `int`).
 
 ### Accuracy bounds tightened (PERF-002)
 
