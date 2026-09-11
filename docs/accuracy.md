@@ -116,7 +116,7 @@ measured.
   correctly-rounded double-precision `atan` legitimately returns exactly
   the nearest representable double to `pi/2` for large enough `\|x\|`
   (confirmed against the system libm directly, not `sv0-mathlib`-specific
-  — see `README.md`'s "Deviations from SPEC.md"). Making `atan_f64` MORE
+  — see docs/deviations.md). Making `atan_f64` MORE
   accurate made hitting this boundary more likely, not less; an earlier,
   less accurate version happened to round just short of it by
   coincidence.

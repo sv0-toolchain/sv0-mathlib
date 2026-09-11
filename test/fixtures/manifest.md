@@ -3,7 +3,7 @@
 Every fixture file's provenance and the toolchain revision it was
 validated under, per TEST-002's own wording. This repo's own CI tracks
 the live upstream `sv0-toolchain` default branch (unpinned — see
-README's "Deviations from SPEC.md" #2 and `scripts/ci`'s own comment),
+docs/deviations.md #2 and `scripts/ci`'s own comment),
 so "the toolchain revision" below means the revision each row was
 GENERATED/VERIFIED against, not a permanent guarantee the values hold
 unchanged forever — `test/unit/`'s own suite (TEST-001) is what

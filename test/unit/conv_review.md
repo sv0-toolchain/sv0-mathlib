@@ -16,7 +16,7 @@ modular;`), `lib/trig.sv0` (`module trig;`), `lib/polar.sv0` (`module
 polar;`), `lib/complex.sv0` (`module complex;`) — confirmed present,
 one file each, `module <name>;` as the first statement in every file.
 Flat, not dotted (`module math::arith;`) — a documented, confirmed
-toolchain limitation (README's "Deviations from SPEC.md" #1: dotted
+toolchain limitation (docs/deviations.md #1: dotted
 module paths don't parse, `E0320`), not an oversight.
 
 ## REQ: CONV-002 — `f64` is the primary float type, `_f64`-suffixed

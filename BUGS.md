@@ -679,7 +679,7 @@ same translation unit) is not soundly usable with the SHARED
 around here, not fixed: `lib/prelude.sv0` additionally declares
 `OptionI64` (concrete, non-generic, `Some(i64)`/`None`) alongside the
 generic `Option<T>` used for `i32`, and `abs_checked_i64` returns
-`OptionI64` — see README.md's "Deviations from SPEC.md" for this as a
+`OptionI64` — see docs/deviations.md for this as a
 recorded workaround. This does not scale past a handful of concrete
 `_checked` return types without either (a) real monomorphization landing
 upstream, or (b) this library hand-declaring one concrete `Option<T>`
@@ -954,7 +954,7 @@ underlying `sv0c` regression is NOT fixed, and NOT yet root-caused.**
 Found setting up `scripts/ci` (TEST-006): `sv0-mathlib`'s CI, which
 checks out `sv0-toolchain`'s default branch fresh (not pinned to any
 particular commit — this library tracks the moving upstream, per its
-own README "Deviations from SPEC.md" #2), failed at `ln_f64`'s own
+own docs/deviations.md #2), failed at `ln_f64`'s own
 `main.sv0` assertion (`ln_f64(10.0)` off by more than its stated
 accuracy budget) against `sv0-toolchain` `c318513` / `sv0c` `53de895` —
 a LATER revision than the `sv0c` `d0fa706` this library's own accuracy

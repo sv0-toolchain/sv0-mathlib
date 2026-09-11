@@ -2,7 +2,7 @@
  * modular exponentiation/inverse, congruence.
  * Spec: sv0-mathlib SPEC.md Section 12 (MOD-001..007, all implemented).
  *
- * NOTE (toolchain gap, recorded in README.md "Deviations from SPEC.md"):
+ * NOTE (toolchain gap, recorded in docs/deviations.md):
  * `module math::modular;` is rejected by the current compiler (dotted
  * module paths); this file is `module modular;`.
  */

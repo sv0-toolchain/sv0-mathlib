@@ -1,7 +1,7 @@
 /* module::polar — Cartesian/polar conversion, polar-form scale and rotate.
  * Spec: sv0-mathlib SPEC.md Section 17 (POLAR-001..005).
  *
- * NOTE (toolchain gap, recorded in README.md "Deviations from SPEC.md"):
+ * NOTE (toolchain gap, recorded in docs/deviations.md):
  * `module math::polar;` is rejected by the current compiler (dotted
  * module paths); this file is `module polar;`.
  *

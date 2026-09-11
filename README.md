@@ -5,177 +5,121 @@ programming language: arithmetic, modular arithmetic, trigonometry, polar
 coordinates, and complex numbers, built contract-first per
 [SPEC.md](https://github.com/sv4u/project-specs/blob/main/sv0-mathlib/SPEC.md).
 
-## Status
+**Status: `v0.1.0`, released 2026-08-30.** The full SPEC.md ladder (F0
+through the R1 gate, §21.5) is implemented, contract-checked,
+accuracy-audited, and covered by a generated requirement-to-test matrix.
+See [CHANGELOG.md](CHANGELOG.md) for the release history and
+[docs/deviations.md](docs/deviations.md) for where this implementation
+and the spec disagree, and why.
 
-**Released: `v0.1.0` (2026-08-30) — the SPEC.md R1 gate (§21.5) is
-closed.** F0 + R0.1 + R0.2 + R0.3 are all shipped; see `CHANGELOG.md`
-for the gate-review record and the two known toolchain-side limitations
-(`CONV-010` deferred; the VM-backend per-fixture check advisory).
+## Modules
 
-**F0 complete. R0.1 complete. R0.2 complete. R0.3 complete.**
-`math::polar` (`Polar` struct, `to_polar`/`from_polar`, `scale_polar`/
-`rotate_polar`) and `math::complex` (`Complex` struct, componentwise +
-multiplicative arithmetic as free functions, `modulus`/`argument`/
-`conjugate`, polar interoperability, `approx_eq`) are both done. See
-README's "Deviations from SPEC.md" for why `math::complex`'s operators
-are free functions (not `impl Add`/etc.), `from_polar` returns a struct
-(not a tuple), and `div_checked_complex` returns a plain struct (not
-`Option<Complex>`) — three more real, confirmed toolchain gaps found
-finishing this module.
+| Module | Contents | Spec section |
+|---|---|---|
+| [`arith`](lib/arith.sv0) | abs/sign/min/max/clamp, rounding, integer power, checked/wrapping/saturating arithmetic, interpolation, FMA | §11 |
+| [`modular`](lib/modular.sv0) | floor/Euclidean remainder, GCD/LCM, modular add/sub/mul/pow/inverse, congruence | §12 |
+| [`trig`](lib/trig.sv0) | sqrt, trigonometric/hyperbolic functions, degree/radian conversion, hypot | §13–14 |
+| [`polar`](lib/polar.sv0) | Cartesian/polar conversion, polar-form scale and rotate | §17 |
+| [`complex`](lib/complex.sv0) | `Complex` arithmetic, modulus/argument/conjugate, polar interop, `exp`/`ln`/`pow` | §18 |
+| `prelude` | shared `Option`/`Result`-shaped types used across the above | — |
 
-**PERF-002's accuracy budget is now formally met and CPLX-007 is
-unblocked.** `docs/accuracy.md` records a measured maximum ULP error for
-every non-exact `math::trig` function (PERF-001); all ten
-(`sqrt_f64`/`sin_f64`/`cos_f64`/`tan_f64`/`asin_f64`/`acos_f64`/
-`atan_f64`/`atan2_f64`/`exp_f64`/`ln_f64`) now pass their pinned budget —
-several started this audit pass off by orders of magnitude (`acos_f64`
-measured 3029 ULP against a 3 ULP budget; `exp_f64` measured 714 against
-2) and were fixed via double-double (Dekker/Knuth-Møller) arithmetic
-carried through range reduction, quadrant folding, and series
-evaluation, the same technique `fma_f64` (ARITH-010) already used —
-see `docs/accuracy.md` for the full table and root-cause notes.
-`exp_complex`/`ln_complex`/`pow_complex` (CPLX-007) are implemented in
-`lib/complex.sv0`, verified via Euler's identity.
+111 public functions total — see [docs/api.md](docs/api.md) for the full
+generated reference (signature, contract, and doc comment per function).
 
-**TEST-006 (R1) is met.** `scripts/ci` (`bash scripts/ci`) is this
-repo's own CI gate — `.sv0` whitespace formatting and the block-comment
-nesting guard via the SAME scripts `sv0-toolchain`'s own
-`./scripts/sv0 test-guards` uses (real parity, not a copy that could
-drift), plus a full compile+run of this project — and runs in GitHub
-Actions on every push/PR (`.github/workflows/ci.yml`, which checks out a
-fresh `sv0-toolchain` alongside first).
+## Quick example
 
-**TEST-001 is met.** `test/unit/{arith,modular,trig,polar}_test.sv0`
-(each its own standalone, `--project`-compiled `fn main() -> i32`
-binary, per SPEC.md §16.1's own convention) plus `test/unit/
-conv_review.md` (a written review for Section 8's policy-style CONV-*
-requirements, which SPEC.md's own Verification column asks for as an
-inventory/review, not a per-value fixture) cover every requirement ID
-in SPEC.md Sections 8/11/12/13/15/17 except CONV-010 (genuinely
-untestable today — `--project`-mode has no `--contract-mode` flag,
-`conv_review.md` has the full investigation), explicitly deferred with
-rationale rather than silently skipped. `scripts/run_unit_tests.py`
-generates `docs/requirement_test_matrix.md` (the "Generated
-requirement-to-test matrix" TEST-001's own Verification column wants)
-and is wired into `scripts/ci`. Fixing this surfaced two more real
-toolchain gaps (BUGS.md #17, #18) and a genuine CONV-008 gap in this
-library's own code (9 of 34 `loop_invariant` clauses across
-`lib/arith.sv0`/`lib/modular.sv0`/`lib/trig.sv0` were bare
-`loop_invariant(true)` placeholders — all replaced with real,
-prose-explained invariants).
+```sv0
+use arith::abs_f64;
+use arith::clamp_f64;
+use trig::hypot_f64;
+use complex::Complex;
+use complex::mul_complex;
+use complex::modulus;
 
-**TEST-002/TEST-003/TEST-004 are met.** `test/fixtures/rounding.csv`
-(ARITH-005 names this file explicitly) and `test/fixtures/trig.csv`
-(hand-picked domain-boundary/`NaN`/`Infinity`/`-0.0` points for every
-ULP-budgeted `math::trig` function) each have a `test/fixtures/
-manifest.md` row recording provenance and the toolchain revision
-validated under (TEST-002), and `scripts/check_fixtures.py` (wired into
-`scripts/ci`) lints both for boundary/special-value coverage per
-non-exact function (TEST-003). `scripts/run_fixture_parity.py` (also in
-`scripts/ci`) additionally drives every row of both CSVs through a live
-`sv0`-compiled build and checks each result against its expected value —
-the reproducible form of the one-time manual check the manifest used to
-describe (COMPAT-002 / TEST-005, per-fixture). The C-backend leg gates;
-the VM-backend leg is advisory pending a not-yet-root-caused SML/NJ
-110.99.9 discrepancy (see `BUGS.md` / `test/fixtures/manifest.md`). `test/property/property_test.sv0` (also
-wired into `scripts/ci` via `scripts/run_unit_tests.py`) checks
-`sin_f64(x)^2 + cos_f64(x)^2 ~= 1.0`, `to_polar`/`from_polar`
-round-tripping, `mod_inverse_u64` composed with `mul_mod_u64`, and
-`Complex` addition/multiplication commutativity+associativity, over
-samples from a small deterministic PCG/Knuth-MMIX-style generator
-seeded by a checked-in literal (TEST-004 — re-running produces
-bit-identical samples and results by construction, no OS/wall-clock
-entropy involved at all).
+fn main() -> i32 {
+    let d: f64 = hypot_f64(3.0, 4.0);          // 5.0
+    let c: f64 = clamp_f64(abs_f64(0.0 - 9.0), 0.0, 5.0); // 5.0
 
-Building the boundary fixtures and the property-test layer surfaced
-FOUR more real gaps: two genuine bugs in this library's own code
-(`sqrt_f64(+Infinity)` and `exp_f64(-Infinity)` were both silently
-computing `NaN` instead of `Infinity`/`0.0`; `abs_f64`'s own `ensures`
-had no `NaN` escape hatch), and two more toolchain regressions (BUGS.md
-#19 — a struct-literal field initializer OR a `requires`/`ensures`
-clause combining a struct-field access in a binop mistypes as `int`,
-the widest and most consequential of this session's toolchain findings:
-it made every one of `math::complex`'s componentwise arithmetic
-functions and their own contracts silently wrong or flaky under the
-newer, unpinned upstream toolchain revision `scripts/ci` actually
-tracks — found specifically because the property-test layer exercises
-RANDOM, not just hand-picked, inputs, exactly the gap SPEC.md's own
-Section 16.2 property layer exists to catch).
+    let a: Complex = Complex { re: 1.0, im: 2.0 };
+    let b: Complex = Complex { re: 3.0, im: 0.0 - 1.0 };
+    let p: Complex = mul_complex(a, b);         // 5.0 + 5.0i
+    let m: f64 = modulus(p);                    // ~7.071
 
-**F0's own surface, including `abs_checked_i64`:** `math::arith`'s ARITH-001..004
-are fully implemented and contract-checked: all i32, i64, and f64 forms
-(`abs_i32`/`abs_i64`/`abs_f64`, `sign_i32`/`sign_i64`/`sign_f64`,
-`min_i32`/`min_f64`, `max_i32`/`max_f64`, `clamp_i32`/`clamp_f64`), plus
-`abs_checked_i32`/`abs_checked_i64` (`Option`/`OptionI64`-returning) and
-the shared `prelude` (`Option`/`Result`/`OptionI64`). Verified on the **C
-backend** by inspecting the emitted C directly, not just exit codes —
-correct `int`/`int64_t`/`double` typing throughout (params, locals,
-contract-result slots, call-result temps, enum payload struct fields, and
-match-arm payload bindings), real `i64`-magnitude values round-tripping
-correctly, and `Option`/`Result`/`OptionI64` compiling to real
-tagged-struct types with working `Some`/`None` match logic. The **VM
-backend** now compiles **and runs** the entire library — i32, i64/u64,
-and f64 — with results identical to the C backend (`sv0-toolchain`'s
-`sv0c-vm-float-parity` work, 2026-08-29; see BUGS.md #2). Cross-backend
-parity is checked by `scripts/ci` (`test/parity/README.md`). The legacy
-SML `--target=vm` path still lacks f64 — use `./scripts/sv0
-vm-native-compile --project` instead.
+    if d == 5.0 && c == 5.0 { return 0; }
+    return 1;
+}
+```
 
-See [BUGS.md](BUGS.md) for nineteen toolchain gaps found across F0,
-R0.1, R0.2, R0.3, the accuracy-audit pass, and TEST-006/TEST-001/
-TEST-004's setup. **Eleven are fixed**: bug #5
-(`f64` silently compiling as `int`), bug #3 (generic enums like
-`Option<T>` failing to resolve), bug #1 (integer literals wider than i32
-truncating), bug #7 (an explicit `let x: f64 = <arithmetic-expr>;` local
-silently defaulting to `int`), bug #8 (enum payload slots and match-arm
-payload bindings always `int`), bug #6's silent-diagnostics half (a
-parse failure used to exit nonzero with zero error text — the same fix
-also surfaced and fixed a real, sv0-mathlib-unrelated pre-existing bug in
-sv0c's own test corpus, bare struct-field assignment statements silently
-compiling to nothing), bug #2 (the VM-path checker
-rejected i64/u32/f64 arithmetic anywhere; and, as of 2026-08-29, the
-native VM emitter + `sv0vm` gained full f64/i64/wide-int + contract
-support so this library now runs on the VM backend), bug
-#10 (`loop_invariant` anywhere in a file corrupting name resolution for
-an unrelated earlier function), bug #11 (`match` on a direct call
-result, no intermediate `let`, mistyping the payload binding), bug #13
-(a binop directly on a struct field access mistyping its own temp), and
-bug #14 (a struct field name token landing at a coincidental source
-position `500-599` was silently misread as an unrelated
-tuple-projection index — found via `math::trig`'s first struct literal).
-**Seven remain genuine open gaps, each with a documented, verified
-workaround this library uses instead**: bug #9 (generic enums resolve
-but don't monomorphize — `abs_checked_i64` uses a concrete `OptionI64`
-instead of the shared `Option<T>`), bug #12 (`match` used as a value
-mistypes its own result temp — worked around via match-as-statement,
-used throughout `pow_checked_i64` onward), bug #15 (an inline struct
-literal passed directly as a function-call argument sometimes resolves
-its field names against the wrong struct declaration, found finishing
-CPLX-007 — worked around by binding struct literals to a `let` before
-passing them as arguments), bug #16 (a bare `return field_a +
-field_b;` combining two fields of the SAME struct instance mistypes its
-own temp — a regression past bug #13's own fix, found setting up
-`scripts/ci`/TEST-006 against a later upstream revision than the rest of
-this library was tested against — worked around by copying each field
-into its own local first, applied to `ln_f64`/`sin_f64`/`cos_f64`/
-`atan_f64`), bug #17 (`--project` file discovery silently fails — exit
-2, zero diagnostics — when a top-level file/directory sorts
-alphabetically before `lib`, found setting up `test/unit/` — worked
-around in `scripts/run_unit_tests.py` by staging each unit test file
-inside a subdirectory that sorts after `lib`), bug #18 (`let x:
-StructType = <bare variable already of that type>;` mistypes the new
-local as `int`, found writing `test/unit/polar_test.sv0`'s own
-`Copy`-derivation test — worked around by routing the copy through a
-trivial identity function call instead), and bug #19 (the same "binop
-on a struct field access mistypes its own temp" family as bug #16, but
-for a struct-literal field initializer OR a `requires`/`ensures`
-clause specifically — found via `test/property/property_test.sv0`'s
-random-sample associativity check, TEST-004 — worked around throughout
-`lib/complex.sv0`/`lib/polar.sv0`/`lib/trig.sv0` by extracting fields
-to locals before struct-literal use, and by routing contract-clause
-expressions through small pure helper functions since a contract can't
-reference the function body's own locals), plus the VM bytecode
-float-lowering gap noted above.
+Every non-exact function (anything with a measured ULP error — the
+trigonometric, exponential, and complex-exponential families) documents
+its accuracy budget in its own doc comment and in
+[docs/accuracy.md](docs/accuracy.md).
+
+## Build and test
+
+**`scripts/ci`** is the fastest way to check everything at once. From a
+`sv0-toolchain` checkout with this submodule populated
+(`git submodule update --init sv0-mathlib`), run it from
+`sv0-toolchain/sv0-mathlib/`:
+
+```bash
+bash scripts/ci
+```
+
+It finds the toolchain at its own parent directory automatically
+(`SV0_TOOLCHAIN_ROOT` overrides). It runs `.sv0` whitespace formatting
+and the block-comment nesting guard (via the same scripts
+`sv0-toolchain`'s own `./scripts/sv0 test-guards` uses), a full
+compile+run of this project, `test/unit` + `test/property`, the doc-comment
+and fixture-coverage lints, and the cross-backend (C vs. VM) parity checks.
+It also runs in GitHub Actions on every push/PR
+(`.github/workflows/ci.yml`).
+
+The individual steps, run by hand:
+
+```bash
+# C backend (native compiler)
+build/sv0-megatu-compiler-native --project /path/to/sv0-mathlib > /tmp/mathlib.c
+cc -std=c99 -O0 -w -I sv0c/runtime /tmp/mathlib.c sv0c/runtime/sv0_runtime.c -o /tmp/mathlib_bin
+/tmp/mathlib_bin; echo $?   # 0 = pass
+
+# VM backend (native emitter — f64/i64 capable)
+./scripts/sv0 vm-native-compile --project sv0-mathlib /tmp/mathlib.sv0b
+./scripts/sv0 vm-run /tmp/mathlib.sv0b   # vm_exit:0 — matches the C backend
+
+# Cross-backend parity (both of the above, exit codes compared):
+./scripts/sv0 vm-behavioral-parity
+```
+
+## Repository layout
+
+```text
+sv0-mathlib/
+├── README.md
+├── CHANGELOG.md     # user-visible changes, accuracy-bound changes, contract changes
+├── BUGS.md          # toolchain-level gaps found during development (upstream sv0c/sv0vm issues)
+├── main.sv0         # smoke/demo entry point
+├── .github/workflows/ci.yml
+├── scripts/
+│   ├── ci                    # the CI gate: fmt + guard + compile/run + tests + lints + parity
+│   ├── run_unit_tests.py     # runs test/unit + test/property, generates docs/requirement_test_matrix.md
+│   ├── check_fixtures.py     # fixture-manifest completeness + boundary-coverage lint
+│   ├── check_doc_comments.py # doc-comment coverage lint
+│   ├── gen_api_docs.py       # generates docs/api.md
+│   └── run_fixture_parity.py # drives every fixture row through a live build, checks vs. expected
+├── lib/               # arith, modular, trig, polar, complex, prelude
+├── test/
+│   ├── unit/           # one standalone fn main()->i32 binary per module
+│   ├── property/       # seeded-PRNG algebraic-invariant checks
+│   ├── fixtures/       # boundary/special-value CSV tables + manifest
+│   └── parity/         # cross-backend parity (see parity/README.md)
+└── docs/
+    ├── api.md                      # generated: full function reference
+    ├── accuracy.md                 # measured ULP error per non-exact function
+    ├── deviations.md               # where this library departs from SPEC.md, and why
+    ├── ulp_audit_harness.c         # the C harness used to produce accuracy.md's numbers
+    └── requirement_test_matrix.md  # generated: requirement ID -> test mapping
+```
 
 ## Tier 1 / Tier 2
 
@@ -186,208 +130,19 @@ sv0 using arithmetic operators only, portable to every backend without a
 compiler change. A **Tier 2** (native-builtin-backed) tier is a possible
 future direction, not a commitment — see SPEC.md §4.3 and §22 OQ-003.
 
-## Deviations from SPEC.md
+## Known limitations
 
-Recorded here per the spec's own GOV-004 (don't silently guess when the
-toolchain and the spec disagree — write down the deviation and why).
+- The legacy SML `--target=vm` path lacks `f64` support — use
+  `./scripts/sv0 vm-native-compile --project` instead.
+- The VM-backend leg of `scripts/run_fixture_parity.py` is advisory, not
+  gating, pending a not-yet-root-caused SML/NJ 110.99.9 discrepancy.
+- A handful of `sv0` toolchain gaps have documented, verified workarounds
+  in this library's own source (see the relevant doc comment or module
+  header for the specific one in play).
 
-1. **Module names are flat, not dotted.** SPEC.md's CONV-001 calls for
-   `module math::arith;` etc. The compiler rejects dotted module paths
-   (`E0320: module path must be a single identifier in this slice`), so
-   this repo uses flat names instead: `arith`, `modular`, `trig`, `polar`,
-   `complex`, `prelude` (for the shared `Option`/`Result` declarations).
-   Consumers write `use arith::abs_i32;`, not `use math::arith::abs_i32;`.
-   `lib/lib.sv0` (the umbrella re-export SPEC.md's CONV-001 describes) is
-   not present — no `pub use` re-export syntax exists in sv0 today, so
-   there's nothing for it to do yet.
-2. **Repo lives as a git submodule of `sv0-toolchain`
-   (`sv0-toolchain/sv0-mathlib/`), driven by `--project` paths** — see
-   deviation #10 below for this being this library's own formal
-   resolution of SPEC.md §22 OQ-002, not just a practical workaround:
-   `./scripts/sv0 vm-native-compile --project sv0-mathlib` and
-   `build/sv0-megatu-compiler-native --project /path/to/sv0-mathlib`
-   both work from a `sv0-toolchain` checkout. No `sv0.toml` exists in
-   the toolchain to root a project a different way. (It stays its own
-   GitHub repository with its own history, tags and releases; the
-   superproject just pins a commit.)
-3. **`abs_checked_i64` returns `OptionI64`, a second concrete enum, not
-   `Option<T>` instantiated at `i64`.** sv0 generic enums resolve (BUGS.md
-   #3) but the compiler doesn't monomorphize them: there is exactly one
-   physical struct for `Option<T>`, and its payload slot's C type is
-   resolved from the *declaration's* own payload type token — for a
-   generic enum that token is the literal parameter name `T`, never a
-   concrete type. Reusing the shared `Option<T>` for an `i64` payload would
-   silently truncate it through the same 32-bit-`int` bug BUGS.md #8 fixed
-   for the non-generic case. `lib/prelude.sv0` declares `OptionI64`
-   (concrete, `Some(i64)`/`None`) as a dedicated companion instead — see
-   BUGS.md #9. Not a scalable pattern past a handful of concrete `_checked`
-   return types; worth revisiting before R0.1+'s larger `_checked` surface
-   if bug #9 isn't fixed by then.
-4. **`sqrt_f64`/`sqrt_checked_f64` live in `lib/trig.sv0`, not
-   `lib/arith.sv0`.** SPEC.md fully specifies both (Section 14.3's
-   Newton-Raphson algorithm, Appendix C's worked `sqrt_checked_f64`
-   contract, PERF-002's 2 ULP requirement) but never assigns either a
-   requirement ID or a home module — neither `math::arith`'s scope
-   (Section 11) nor `math::trig`'s own scope (13.1, which lists sin/cos/
-   tan/asin/acos/atan/atan2/sinh/cosh/tanh/degree-radian conversion/
-   hypot, but not "sqrt") names it. Placed in `math::trig` because
-   `hypot_f64` (TRIG-007) needs it directly and AD-004 already groups
-   "Newton-Raphson for roots" with "trig" as one combined design
-   decision — see `lib/trig.sv0`'s own header comment for the full
-   reasoning.
-5. **`math::complex`'s operators are free functions, not `impl Add`/
-   `impl Sub`/`impl Neg`/`impl Mul`/`impl Div for Complex`.** CPLX-002/
-   CPLX-003 specify operator-trait desugaring; this compiler slice does
-   not parse `impl <Trait> for <Type>` at all (`error[E0100]: syntax
-   error`, confirmed empirically — not merely an unimplemented
-   desugaring), matching an already-known gap from earlier in this
-   project's toolchain audit. `add_complex`/`sub_complex`/`neg_complex`/
-   `mul_complex`/`div_complex` provide the same operations, called
-   explicitly instead of via `+`/`-`/`-x`/`*`/`/`.
-6. **`math::polar`'s `from_polar` returns a `Point2` struct, not a
-   tuple.** POLAR-003 specifies `(f64, f64)`; this compiler slice
-   rejects multi-element tuples outright (`E0446: multi-element tuples
-   are not supported in this slice`, confirmed empirically).
-7. **`math::complex`'s `div_checked_complex` returns a `ComplexResult
-   { ok: bool, re: f64, im: f64 }` struct, not `Option<Complex>`.**
-   Beyond BUGS.md #9 (the shared generic `Option<T>` doesn't
-   monomorphize), a STRUCT payload hits a deeper wall: an enum's
-   payload slot in this compiler is always a single scalar C word — no
-   slot category exists for "a whole struct," so even a concrete
-   `enum OptionComplex { Some(Complex), None }` fails at the C level
-   (`error: assigning to 'int' from incompatible type 'Complex'`,
-   confirmed empirically). `div_checked_complex` returns the same
-   "no panic on runtime-unknown input" behavior AD-005 wants without
-   needing an enum payload to hold a struct at all.
-8. **`atan_f64`'s `ensures` uses `>=`/`<=`, not TRIG-004's literal
-   strict `>`/`<`.** True `atan(x)` lies in the open interval
-   `(-pi/2, pi/2)`, but a correctly-rounded `f64` `atan` legitimately
-   returns exactly the nearest representable double to `pi/2` for
-   sufficiently large `|x|` — confirmed against the system libm directly
-   (`atan(1e50)`, `atan(1e300)`, etc. all return `== M_PI/2` in plain C,
-   not `sv0-mathlib`-specific). A strict inequality is unsatisfiable for
-   an accurate double-precision implementation; the non-strict form
-   matches `sin_f64`/`cos_f64`'s own boundary-inclusive convention. See
-   `docs/accuracy.md` for the full accuracy audit this was found during.
-9. **The Section 15 ULP fixture tables' authoritative reference is the
-   system libm (`<math.h>`), not a hand-derived arbitrary-precision
-   computation checked into this repository — resolving SPEC.md §22
-   Open Question 5.** SPEC.md assumed the latter by default but didn't
-   mandate it. In practice, `docs/ulp_audit_harness.c` (checked in)
-   compares every function directly against the system's `<math.h>`/
-   `<complex.h>` implementations, which is simpler, has no extra
-   toolchain dependency, and covers the full swept domain rather than a
-   fixed checked-in table. The one place this needed reinforcing:
-   system libm is NOT always correctly rounded itself (found auditing
-   `pow_complex` — `cpow`/`cexp` measured genuinely less accurate than
-   this library at some points, confirmed against an independent
-   arbitrary-precision reference, `mpmath`, used ad hoc as a
-   second-opinion check rather than as the primary fixture source — see
-   `docs/accuracy.md`'s own notes on `pow_complex`). `test/fixtures/`
-   (TEST-002/TEST-003) DOES now exist — `rounding.csv`/`trig.csv` —
-   but as a small set of named, discrete boundary/special-value points,
-   not a full checked-in reference table for the broad ULP sweep itself;
-   that broad sweep still runs against system libm directly, live, per
-   this deviation's own resolution.
-10. **This repository is a git submodule of `sv0-toolchain`
-    (`sv0-toolchain/sv0-mathlib/`), `--project`-driven — resolving
-    SPEC.md §22 Open Question 2.** OQ-002 asked whether the library
-    ships as its own `sv0.toml`-rooted project *or* "as a copyable
-    tree inside `sv0-toolchain` itself" — this is the latter, made
-    concrete: a pinned submodule alongside `sv0c`/`sv0vm`/`sv0doc`,
-    so a `sv0-toolchain` checkout is the single working tree and the
-    `--project sv0-mathlib` cross-backend parity entry is always
-    present (`sv0-toolchain/scripts/vm_behavioral_parity.py`). It
-    keeps its own history, tags and releases as an independent
-    GitHub repo. (Through v0.1.0 this deviation recorded the
-    *sibling* layout; the submodule is a mechanical consolidation of
-    the same "tree inside sv0-toolchain" answer — no `sv0.toml`-rooted
-    convention exists in the toolchain to root a project a different
-    way, confirmed empirically.)
-
-## Build and test
-
-**`scripts/ci`** (TEST-006) is the fastest way to check everything at
-once. From a `sv0-toolchain` checkout with this submodule populated
-(`git submodule update --init sv0-mathlib`), run it from
-`sv0-toolchain/sv0-mathlib/`:
-
-```bash
-bash scripts/ci
-```
-
-It finds the toolchain at its own parent directory automatically
-(`SV0_TOOLCHAIN_ROOT` overrides; the legacy sibling layout is still
-detected). It runs `.sv0` whitespace formatting and the block-comment
-nesting guard (via the SAME scripts `sv0-toolchain`'s own
-`./scripts/sv0 test-guards` uses — real parity, not a copy that could
-drift), a full compile+run of this project, `test/unit` + `test/property`,
-the fixture lint, and the cross-backend parity checks.
-
-Runs in CI on every push/PR (`.github/workflows/ci.yml`), which checks
-out a fresh `sv0-toolchain` alongside and points `SV0_TOOLCHAIN_ROOT` at
-it. `sv0-toolchain`'s own `./scripts/sv0 test` also exercises this
-library through the `--project sv0-mathlib` behavioral-parity entry.
-
-The individual steps, run by hand:
-
-```bash
-# C backend (native compiler)
-build/sv0-megatu-compiler-native --project /path/to/sv0-mathlib > /tmp/mathlib.c
-cc -std=c99 -O0 -w -I sv0c/runtime /tmp/mathlib.c sv0c/runtime/sv0_runtime.c -o /tmp/mathlib_bin
-/tmp/mathlib_bin; echo $?   # 0 = pass
-
-# VM backend (native emitter — f64/i64 capable; the SML --target=vm path
-# still lacks f64). From the sv0-toolchain checkout:
-./scripts/sv0 vm-native-compile --project sv0-mathlib /tmp/mathlib.sv0b
-./scripts/sv0 vm-run /tmp/mathlib.sv0b   # vm_exit:0 — matches the C backend
-
-# Cross-backend parity (both of the above, exit codes compared):
-./scripts/sv0 vm-behavioral-parity
-```
-
-When touching `f64` code, don't trust an exit code alone — grep the emitted
-C for `double` where you expect it (see BUGS.md #5's fix for exactly how
-this bit us once already).
-
-`main.sv0` currently doubles as the ARITH-001 test binary (0 = pass,
-nonzero = first failing case index) — see `main.sv0`'s comment for why the
-per-function `test/unit/<fn>_test.sv0` layout SPEC.md §16.1 describes isn't
-wired up yet (the project tooling has no multi-entry-point convention we've
-confirmed works).
-
-## Repository layout
-
-```text
-sv0-mathlib/
-├── README.md
-├── CHANGELOG.md     # DOC-003: user-visible changes, accuracy bound changes, contract changes
-├── BUGS.md          # toolchain gaps found during development
-├── main.sv0         # smoke/demo entry point (also the full test suite today)
-├── .github/workflows/ci.yml  # TEST-006: CI gate (bootstraps sv0-toolchain, then scripts/ci)
-├── scripts/
-│   ├── ci                    # TEST-006: fmt-check + block-comment guard + compile/run + test/unit + fixtures + cross-backend parity
-│   ├── run_unit_tests.py     # TEST-001/TEST-004: runs test/unit + test/property, generates the requirement-to-test matrix
-│   ├── check_fixtures.py     # TEST-002/TEST-003: fixture-manifest completeness + boundary-coverage lint
-│   └── run_fixture_parity.py # COMPAT-002/TEST-005: drives every rounding.csv/trig.csv row through a live build, checks each vs its expected value (C gates; VM advisory)
-├── lib/
-│   ├── arith.sv0     # module arith — F0 arithmetic core (Section 11)
-│   ├── modular.sv0   # module modular — R0.1/R0.2 modular arithmetic (Section 12)
-│   ├── trig.sv0       # module trig — R0.2 sqrt/trig/exp/ln (Section 13-14)
-│   ├── polar.sv0      # module polar — R0.3 polar coordinates (Section 17)
-│   ├── complex.sv0    # module complex — R0.3 complex numbers, incl. CPLX-007 (Section 18)
-│   └── prelude.sv0   # module prelude — shared Option/Result declarations
-├── test/
-│   ├── unit/          # TEST-001: one standalone fn main()->i32 binary per module,
-│   │                  # plus conv_review.md for Section 8's policy-style CONV-* requirements
-│   ├── property/      # TEST-004: property_test.sv0 — seeded-PRNG algebraic-invariant checks
-│   ├── fixtures/      # TEST-002/TEST-003: rounding.csv, trig.csv, manifest.md
-│   └── parity/        # COMPAT-001/002 / TEST-005 — cross-backend parity via scripts/ci (see parity/README.md)
-└── docs/
-    ├── accuracy.md                     # PERF-001/PERF-002: measured ULP error per non-exact function
-    ├── ulp_audit_harness.c             # the standalone C harness used to produce accuracy.md's numbers
-    └── requirement_test_matrix.md      # generated by scripts/run_unit_tests.py — do not hand-edit
-```
+See [BUGS.md](BUGS.md) for the full, itemized toolchain-gap record kept
+during this library's development — useful if you're working on `sv0c`/
+`sv0vm` itself, not required reading to use this library.
 
 ## License
 

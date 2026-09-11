@@ -2,7 +2,7 @@
  * conversion, and (see the deviation note below) sqrt.
  * Spec: sv0-mathlib SPEC.md Section 13 (TRIG-001..007).
  *
- * NOTE (toolchain gap, recorded in README.md "Deviations from SPEC.md"):
+ * NOTE (toolchain gap, recorded in docs/deviations.md):
  * `module math::trig;` is rejected by the current compiler (dotted
  * module paths); this file is `module trig;`.
  *

@@ -115,6 +115,8 @@ if [[ "$SKIP_DOC" -eq 0 ]]; then
   echo "== sv0-mathlib ci: doc-comment coverage lint (DOC-001) =="
   python3 "$HERE/scripts/check_doc_comments.py"
   echo "sv0-mathlib ci: doc comments OK"
+  echo "== sv0-mathlib ci: regenerate docs/api.md =="
+  python3 "$HERE/scripts/gen_api_docs.py"
 fi
 
 if [[ "$SKIP_PARITY" -eq 0 ]]; then

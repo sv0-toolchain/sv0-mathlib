@@ -2,7 +2,7 @@
  * power, checked/wrapping/saturating arithmetic, interpolation, FMA.
  * Spec: sv0-mathlib SPEC.md Section 11 (ARITH-001..010).
  *
- * NOTE (toolchain gap, recorded in README.md "Deviations from SPEC.md"):
+ * NOTE (toolchain gap, recorded in docs/deviations.md):
  * `module math::arith;` (a dotted module path) is rejected by the current
  * compiler ("E0320: module path must be a single identifier in this
  * slice"), so this file is `module arith;`, not `module math::arith;`.
@@ -112,7 +112,7 @@ fn abs_i64(x: i64) -> i64
  * shared Option<T>'s payload slot type is textually "T" at its
  * declaration, never a concrete type, so bug #8's per-slot-category
  * resolution has nothing to key off for the generic case. See BUGS.md #9
- * and README.md's "Deviations from SPEC.md".
+ * and docs/deviations.md.
  */
 fn abs_checked_i64(x: i64) -> OptionI64 {
     if x == (0 - 9223372036854775807 - 1) {

@@ -50,7 +50,7 @@ MATRIX_OUT = HERE / "docs" / "requirement_test_matrix.md"
 # 11 (ARITH-*), 12 (MOD-*), 13 (TRIG-*), 15 (PERF-*), 17 (POLAR-*).
 # Hand-transcribed from SPEC.md's own requirement tables (not generated
 # from a checked-in copy of SPEC.md — this repo doesn't vendor the spec,
-# see README's "Deviations from SPEC.md" #2) — re-check this list by
+# see docs/deviations.md #2) — re-check this list by
 # hand against SPEC.md's Sections 8/11/12/13/15/17 if either drifts.
 REQUIRED_IDS: dict[str, str] = {
     "CONV-001": "F0",

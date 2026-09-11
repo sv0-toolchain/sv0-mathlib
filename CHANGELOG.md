@@ -7,6 +7,28 @@ strengthened or weakened. Versions follow [Semantic Versioning](https://semver.o
 
 ## [Unreleased]
 
+### Documentation
+
+- **README.md rewritten to read as a standard-library README**, not a
+  development log: a module table, a compiled-and-run quick-start
+  example, and a trimmed build/test section replace the old
+  chronological "Status" narrative (every bug/deviation it recited is
+  still fully recorded, just in the right place — see below).
+- **New `docs/api.md`** — a generated, single-page API reference (one
+  entry per public function: signature, `requires`/`ensures`, and its
+  DOC-001 doc comment), produced by new `scripts/gen_api_docs.py` and
+  wired into `scripts/ci` so it can't go stale relative to the source.
+- **New `docs/deviations.md`** — the 10-item "Deviations from SPEC.md"
+  list moved out of README.md verbatim (no content changed) into its
+  own file; every cross-reference to it across `lib/*.sv0`, `BUGS.md`,
+  `CHANGELOG.md`, `docs/accuracy.md`, `test/unit/*`, and
+  `scripts/run_unit_tests.py` updated to point at the new location.
+  README.md now carries a short pointer instead of the full list.
+- `BUGS.md` (the itemized toolchain-gap record) is unchanged in content
+  and stays at the repo root, but README.md now frames it explicitly as
+  development-history reading, not something a consumer of the library
+  needs to read first.
+
 ### Licensing
 
 - **Dual-licensed Apache-2.0 OR MIT** (`LICENSE-APACHE`, `LICENSE-MIT`),
@@ -126,7 +148,7 @@ arbitrary-precision reference), not a defect in this library. See
   boundary MORE likely, not less (an earlier, less accurate version
   happened to round just short of it by coincidence). Matches
   `sin_f64`/`cos_f64`'s own boundary-inclusive convention. See
-  `README.md`'s "Deviations from SPEC.md".
+  docs/deviations.md.
 
 ### Bugs fixed (not accuracy-budget misses — real defects)
 

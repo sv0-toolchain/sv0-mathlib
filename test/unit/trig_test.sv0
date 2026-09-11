@@ -91,7 +91,7 @@ fn main() -> i32 {
     if !asc2 { return 33; }
 
     /* REQ: TRIG-004 — atan_f64 (total, boundary-inclusive ensures — see
-     * README's "Deviations from SPEC.md" #8), atan2_f64's 4 quadrants +
+     * docs/deviations.md #8), atan2_f64's 4 quadrants +
      * axis + origin cases. */
     let at1: f64 = abs_f64(atan_f64(1.0) - 0.7853981633974483);
     if at1 >= 0.000000000000001 { return 40; }
