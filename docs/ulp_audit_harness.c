@@ -41,6 +41,17 @@
 #include <stdint.h>
 #include <complex.h>
 
+/* glibc only exposes M_PI when a feature-test macro (_DEFAULT_SOURCE,
+ * _XOPEN_SOURCE, ...) is defined, which strict `-std=c99` disables --
+ * confirmed the hard way: this harness compiled and ran fine under
+ * Apple's libm (no such gating) but failed `error: 'M_PI' undeclared`
+ * under Linux/glibc, the first time this harness was ever compiled on
+ * that platform (via scripts/run_ulp_audit.py's CI gate). Only used
+ * here to build each sweep's domain, never as part of a correctness
+ * comparison, so a local high-precision constant is a strictly safer
+ * choice than reaching for a feature-test macro. */
+#define SV0_AUDIT_PI 3.14159265358979323846
+
 #define NEAR_ZERO_THRESHOLD 1e-6
 #define NEAR_ZERO_ABS_BUDGET 1e-9
 
@@ -116,7 +127,7 @@ int main(void) {
     /* sin_f64/cos_f64/tan_f64 over [-1000*pi, 1000*pi], PERF-002's own domain, 3 ULP budget. */
     memset(&r, 0, sizeof(r));
     for (i = 0; i <= 200000; i++) {
-        x = -1000.0 * M_PI + (2000.0 * M_PI) * ((double)i / 200000.0);
+        x = -1000.0 * SV0_AUDIT_PI + (2000.0 * SV0_AUDIT_PI) * ((double)i / 200000.0);
         ref = sin(x);
         got = sin_f64(x);
         audit_point(&r, got, ref, x, 0.0);
@@ -125,7 +136,7 @@ int main(void) {
 
     memset(&r, 0, sizeof(r));
     for (i = 0; i <= 200000; i++) {
-        x = -1000.0 * M_PI + (2000.0 * M_PI) * ((double)i / 200000.0);
+        x = -1000.0 * SV0_AUDIT_PI + (2000.0 * SV0_AUDIT_PI) * ((double)i / 200000.0);
         ref = cos(x);
         got = cos_f64(x);
         audit_point(&r, got, ref, x, 0.0);
@@ -134,7 +145,7 @@ int main(void) {
 
     memset(&r, 0, sizeof(r));
     for (i = 0; i <= 200000; i++) {
-        x = -1000.0 * M_PI + (2000.0 * M_PI) * ((double)i / 200000.0);
+        x = -1000.0 * SV0_AUDIT_PI + (2000.0 * SV0_AUDIT_PI) * ((double)i / 200000.0);
         /* skip near-asymptote points where cos(x) is tiny -- tan legitimately blows up there */
         if (fabs(cos(x)) < 1e-6) continue;
         ref = tan(x);
@@ -198,7 +209,7 @@ int main(void) {
     /* atan2_f64 across all four quadrants, 3 ULP budget. */
     memset(&r, 0, sizeof(r));
     for (i = 0; i <= 100000; i++) {
-        double theta = -M_PI + 2.0 * M_PI * ((double)i / 100000.0);
+        double theta = -SV0_AUDIT_PI + 2.0 * SV0_AUDIT_PI * ((double)i / 100000.0);
         double rad = 1.0 + 9.0 * ((double)(i % 997) / 997.0);
         double yy = rad * sin(theta);
         double xx = rad * cos(theta);
@@ -325,7 +336,7 @@ int main(void) {
         long ri = i / 4001;
         long ii = i % 4001;
         double re_in = -20.0 + 40.0 * ((double)ri / 49.0);
-        double im_in = -1000.0 * M_PI + 2000.0 * M_PI * ((double)ii / 4000.0);
+        double im_in = -1000.0 * SV0_AUDIT_PI + 2000.0 * SV0_AUDIT_PI * ((double)ii / 4000.0);
         if (ri > 49) continue;
         Complex c;
         c.re = re_in;
@@ -341,7 +352,7 @@ int main(void) {
     memset(&r, 0, sizeof(r));
     for (i = 0; i <= 100000; i++) {
         double e = -150.0 + 300.0 * ((double)i / 100000.0);
-        double theta = -M_PI + 2.0 * M_PI * ((double)(i % 6151) / 6151.0);
+        double theta = -SV0_AUDIT_PI + 2.0 * SV0_AUDIT_PI * ((double)(i % 6151) / 6151.0);
         double mag = pow(10.0, e);
         double re_in = mag * cos(theta);
         double im_in = mag * sin(theta);
@@ -390,7 +401,7 @@ int main(void) {
         long bi = i / 100;
         long ei = i % 100;
         double be = -5.0 + 10.0 * ((double)bi / 99.0);
-        double btheta = -M_PI + 2.0 * M_PI * ((double)((bi * 37 + 5) % 100) / 100.0);
+        double btheta = -SV0_AUDIT_PI + 2.0 * SV0_AUDIT_PI * ((double)((bi * 37 + 5) % 100) / 100.0);
         double bmag = pow(10.0, be);
         double base_re = bmag * cos(btheta);
         double base_im = bmag * sin(btheta);
