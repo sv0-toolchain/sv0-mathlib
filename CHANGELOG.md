@@ -7,6 +7,28 @@ strengthened or weakened. Versions follow [Semantic Versioning](https://semver.o
 
 ## [Unreleased]
 
+### CI hardening
+
+- **`docs/ulp_audit_harness.c` is now wired into `scripts/ci`** as an
+  automated accuracy-regression gate, closing PERF-002's own "CI fails
+  on any regression past the pinned bound" acceptance criterion (it was
+  previously run by hand). New `scripts/run_ulp_audit.py` compiles and
+  runs the harness and fails if any function regresses past its printed
+  budget, or if either of the two documented informational residuals
+  (`ln_complex`, `pow_complex` — see `docs/accuracy.md`) grows past a
+  recorded ceiling a little above its last-measured value. The table in
+  `docs/accuracy.md` itself is still refreshed by hand when a fix
+  changes the numbers; this gate only catches *regressions*.
+- **CI now runs against a pinned `sv0-toolchain` revision as its
+  required, gating leg**, plus an advisory leg against upstream's live
+  default branch (`.github/workflows/ci.yml`, `.github/sv0-toolchain-pin.txt`).
+  Previously CI tracked upstream's unpinned default branch unconditionally
+  — exactly the setup that let two real toolchain regressions (BUGS.md
+  #16, #19) silently break this library's own CI before either was
+  root-caused. The advisory leg keeps catching upstream regressions
+  early; the pinned leg is the one contributors and downstream users can
+  actually rely on to reproduce.
+
 ### Documentation
 
 - **README.md rewritten to read as a standard-library README**, not a

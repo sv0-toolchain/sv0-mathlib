@@ -9,7 +9,7 @@
 # The legacy sibling layout (../sv0-toolchain) is still auto-detected, and
 # SV0_TOOLCHAIN_ROOT overrides either (sv0-mathlib's own CI sets it).
 #
-# Usage: scripts/ci [--skip-fmt] [--skip-guard] [--skip-run] [--skip-unit] [--skip-fixtures] [--skip-doc] [--skip-parity] [--skip-fixture-parity]
+# Usage: scripts/ci [--skip-fmt] [--skip-guard] [--skip-run] [--skip-unit] [--skip-fixtures] [--skip-doc] [--skip-parity] [--skip-fixture-parity] [--skip-ulp]
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -32,6 +32,7 @@ SKIP_FIXTURES=0
 SKIP_DOC=0
 SKIP_PARITY=0
 SKIP_FIXTURE_PARITY=0
+SKIP_ULP=0
 for arg in "$@"; do
   case "$arg" in
     --skip-fmt) SKIP_FMT=1 ;;
@@ -42,6 +43,7 @@ for arg in "$@"; do
     --skip-doc) SKIP_DOC=1 ;;
     --skip-parity) SKIP_PARITY=1 ;;
     --skip-fixture-parity) SKIP_FIXTURE_PARITY=1 ;;
+    --skip-ulp) SKIP_ULP=1 ;;
     *)
       echo "sv0-mathlib ci: unknown argument: $arg" >&2
       exit 2
@@ -151,6 +153,19 @@ if [[ "$SKIP_FIXTURE_PARITY" -eq 0 ]]; then
   printf '' > /tmp/.sv0_drv_path
   SV0_TOOLCHAIN_ROOT="$TOOLCHAIN" python3 "$HERE/scripts/run_fixture_parity.py"
   echo "sv0-mathlib ci: per-fixture value check OK"
+fi
+
+if [[ "$SKIP_ULP" -eq 0 ]]; then
+  echo "== sv0-mathlib ci: ULP accuracy regression gate (PERF-001/PERF-002) =="
+  # docs/ulp_audit_harness.c compares every non-exact function against the
+  # system libm; run_ulp_audit.py compiles+runs it and fails if anything
+  # OUTSIDE the documented informational-residual allowlist (ln_complex,
+  # pow_complex -- see docs/accuracy.md) exceeds its printed budget, or if
+  # either of those two grows past its recorded ceiling. Needs libm (-lm,
+  # always available) -- no SML/NJ or sv0vm dependency.
+  printf '' > /tmp/.sv0_drv_path
+  SV0_TOOLCHAIN_ROOT="$TOOLCHAIN" python3 "$HERE/scripts/run_ulp_audit.py"
+  echo "sv0-mathlib ci: ULP accuracy regression gate OK"
 fi
 
 echo "sv0-mathlib ci: PASS"

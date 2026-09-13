@@ -19,9 +19,13 @@
  *     sv0c/runtime/sv0_runtime.c -lm -o /tmp/ulp_audit_bin
  *   /tmp/ulp_audit_bin
  *
- * Not yet wired into CI (see docs/accuracy.md's own notes) — run by hand
- * after touching anything in lib/trig.sv0, and update docs/accuracy.md's
- * table with the new numbers.
+ * Wired into scripts/ci via scripts/run_ulp_audit.py, which compiles and
+ * runs this exact harness and fails the gate on any function regressing
+ * past its printed budget (or, for the two documented informational
+ * residuals, past a recorded ceiling — see that script's own comment).
+ * Still worth running by hand after touching lib/trig.sv0/lib/complex.sv0
+ * and updating docs/accuracy.md's table with the new numbers — the CI
+ * gate catches a REGRESSION, it doesn't refresh the recorded table.
  *
  * Near-zero handling: ULP spacing near a zero-crossing is astronomically
  * fine, so a tiny (physically insignificant) absolute difference between

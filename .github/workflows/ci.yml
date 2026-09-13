@@ -1,13 +1,31 @@
 # TEST-006 (R1): sv0-mathlib's own CI gate. sv0-mathlib is a submodule of
-# sv0-toolchain (README "Deviations from SPEC.md" #2/#10), but this
-# workflow runs when sv0-mathlib is pushed on its own, so it checks out a
-# fresh sv0-toolchain alongside and points SV0_TOOLCHAIN_ROOT at it. It
-# bootstraps just enough of the toolchain to get the native mega-TU
-# compiler + VM emitter built, then runs scripts/ci — the SAME
-# formatter/lint scripts the upstream toolchain's own
-# `./scripts/sv0 test-guards` uses (parity by calling the canonical
-# script, not a local copy that could drift), plus a full compile+run of
-# this project and the cross-backend parity checks.
+# sv0-toolchain (docs/deviations.md #2/#10), but this workflow runs when
+# sv0-mathlib is pushed on its own, so it checks out sv0-toolchain
+# alongside and points SV0_TOOLCHAIN_ROOT at it. It bootstraps just enough
+# of the toolchain to get the native mega-TU compiler + VM emitter built,
+# then runs scripts/ci — the SAME formatter/lint scripts the upstream
+# toolchain's own `./scripts/sv0 test-guards` uses (parity by calling the
+# canonical script, not a local copy that could drift), plus a full
+# compile+run of this project, the cross-backend parity checks, and the
+# ULP accuracy-regression gate.
+#
+# Two legs, per .github/sv0-toolchain-pin.txt:
+#   - `pinned`: checks out sv0-toolchain at the SHA recorded in that file.
+#     This is the REQUIRED, gating leg — the reproducible build every
+#     contributor and CI run should agree on.
+#   - `latest`: checks out sv0-toolchain's live default branch. ADVISORY
+#     (`continue-on-error: true`) — it surfaces an upstream toolchain
+#     regression against this library as soon as it lands, without
+#     blocking sv0-mathlib's own merges on someone else's breaking change.
+#     This exists because tracking live upstream unconditionally is
+#     exactly what let two real toolchain regressions (BUGS.md #16, #19)
+#     silently break this library's CI earlier in its history before
+#     either was root-caused.
+#
+# To move the pin forward (e.g. once an upstream fix or feature this
+# library needs has landed): update .github/sv0-toolchain-pin.txt to the
+# new sv0-toolchain SHA, confirm `bash scripts/ci` still passes locally
+# against it, and commit both together.
 name: CI
 
 on:
@@ -27,6 +45,15 @@ jobs:
   ci:
     runs-on: ubuntu-22.04
     timeout-minutes: 45
+    continue-on-error: ${{ matrix.advisory }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - leg: pinned
+            advisory: false
+          - leg: latest
+            advisory: true
     steps:
       - name: Checkout sv0-mathlib
         uses: actions/checkout@v4
@@ -36,7 +63,22 @@ jobs:
       - name: Use HTTPS for SSH-form submodule URLs in sv0-toolchain's .gitmodules
         run: git config --global url."https://github.com/".insteadOf "git@github.com:"
 
-      - name: Checkout sv0-toolchain alongside (submodules recursive)
+      - name: Read pinned sv0-toolchain SHA
+        if: matrix.leg == 'pinned'
+        id: pin
+        run: echo "sha=$(cat sv0-mathlib/.github/sv0-toolchain-pin.txt)" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout sv0-toolchain @ pinned SHA (submodules recursive)
+        if: matrix.leg == 'pinned'
+        uses: actions/checkout@v4
+        with:
+          repository: sv0-toolchain/sv0-toolchain
+          ref: ${{ steps.pin.outputs.sha }}
+          submodules: recursive
+          path: sv0-toolchain
+
+      - name: Checkout sv0-toolchain @ latest main, advisory (submodules recursive)
+        if: matrix.leg == 'latest'
         uses: actions/checkout@v4
         with:
           repository: sv0-toolchain/sv0-toolchain
@@ -71,7 +113,7 @@ jobs:
         working-directory: sv0-toolchain
         run: bash scripts/build-sv0-megatu-vm-native.sh
 
-      - name: sv0-mathlib CI gate (fmt + block-comment guard + compile/run + cross-backend parity)
+      - name: sv0-mathlib CI gate (fmt + guard + compile/run + tests + lints + parity + ULP)
         working-directory: sv0-mathlib
         env:
           SV0_TOOLCHAIN_ROOT: ${{ github.workspace }}/sv0-toolchain

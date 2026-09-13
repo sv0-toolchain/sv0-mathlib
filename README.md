@@ -71,9 +71,17 @@ It finds the toolchain at its own parent directory automatically
 and the block-comment nesting guard (via the same scripts
 `sv0-toolchain`'s own `./scripts/sv0 test-guards` uses), a full
 compile+run of this project, `test/unit` + `test/property`, the doc-comment
-and fixture-coverage lints, and the cross-backend (C vs. VM) parity checks.
-It also runs in GitHub Actions on every push/PR
-(`.github/workflows/ci.yml`).
+and fixture-coverage lints, the cross-backend (C vs. VM) parity checks,
+and an accuracy-regression gate (every non-exact function's measured ULP
+error, re-checked against `docs/accuracy.md`'s pinned budgets on every
+run — see `scripts/run_ulp_audit.py`). GitHub Actions
+(`.github/workflows/ci.yml`) runs it twice on every push/PR: once
+against the `sv0-toolchain` revision pinned in
+`.github/sv0-toolchain-pin.txt` (**required** — this is the reproducible
+build every contributor should agree on), and once against upstream's
+live default branch (**advisory** — surfaces a toolchain regression
+against this library as soon as it lands, without blocking this
+library's own merges on someone else's breaking change).
 
 The individual steps, run by hand:
 
@@ -99,14 +107,17 @@ sv0-mathlib/
 ├── CHANGELOG.md     # user-visible changes, accuracy-bound changes, contract changes
 ├── BUGS.md          # toolchain-level gaps found during development (upstream sv0c/sv0vm issues)
 ├── main.sv0         # smoke/demo entry point
-├── .github/workflows/ci.yml
+├── .github/
+│   ├── workflows/ci.yml
+│   └── sv0-toolchain-pin.txt # the sv0-toolchain SHA CI's required leg builds against
 ├── scripts/
-│   ├── ci                    # the CI gate: fmt + guard + compile/run + tests + lints + parity
+│   ├── ci                    # the CI gate: fmt + guard + compile/run + tests + lints + parity + ULP
 │   ├── run_unit_tests.py     # runs test/unit + test/property, generates docs/requirement_test_matrix.md
 │   ├── check_fixtures.py     # fixture-manifest completeness + boundary-coverage lint
 │   ├── check_doc_comments.py # doc-comment coverage lint
 │   ├── gen_api_docs.py       # generates docs/api.md
-│   └── run_fixture_parity.py # drives every fixture row through a live build, checks vs. expected
+│   ├── run_fixture_parity.py # drives every fixture row through a live build, checks vs. expected
+│   └── run_ulp_audit.py      # accuracy-regression gate against docs/accuracy.md's pinned budgets
 ├── lib/               # arith, modular, trig, polar, complex, prelude
 ├── test/
 │   ├── unit/           # one standalone fn main()->i32 binary per module
@@ -139,6 +150,11 @@ future direction, not a commitment — see SPEC.md §4.3 and §22 OQ-003.
 - A handful of `sv0` toolchain gaps have documented, verified workarounds
   in this library's own source (see the relevant doc comment or module
   header for the specific one in play).
+- `ln_complex`/`pow_complex` measure outside their own informational ULP
+  budget — both are documented, understood non-issues (a real but tiny
+  residual, and a system-libm reference-quality artifact, respectively;
+  see `docs/accuracy.md`), not open bugs, and `scripts/run_ulp_audit.py`
+  still gates on neither growing worse.
 
 See [BUGS.md](BUGS.md) for the full, itemized toolchain-gap record kept
 during this library's development — useful if you're working on `sv0c`/
