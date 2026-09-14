@@ -9,7 +9,7 @@
 # The legacy sibling layout (../sv0-toolchain) is still auto-detected, and
 # SV0_TOOLCHAIN_ROOT overrides either (sv0-mathlib's own CI sets it).
 #
-# Usage: scripts/ci [--skip-fmt] [--skip-guard] [--skip-run] [--skip-unit] [--skip-fixtures] [--skip-doc] [--skip-parity] [--skip-fixture-parity] [--skip-ulp]
+# Usage: scripts/ci [--skip-fmt] [--skip-guard] [--skip-run] [--skip-unit] [--skip-fixtures] [--skip-doc] [--skip-parity] [--skip-fixture-parity] [--skip-ulp] [--skip-vm-determinism]
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -33,6 +33,7 @@ SKIP_DOC=0
 SKIP_PARITY=0
 SKIP_FIXTURE_PARITY=0
 SKIP_ULP=0
+SKIP_VM_DETERMINISM=0
 for arg in "$@"; do
   case "$arg" in
     --skip-fmt) SKIP_FMT=1 ;;
@@ -43,6 +44,7 @@ for arg in "$@"; do
     --skip-doc) SKIP_DOC=1 ;;
     --skip-parity) SKIP_PARITY=1 ;;
     --skip-fixture-parity) SKIP_FIXTURE_PARITY=1 ;;
+    --skip-vm-determinism) SKIP_VM_DETERMINISM=1 ;;
     --skip-ulp) SKIP_ULP=1 ;;
     *)
       echo "sv0-mathlib ci: unknown argument: $arg" >&2
@@ -167,6 +169,20 @@ if [[ "$SKIP_ULP" -eq 0 ]]; then
   printf '' > /tmp/.sv0_drv_path
   SV0_TOOLCHAIN_ROOT="$TOOLCHAIN" python3 "$HERE/scripts/run_ulp_audit.py"
   echo "sv0-mathlib ci: ULP accuracy regression gate OK"
+fi
+
+if [[ "$SKIP_VM_DETERMINISM" -eq 0 ]]; then
+  echo "== sv0-mathlib ci: VM emitter determinism check (diagnostic, non-gating) =="
+  # Investigating the intermittent frac_floor_of_nonneg abort in the
+  # per-fixture VM leg above (advisory -- see BUGS.md): re-invokes the
+  # native VM emitter N times against the same input and diffs the raw
+  # .sv0b bytes, to test the "the emitter's own output is nondeterministic"
+  # theory directly against THIS CI runner's real environment. Not yet a
+  # gate -- a positive result here (a real mismatch) would be actionable
+  # evidence this bug has never had; `|| true` keeps this exploratory
+  # step from failing the required gate while that's still being chased.
+  printf '' > /tmp/.sv0_drv_path
+  SV0_TOOLCHAIN_ROOT="$TOOLCHAIN" python3 "$HERE/scripts/check_vm_emitter_determinism.py" || true
 fi
 
 echo "sv0-mathlib ci: PASS"

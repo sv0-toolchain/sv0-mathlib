@@ -7,6 +7,18 @@ strengthened or weakened. Versions follow [Semantic Versioning](https://semver.o
 
 ## [Unreleased]
 
+### Investigation tooling
+
+- New `scripts/check_vm_emitter_determinism.py`, wired into `scripts/ci`
+  as a diagnostic (non-gating) step: re-invokes the native VM bytecode
+  emitter dozens of times against the same input and diffs the raw
+  `.sv0b` bytes, to test directly against this CI runner's real
+  environment whether the emitter's own output is nondeterministic —
+  the leading remaining suspect behind the intermittent
+  `frac_floor_of_nonneg` abort (see `BUGS.md`). 30/30 identical on the
+  developer's own machine; not yet run against the real target
+  environment where the intermittent failure has actually been observed.
+
 ### Toolchain gaps found (informational — see `BUGS.md` for full detail)
 
 - **sv0vm's f64 wire-format codec used `Unsafe.cast`** (a `real`<->

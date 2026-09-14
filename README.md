@@ -117,7 +117,8 @@ sv0-mathlib/
 │   ├── check_doc_comments.py # doc-comment coverage lint
 │   ├── gen_api_docs.py       # generates docs/api.md
 │   ├── run_fixture_parity.py # drives every fixture row through a live build, checks vs. expected
-│   └── run_ulp_audit.py      # accuracy-regression gate against docs/accuracy.md's pinned budgets
+│   ├── run_ulp_audit.py      # accuracy-regression gate against docs/accuracy.md's pinned budgets
+│   └── check_vm_emitter_determinism.py # diagnostic: is the native VM emitter's .sv0b output stable?
 ├── lib/               # arith, modular, trig, polar, complex, prelude
 ├── test/
 │   ├── unit/           # one standalone fn main()->i32 binary per module
