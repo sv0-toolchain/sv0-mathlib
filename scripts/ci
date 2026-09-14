@@ -183,6 +183,16 @@ if [[ "$SKIP_VM_DETERMINISM" -eq 0 ]]; then
   # step from failing the required gate while that's still being chased.
   printf '' > /tmp/.sv0_drv_path
   SV0_TOOLCHAIN_ROOT="$TOOLCHAIN" python3 "$HERE/scripts/check_vm_emitter_determinism.py" || true
+
+  echo "== sv0-mathlib ci: VM interpreter determinism check (diagnostic, non-gating) =="
+  # Complements the emitter check above: builds the per-fixture check
+  # program ONCE, holds its .sv0b bytes fixed, and runs sv0vm against
+  # that same file repeatedly. If the emitter's output is provably
+  # stable (per the check above) but this still disagrees run to run,
+  # the remaining source of the intermittent frac_floor_of_nonneg abort
+  # is in EXECUTION (sv0vm's interpreter), not emission -- see BUGS.md.
+  printf '' > /tmp/.sv0_drv_path
+  SV0_TOOLCHAIN_ROOT="$TOOLCHAIN" python3 "$HERE/scripts/check_vm_interpreter_determinism.py" || true
 fi
 
 echo "sv0-mathlib ci: PASS"

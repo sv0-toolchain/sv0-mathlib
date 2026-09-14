@@ -15,9 +15,16 @@ strengthened or weakened. Versions follow [Semantic Versioning](https://semver.o
   `.sv0b` bytes, to test directly against this CI runner's real
   environment whether the emitter's own output is nondeterministic —
   the leading remaining suspect behind the intermittent
-  `frac_floor_of_nonneg` abort (see `BUGS.md`). 30/30 identical on the
-  developer's own machine; not yet run against the real target
-  environment where the intermittent failure has actually been observed.
+  `frac_floor_of_nonneg` abort (see `BUGS.md`). **Result: 30/30
+  byte-identical on this repo's own CI (real ubuntu-22.04/amd64/
+  SML-NJ-110.99.9), for sv0-mathlib itself and two sv0c fixtures** —
+  the emitter's own output is NOT the source of the intermittency.
+- New `scripts/check_vm_interpreter_determinism.py`, also wired in
+  (diagnostic, non-gating): with the emitter ruled out, this holds the
+  per-fixture check program's `.sv0b` bytes fixed and re-runs `sv0vm`
+  against that SAME file repeatedly, to test whether the remaining
+  nondeterminism is in execution (the interpreter itself) rather than
+  emission.
 
 ### Toolchain gaps found (informational — see `BUGS.md` for full detail)
 
