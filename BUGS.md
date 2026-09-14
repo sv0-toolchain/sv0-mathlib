@@ -205,45 +205,58 @@ codec and emitter determinism — see the follow-up task. The exit-code
 cross-backend gate (`vm_behavioral_parity.py`, COMPAT-001) and the
 C-backend per-fixture leg are green.
 
-**FIXED (2026-09-13/14, sv0vm `85f00ed`→`ea19846` after an unrelated
-attribution-history rewrite; sv0-toolchain `1d05c0e` bumps the pointer;
-sv0-mathlib `e08d526` bumps the CI pin — both VM legs now GATE).**
-Root-caused with real signal this time: `sv0vm`'s own CI (a lightweight
-`make check test` on the real ubuntu-22.04/SML-NJ-110.99.9 runner — no
-toolchain bootstrap needed, unlike sv0-mathlib's own CI) let a new
-2,000,000-sample deterministic random-bit-pattern round-trip test run
-directly against the actual target platform for the first time, instead
-of only against SML/NJ 2026.1 (the dev machine, which never reproduced
-this bug either way) or an unreachable local repro (SML/NJ 110.99.9
-segfaults under both bare QEMU and Docker-emulated amd64 on Apple
-Silicon, confirmed both ways this session). Replaced `Unsafe.cast`
-entirely with `PackReal64Little`, the Basis Library's own dedicated
-`real`<->bytes primitive — not hand-rolled bit math a third time. That
-round-trip test immediately caught a second landmine before it ever
-reached CI: on the dev machine's SML/NJ 2026.1 build, `PackReal64Little`
-produces BIG-endian bytes and `PackReal64Big` produces LITTLE-endian —
-exactly backwards from their names. The final codec doesn't trust either
-structure's name; it detects the actual byte order once at load time
-against a known reference value (`1.0 = 0x3FF0000000000000`) and
-normalizes to genuine little-endian for the `.sv0b` wire format
-regardless of which way a given SML/NJ build's Pack structures are
-internally wired — the only assumption left is that
-`PackReal64Little.toBytes`/`fromBytes` are self-consistent inverses of
-each other on a given build, the actual `PACK_REAL` contract, not that
-"Little" correctly describes their byte order. Confirmed green on
-`sv0vm`'s own CI (real 110.99.9), then confirmed the ORIGINAL symptom is
-actually gone by bumping `sv0-toolchain`'s submodule pointer and
-sv0-mathlib's own CI pin and re-running: `run_fixture_parity: VM
-backend — all fixture rows match (exit 0)`, no WARN, on the real pinned
-CI leg. `scripts/run_fixture_parity.py`'s VM leg (and the cross-backend
-exit-code check) now gate by default; `--advisory-vm` remains as a
-fallback for testing against an older, unfixed `sv0vm` checkout. The
-never-isolated emitter-nondeterminism theory from the 2026-08-30 attempt
-was never specifically confirmed OR ruled out this time — it's possible
-the new codec is simply correct where the field-math one had its own
-undiscovered bug, or the determinism issue exists but no longer
-interacts with a fixed codec. Not chased further since both VM legs are
-now consistently green across CI reruns.
+**PARTIALLY FIXED (2026-09-13/14, sv0vm `85f00ed`→`ea19846` after an
+unrelated attribution-history rewrite; sv0-toolchain `1d05c0e` bumps the
+pointer; sv0-mathlib `e08d526`/`d78c29c` bump the CI pin — the codec bug
+is genuinely fixed, but the VM leg stays ADVISORY, not gating, because a
+SEPARATE nondeterminism remains).**
+
+The `Unsafe.cast`-based codec bug itself IS fixed, with real signal this
+time: `sv0vm`'s own CI (a lightweight `make check test` on the real
+ubuntu-22.04/SML-NJ-110.99.9 runner — no toolchain bootstrap needed,
+unlike sv0-mathlib's own CI) let a new 2,000,000-sample deterministic
+random-bit-pattern round-trip test run directly against the actual
+target platform for the first time, instead of only against SML/NJ
+2026.1 (the dev machine, which never reproduced this bug either way) or
+an unreachable local repro (SML/NJ 110.99.9 segfaults under both bare
+QEMU and Docker-emulated amd64 on Apple Silicon, confirmed both ways
+this session). Replaced `Unsafe.cast` entirely with `PackReal64Little`,
+the Basis Library's own dedicated `real`<->bytes primitive — not
+hand-rolled bit math a third time. That round-trip test immediately
+caught a second landmine before it ever reached CI: on the dev
+machine's SML/NJ 2026.1 build, `PackReal64Little` produces BIG-endian
+bytes and `PackReal64Big` produces LITTLE-endian — exactly backwards
+from their names. The final codec doesn't trust either structure's
+name; it detects the actual byte order once at load time against a
+known reference value (`1.0 = 0x3FF0000000000000`) and normalizes to
+genuine little-endian for the `.sv0b` wire format regardless of which
+way a given SML/NJ build's Pack structures are internally wired — the
+only assumption left is that `PackReal64Little.toBytes`/`fromBytes` are
+self-consistent inverses of each other on a given build, the actual
+`PACK_REAL` contract, not that "Little" correctly describes their byte
+order. Confirmed green on `sv0vm`'s own CI (real 110.99.9).
+
+**But the original symptom is NOT fully gone.** After bumping
+`sv0-toolchain`'s submodule pointer and sv0-mathlib's own CI pin,
+`scripts/run_fixture_parity.py`'s VM leg was briefly promoted to
+gating on the theory the codec fix closed the whole bug — it did not.
+The very next CI run (the `latest`/advisory toolchain leg, byte-identical
+`sv0c`/`sv0vm` commits to the `pinned` leg that passed) hit the SAME
+`frac_floor_of_nonneg` abort; a manual rerun of that exact same job
+(same commits, same code, `gh run rerun --failed`) then PASSED. This is
+genuine intermittency, not a fluke of one bad run — confirming the
+never-isolated "the sv0 native VM emitter's `.sv0b` output is
+nondeterministic" theory from the 2026-08-30 attempt above was real all
+along, and the codec bug was never the ONLY source of this failure
+mode, just the one that reproduced consistently enough to isolate and
+fix first. The VM leg was reverted back to advisory (gating on it would
+make this repo's own required CI flaky, not more correct) — `--strict-vm`
+remains for anyone actively chasing the remaining nondeterminism. A real
+fix for that needs the same kind of direct signal that cracked the codec
+bug: instrumenting the native VM emitter (`lib/vm_codegen.sv0`,
+sv0-toolchain) to check for genuine non-determinism in `.sv0b` output
+across repeated emissions of the identical program (e.g. hash the
+output N times, assert byte-identical) — not yet attempted.
 
 ---
 

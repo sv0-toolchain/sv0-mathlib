@@ -145,6 +145,11 @@ future direction, not a commitment — see SPEC.md §4.3 and §22 OQ-003.
 
 - The legacy SML `--target=vm` path lacks `f64` support — use
   `./scripts/sv0 vm-native-compile --project` instead.
+- The VM-backend leg of `scripts/run_fixture_parity.py` is advisory, not
+  gating: the SML/NJ-110.99.9-specific `Unsafe.cast` f64-codec bug it
+  was tracking is fixed upstream in `sv0vm`, but the same failure still
+  shows up intermittently even with the fix — a separate, still-
+  unconfirmed source of nondeterminism (see `BUGS.md`).
 - A handful of `sv0` toolchain gaps have documented, verified workarounds
   in this library's own source (see the relevant doc comment or module
   header for the specific one in play).

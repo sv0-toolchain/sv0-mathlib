@@ -7,18 +7,26 @@ strengthened or weakened. Versions follow [Semantic Versioning](https://semver.o
 
 ## [Unreleased]
 
-### Contracts strengthened
+### Toolchain gaps found (informational — see `BUGS.md` for full detail)
 
-- **`scripts/run_fixture_parity.py`'s VM-backend leg (and the
-  cross-backend exit-code check) now GATE, no longer advisory.** The
-  underlying bug — sv0vm's f64 codec used `Unsafe.cast`, an SML/NJ
-  implementation detail that didn't hold under the SML/NJ 110.99.9 this
-  CI runner uses, mis-decoding some values and aborting a transcendental
-  `ensures` — is fixed upstream in sv0vm (see BUGS.md, "Per-fixture
-  value check"). Confirmed clean on this repo's own pinned CI leg after
-  bumping `.github/sv0-toolchain-pin.txt`. Pass `--advisory-vm` to fall
-  back to the old advisory behavior against an older, unfixed `sv0vm`
-  checkout.
+- **sv0vm's f64 wire-format codec used `Unsafe.cast`** (a `real`<->
+  `Word64.word` bit reinterpretation that relied on an SML/NJ
+  implementation detail, not a language guarantee) and mis-decoded some
+  values under the SML/NJ 110.99.9 this repo's CI runner uses, aborting
+  `frac_floor_of_nonneg`'s `ensures` in `scripts/run_fixture_parity.py`'s
+  VM leg. Fixed upstream in sv0vm: replaced with a self-calibrating
+  `PackReal64Little`-based codec, verified via a 2,000,000-sample
+  round-trip test on the real target platform (that test also caught a
+  second, unrelated landmine: `PackReal64Little`/`PackReal64Big` are
+  byte-order-swapped from their names on at least one real SML/NJ
+  build). **This closes the codec bug specifically, but not the whole
+  failure mode**: re-running this repo's own CI against the fixed,
+  byte-identical `sv0c`/`sv0vm` commits still hit the same symptom
+  intermittently, confirming a separate, still-unconfirmed
+  nondeterminism (likely in the native VM emitter's own `.sv0b` output)
+  that BUGS.md had already flagged as a suspect and never ruled out.
+  `scripts/run_fixture_parity.py`'s VM leg stays advisory, not gating,
+  until that's actually root-caused.
 
 ### CI hardening
 
