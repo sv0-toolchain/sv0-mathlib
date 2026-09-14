@@ -34,6 +34,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import hashlib
 import os
 import re
 import subprocess
@@ -78,12 +79,21 @@ def build_fixed_sv0b(toolchain_root: Path, tmp: Path) -> Path:
     return b_path
 
 
-def run_once(toolchain_root: Path, b_path: Path) -> tuple[str, str]:
+def run_once(toolchain_root: Path, b_path: Path, trace: bool = False) -> tuple[str, str]:
     sv0vm = toolchain_root / "sv0vm"
+    env = {**os.environ, "SV0B": str(b_path)}
+    if trace:
+        env["SV0VM_TRACE_F64"] = "1"
     proc = subprocess.run(["sml"], stdin=(sv0vm / "scripts" / "run_sv0b.sml").open(),
-                          capture_output=True, text=True, cwd=sv0vm,
-                          env={**os.environ, "SV0B": str(b_path)})
+                          capture_output=True, text=True, cwd=sv0vm, env=env)
     out = proc.stdout + proc.stderr
+    if trace:
+        trace_path = Path(tempfile.gettempdir()) / "vm_interpreter_trace.log"
+        lines = [ln for ln in out.splitlines() if ln.startswith("SV0VM_TRACE ")]
+        trace_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        digest = hashlib.sha256("\n".join(lines).encode()).hexdigest()
+        print(f"check_vm_interpreter_determinism: trace captured ({len(lines)} f64 ops, "
+              f"sha256={digest}) -> {trace_path}")
     cv = re.search(r"sv0 contract violation: (.+)", out)
     m = re.search(r"vm_exit:(-?\d+)", out)
     if cv:
@@ -102,6 +112,14 @@ def main() -> int:
     with tempfile.TemporaryDirectory(prefix="sv0mathlib_vmdet_") as tmp:
         b_path = build_fixed_sv0b(args.toolchain_root, Path(tmp))
         results = [run_once(args.toolchain_root, b_path) for _ in range(args.rounds)]
+        # One additional TRACED run, kept separate from the N above so the
+        # extra stderr I/O tracing does can't itself perturb the timing-
+        # sensitive measurement those N rounds are trying to characterize.
+        # Its own result/hash is printed regardless of pass/fail below --
+        # this is the artifact to pull and diff between a failing CI job
+        # and a passing one (see BUGS.md).
+        traced_result = run_once(args.toolchain_root, b_path, trace=True)
+        print(f"check_vm_interpreter_determinism: traced run result: {traced_result}")
 
     counts = Counter(results)
     if len(counts) == 1:

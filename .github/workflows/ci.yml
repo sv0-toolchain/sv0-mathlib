@@ -118,3 +118,18 @@ jobs:
         env:
           SV0_TOOLCHAIN_ROOT: ${{ github.workspace }}/sv0-toolchain
         run: bash scripts/ci
+
+      # Diagnostic (see BUGS.md, "Per-fixture value check"): the interpreter
+      # determinism check above writes a full trace of every f64 op it runs
+      # to /tmp/vm_interpreter_trace.log. Uploading it lets a failing job's
+      # trace be diffed byte-for-byte against a passing one's, once one of
+      # each has been captured -- always(), since the trace is useful
+      # whether the job as a whole passed or not.
+      - name: Upload VM interpreter f64 trace (diagnostic)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: vm-interpreter-trace-${{ matrix.leg }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: /tmp/vm_interpreter_trace.log
+          if-no-files-found: ignore
+          retention-days: 14
