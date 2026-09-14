@@ -30,9 +30,23 @@ strengthened or weakened. Versions follow [Semantic Versioning](https://semver.o
   bytecode** — rules out simple per-invocation randomness and points at
   something stable per ephemeral CI VM but different across separately-
   provisioned ones (leading theory: a CPU-feature-dependent difference
-  in SML/NJ's own generated machine code for `Real` arithmetic). See
-  `BUGS.md`'s "Per-fixture value check" entry for the full writeup and
-  the concrete next diagnostic step.
+  in SML/NJ's own generated machine code for `Real` arithmetic).
+- `sv0vm`'s interpreter now traces every f64 arithmetic/comparison op
+  as exact IEEE-754 bit patterns behind an opt-in `SV0VM_TRACE_F64` env
+  var (zero overhead when unset). `check_vm_interpreter_determinism.py`
+  captures one traced run per CI job (uploaded as a build artifact) and
+  prints the job's host CPU model + FP-relevant flags alongside the
+  trace hash. **Confirming evidence found**: across 7 manually triggered
+  CI runs, GitHub scheduled jobs onto at least three distinct physical
+  CPUs (an Intel Xeon with AVX-512F, two different AMD EPYC models
+  without it) — confirming this repo's CI runner fleet is genuinely
+  heterogeneous hardware, the precondition the CPU-dependent theory
+  needs. The actual divergence didn't reproduce live during that
+  batch, on any CPU model seen; the tooling is now permanent (every
+  future `scripts/ci` run, both matrix legs) so the next real-traffic
+  occurrence will already have a traced artifact + CPU model to pull
+  and diff. See `BUGS.md`'s "Per-fixture value check" entry for the
+  full writeup.
 
 ### Toolchain gaps found (informational — see `BUGS.md` for full detail)
 

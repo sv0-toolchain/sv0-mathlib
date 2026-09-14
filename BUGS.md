@@ -293,6 +293,44 @@ source change, not a sv0-mathlib script) and comparing them byte-for-
 byte across a failing job and a passing one, to see exactly which
 arithmetic step first diverges.
 
+**Interpreter instrumented (2026-09-14, sv0vm `0c78f24`, sv0-mathlib
+`4b71041`/`1729b82`) — real confirming evidence found, but the
+divergence itself still not caught live.** Did exactly the "concrete
+next step" above: `sv0vm`'s interpreter now traces every f64 ADD/SUB/
+MUL/DIV and comparison as exact IEEE-754 bit patterns behind an opt-in
+`SV0VM_TRACE_F64` env var (zero overhead when unset). `scripts/
+check_vm_interpreter_determinism.py` captures one traced run per CI
+job, prints its SHA-256, and uploads the full trace as a build
+artifact; it also now prints the job's host CPU model + FP-relevant
+flags (`fma`/`avx`/`avx2`/`avx512f`/`sse4_*`) from `/proc/cpuinfo`,
+since confirming or refuting the CPU-dependent theory needs knowing
+*which* host produced a given trace, not just that some host did.
+
+Manually triggered 7 additional CI runs (14 job instances) chasing a
+live reproduction. **Real, valuable confirming evidence surfaced
+immediately**: across those runs, GitHub scheduled jobs onto at least
+three distinct physical CPUs — an Intel Xeon Platinum 8573C (with
+AVX-512F) and two different AMD EPYC models (7763 and 9V74, neither
+with AVX-512F) — sometimes even the TWO LEGS OF THE SAME RUN landing on
+different vendors simultaneously. This directly confirms the
+precondition the CPU-dependent theory needs: GitHub's runner fleet for
+this repo is genuinely heterogeneous hardware, not a fixed image
+reused identically every time. **However, all 14 traced runs in this
+batch produced the IDENTICAL trace hash and all passed** — the
+intermittent failure did not reproduce live during this investigation
+session, on any of the three CPU models seen. This means either the
+failure rate is lower than the ~1-in-2 impression the original two
+back-to-back CI runs gave (a legitimate possibility — two runs is not
+a real sample size), or it's specifically tied to a CPU
+model/microarchitecture not seen in this batch, or some other factor
+not yet identified. Not chased further via brute-force triggering
+(diminishing returns past a certain point) — the tooling is now a
+PERMANENT part of every future `scripts/ci` run (both matrix legs,
+every push), so the next time this fails for real in ordinary CI
+traffic, a traced artifact + CPU model will already be sitting there
+to pull and diff, without needing another dedicated investigation
+session to first build the capability to catch it.
+
 ---
 
 Historical detail (the state before 2026-08-29):
