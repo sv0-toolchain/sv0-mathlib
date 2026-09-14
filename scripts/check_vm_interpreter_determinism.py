@@ -103,12 +103,34 @@ def run_once(toolchain_root: Path, b_path: Path, trace: bool = False) -> tuple[s
     return ("NO_EXIT", out[-300:])
 
 
+def print_host_info() -> None:
+    """Correlating signal for the leading theory (a CPU-feature-dependent
+    difference in SML/NJ's own generated machine code): if a divergence
+    is ever caught, knowing which physical host produced it -- not just
+    that SOME job did -- is what would actually confirm or kill that
+    theory, since GitHub's runner fleet is not guaranteed to be uniform
+    hardware. Best-effort; never fails the run if unavailable."""
+    try:
+        cpuinfo = Path("/proc/cpuinfo").read_text(encoding="utf-8", errors="replace")
+        model = next((ln.split(":", 1)[1].strip() for ln in cpuinfo.splitlines()
+                     if ln.startswith("model name")), "unknown")
+        flags_line = next((ln for ln in cpuinfo.splitlines() if ln.startswith("flags")), "")
+        flags = set(flags_line.split(":", 1)[1].split()) if ":" in flags_line else set()
+        fp_flags = sorted(f for f in flags if f in
+                          {"fma", "avx", "avx2", "avx512f", "sse4_1", "sse4_2"})
+        print(f"check_vm_interpreter_determinism: host CPU model={model!r} "
+              f"fp-relevant-flags={fp_flags}")
+    except Exception as e:  # noqa: BLE001 -- best-effort diagnostic, never fatal
+        print(f"check_vm_interpreter_determinism: host CPU info unavailable ({e})")
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--rounds", type=int, default=20)
     ap.add_argument("--toolchain-root", type=Path, default=find_toolchain_root())
     args = ap.parse_args()
 
+    print_host_info()
     with tempfile.TemporaryDirectory(prefix="sv0mathlib_vmdet_") as tmp:
         b_path = build_fixed_sv0b(args.toolchain_root, Path(tmp))
         results = [run_once(args.toolchain_root, b_path) for _ in range(args.rounds)]
