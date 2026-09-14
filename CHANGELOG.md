@@ -7,6 +7,19 @@ strengthened or weakened. Versions follow [Semantic Versioning](https://semver.o
 
 ## [Unreleased]
 
+### Contracts strengthened
+
+- **`scripts/run_fixture_parity.py`'s VM-backend leg (and the
+  cross-backend exit-code check) now GATE, no longer advisory.** The
+  underlying bug — sv0vm's f64 codec used `Unsafe.cast`, an SML/NJ
+  implementation detail that didn't hold under the SML/NJ 110.99.9 this
+  CI runner uses, mis-decoding some values and aborting a transcendental
+  `ensures` — is fixed upstream in sv0vm (see BUGS.md, "Per-fixture
+  value check"). Confirmed clean on this repo's own pinned CI leg after
+  bumping `.github/sv0-toolchain-pin.txt`. Pass `--advisory-vm` to fall
+  back to the old advisory behavior against an older, unfixed `sv0vm`
+  checkout.
+
 ### CI hardening
 
 - **`docs/ulp_audit_harness.c` is now wired into `scripts/ci`** as an

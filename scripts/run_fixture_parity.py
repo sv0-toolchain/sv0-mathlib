@@ -33,18 +33,20 @@ function it came from, on whichever backend disagreed.
 `PANIC` rows in `trig.csv` (documented `requires`-violation cases) can't
 be exercised inside one non-crashing binary and are listed as skipped.
 
-The **C backend leg gates** (a mismatch fails). The **VM backend leg is
-advisory by default**: every check passes on SML/NJ 2026.1, but under the
-SML/NJ 110.99.9 the CI runner uses, a transcendental `ensures` aborts the
-run (a `sv0 contract violation` on the VM, not a value mismatch) — see
-`BUGS.md`. The exit-code cross-backend gate (`vm_behavioral_parity.py`)
-already proves both backends agree on every self-test the library ships;
-this per-fixture VM leg becomes gating once that discrepancy is
-root-caused. Pass `--strict-vm` to make the VM leg fail too.
+**Both backend legs gate** (a mismatch on either fails). The VM leg used
+to be advisory-only: under SML/NJ 110.99.9 (the CI runner), sv0vm's f64
+codec (`Unsafe.cast`-based bit reinterpretation, not a reliable
+technique across SML/NJ versions/ports) mis-decoded some values,
+aborting a transcendental `ensures` — see BUGS.md's "Per-fixture value
+check" entry. Root-caused and fixed upstream (sv0vm's bytecode.sml now
+uses a self-calibrating PackReal64Little-based codec) and confirmed
+clean on this repo's own pinned CI leg — see BUGS.md for the fix
+commit. Pass `--advisory-vm` to fall back to the old advisory behavior
+(e.g. testing against an older, unfixed sv0vm checkout).
 
 Usage:
   python3 scripts/run_fixture_parity.py [--toolchain-root DIR] [--emit-only PATH]
-                                        [--c-only] [--vm-only] [--strict-vm]
+                                        [--c-only] [--vm-only] [--advisory-vm]
 """
 
 from __future__ import annotations
@@ -290,9 +292,10 @@ def main() -> int:
     ap.add_argument("--emit-only", type=Path, help="write the generated sv0 program here and exit")
     ap.add_argument("--c-only", action="store_true")
     ap.add_argument("--vm-only", action="store_true")
-    ap.add_argument("--strict-vm", action="store_true",
-                    help="fail (exit 1) on a VM-backend miss too; by default the "
-                         "VM leg is advisory (see the SML-110.99.9 note below)")
+    ap.add_argument("--advisory-vm", action="store_true",
+                    help="don't fail (exit 1) on a VM-backend miss; both legs gate "
+                         "by default now that the SML-110.99.9 codec bug is fixed "
+                         "(see the module docstring)")
     args = ap.parse_args()
 
     with (FIXTURES / "rounding.csv").open() as f:
@@ -322,7 +325,7 @@ def main() -> int:
             v_exit, v_out = run_vm(project, tc)
 
     ok = True         # C-backend result — always gates
-    vm_ok = True      # VM-backend result — gates only under --strict-vm
+    vm_ok = True      # VM-backend result — gates unless --advisory-vm
     if c_exit is not None:
         if c_exit == 0:
             print("run_fixture_parity: C backend   — all fixture rows match (exit 0)")
@@ -336,29 +339,29 @@ def main() -> int:
             print("run_fixture_parity: VM backend  — all fixture rows match (exit 0)")
         else:
             vm_ok = False
-            tag = "FAIL" if args.strict_vm else "WARN (advisory)"
+            tag = "WARN (advisory)" if args.advisory_vm else "FAIL"
             if v_exit == "CONTRACT_VIOLATION":
                 detail = f"a requires/ensures aborted the run — {v_out}"
             else:
                 detail = decode(v_exit, checks)
             print(f"run_fixture_parity: VM backend  — {tag}: {detail}", file=sys.stderr)
-            print("  The VM leg is advisory by default: it passes on SML/NJ 2026.1 but a "
-                  "transcendental\n  ensures aborts under the SML/NJ 110.99.9 the CI runner "
-                  "uses (BUGS.md). The exit-code\n  cross-backend gate (vm_behavioral_parity) "
-                  "and the C-backend row check above are unaffected.", file=sys.stderr)
+            print("  Both legs gate by default now that the SML-110.99.9 f64-codec bug "
+                  "is fixed\n  upstream in sv0vm (BUGS.md) — pass --advisory-vm to fall "
+                  "back to the old\n  advisory behavior (e.g. testing against an older, "
+                  "unfixed sv0vm checkout).", file=sys.stderr)
     if (c_exit is not None and v_exit is not None
             and isinstance(c_exit, int) and isinstance(v_exit, int) and c_exit != v_exit):
-        gate = args.strict_vm
+        gate = not args.advisory_vm
         if gate:
             ok = False
         print(f"run_fixture_parity: cross-backend exit mismatch — "
               f"C={c_exit!r}, VM={v_exit!r}"
               f"{'' if gate else ' (advisory)'}", file=sys.stderr)
 
-    if args.strict_vm and not vm_ok:
+    if not args.advisory_vm and not vm_ok:
         ok = False
 
-    passed = ok and (vm_ok or not args.strict_vm)
+    passed = ok and (vm_ok or args.advisory_vm)
     if passed and not vm_ok:
         print("run_fixture_parity: PASS (C backend gated; VM leg advisory — see WARN above)")
     else:

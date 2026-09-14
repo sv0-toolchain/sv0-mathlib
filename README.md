@@ -145,8 +145,6 @@ future direction, not a commitment — see SPEC.md §4.3 and §22 OQ-003.
 
 - The legacy SML `--target=vm` path lacks `f64` support — use
   `./scripts/sv0 vm-native-compile --project` instead.
-- The VM-backend leg of `scripts/run_fixture_parity.py` is advisory, not
-  gating, pending a not-yet-root-caused SML/NJ 110.99.9 discrepancy.
 - A handful of `sv0` toolchain gaps have documented, verified workarounds
   in this library's own source (see the relevant doc comment or module
   header for the specific one in play).
