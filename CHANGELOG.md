@@ -24,7 +24,15 @@ strengthened or weakened. Versions follow [Semantic Versioning](https://semver.o
   per-fixture check program's `.sv0b` bytes fixed and re-runs `sv0vm`
   against that SAME file repeatedly, to test whether the remaining
   nondeterminism is in execution (the interpreter itself) rather than
-  emission.
+  emission. **Result: 20/20 runs agree WITHIN a single CI job, but
+  which answer they agree on (pass vs. `frac_floor_of_nonneg` fail)
+  differs BETWEEN separate job instances given byte-identical
+  bytecode** — rules out simple per-invocation randomness and points at
+  something stable per ephemeral CI VM but different across separately-
+  provisioned ones (leading theory: a CPU-feature-dependent difference
+  in SML/NJ's own generated machine code for `Real` arithmetic). See
+  `BUGS.md`'s "Per-fixture value check" entry for the full writeup and
+  the concrete next diagnostic step.
 
 ### Toolchain gaps found (informational — see `BUGS.md` for full detail)
 

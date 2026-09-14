@@ -251,12 +251,47 @@ along, and the codec bug was never the ONLY source of this failure
 mode, just the one that reproduced consistently enough to isolate and
 fix first. The VM leg was reverted back to advisory (gating on it would
 make this repo's own required CI flaky, not more correct) — `--strict-vm`
-remains for anyone actively chasing the remaining nondeterminism. A real
-fix for that needs the same kind of direct signal that cracked the codec
-bug: instrumenting the native VM emitter (`lib/vm_codegen.sv0`,
-sv0-toolchain) to check for genuine non-determinism in `.sv0b` output
-across repeated emissions of the identical program (e.g. hash the
-output N times, assert byte-identical) — not yet attempted.
+remains for anyone actively chasing the remaining nondeterminism.
+
+**Instrumented and NARROWED (2026-09-14, sv0-mathlib `88636c4`/
+`68e0908`).** Two new diagnostics, both wired into `scripts/ci` as
+non-gating steps, applied the same "get real signal from the actual CI
+runner, don't reason about it" approach that cracked the codec bug:
+
+1. `scripts/check_vm_emitter_determinism.py` re-invokes the native VM
+   emitter 30 times against the same input (sv0-mathlib itself + two
+   sv0c fixtures) and diffs the raw `.sv0b` bytes. **Result: 30/30
+   byte-identical, on both matrix legs, across multiple separate CI
+   runs.** This rules the emitter OUT as the source — its output is
+   provably stable on the real target platform, not just theoretically
+   deterministic code.
+2. `scripts/check_vm_interpreter_determinism.py` builds the exact
+   per-fixture check program ONCE, holds its `.sv0b` bytes fixed, and
+   re-runs `sv0vm` against that SAME file 20 times. **Result: 20/20
+   agree WITHIN each CI job — but which answer they agree on differs
+   BETWEEN separate job instances.** One job's 20 runs all failed with
+   `frac_floor_of_nonneg`; a second, separate job's 20 runs (same
+   commits, same bytecode, confirmed byte-identical by the emitter
+   check moments earlier in each job) all succeeded.
+
+**This is the sharpest signal this bug has produced yet, and it points
+somewhere new.** "20/20 agree within a job, disagree across jobs" rules
+out simple per-invocation randomness (GC timing jitter, a genuinely
+racy read) — those would show up as intra-job flakiness, and they
+don't. What's left is something STABLE for the lifetime of one
+ephemeral GitHub Actions VM but DIFFERENT across separately-provisioned
+VMs given byte-identical bytecode and (per `sv0vm`'s own CI) a
+consistent SML/NJ version: most likely a CPU-feature-dependent
+difference in SML/NJ's own generated machine code for the interpreter's
+`Real` arithmetic (e.g. FMA availability/contraction, denormal-handling
+MXCSR flags, or a codegen path selected by runtime CPU detection) that
+GitHub's runner fleet doesn't hold constant across every physical host
+it schedules a job onto. Not yet confirmed — the concrete next step is
+printing the exact intermediate `Real` values `frac_floor_of_nonneg`'s
+binary search computes from inside the interpreter itself (a `sv0vm`
+source change, not a sv0-mathlib script) and comparing them byte-for-
+byte across a failing job and a passing one, to see exactly which
+arithmetic step first diverges.
 
 ---
 
