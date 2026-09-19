@@ -59,6 +59,51 @@ sin/cos/tan convention, not a documented requirement.
 | `ln_complex` | magnitudes `1e-150`..`1e150`, all angles (100001 pts) | 14 | 3 (informational) | `hypot_f64`'s own `mx`/`mn`/`ratio` decomposition fed into `ln_f64_dd` (not `ln_f64(hypot_f64(...))`) for both `ln(mx)` and `0.5*ln(1+ratio^2)`, `ratio^2` via `two_prod`, combined via `two_sum`, single final rounding, argument via `atan2_f64` | FAIL (see notes — real, understood residual, not chased further) |
 | `pow_complex` | base magnitude `1e-5`..`1e5`, all angles (100 pts) x exponent re/im each in `[-3,3]` (100 pts), 10000 combinations | 38329 | 5 (informational) | `exp_complex(mul_complex(exp, ln_complex(base)))`, the standard complex power identity | FAIL (see notes — the reference itself is unreliable here, not a confirmed defect) |
 
+## `stats` accuracy (beyond-spec)
+
+`module::stats` has no SPEC-pinned budget and libm has no reference for
+these reductions, so [`scripts/run_stats_accuracy.py`](../scripts/run_stats_accuracy.py)
+grades against an EXACT reference: it feeds seeded data sets through the
+sv0-emitted `Stats` accumulator ([`docs/stats_accuracy_harness.c`](stats_accuracy_harness.c),
+same translation-unit recipe as the ULP harness), recomputes each result in
+integer/rational arithmetic, rounds once, and measures the error in ULPs of
+the exact result. It is a CI gate (`scripts/ci`, `--skip-stats-accuracy`).
+
+Measured maxima, 2026-09-19 (arm64 macOS; budgets are about 2x for platform
+noise). Four data families: `uniform` (1000 values in `[-1,1)`, 20 sets),
+`offset` (`1e9 + u`, 1000 values, 20 sets: the variance stress test),
+`cancel` (400 values spanning 1..1e8 in magnitude, then a final value that
+cancels the running total, so the exact sum is far below `sum(|x|)`, 20
+sets) and `stream` (20000 values in `[0,1)`, 3 sets).
+
+| Function | `uniform` | `offset` | `cancel` | `stream` |
+|---|---:|---:|---:|---:|
+| `stats_sum_f64` | 0 | 0 | 0 (in eps*sum\|x\|) | 0 |
+| `stats_mean_f64` | 5 | 0 | 0.2 (in eps*mean\|x\|) | 0 |
+| `stats_variance_pop_f64` / `_sample_f64` | 13 | 10 | 8 | 44 |
+| `stats_stddev_pop_f64` / `_sample_f64` | 6 | 5 | 3 | 20 |
+| `stats_min_f64` / `stats_max_f64` | 0 | 0 | 0 | 0 |
+
+Notes:
+
+- **The audit found a real weakness, now fixed.** With a plain-`f64` running
+  mean, Welford's variance on the `offset` family was off by about 9e8 ULPs
+  (a relative error near 2e-7), and the mean by up to 219 ULPs on `uniform`.
+  Welford is only stable up to a factor of `mean / stddev` (here about
+  3e9): every step rounds the mean to the spacing of `1e9`, and that error
+  feeds the next deviation. The running mean is now a double-double
+  (`mean` + `mean_lo`, updated with an exact two-sum), which removes the
+  dependence: the same data now measures 10 ULPs for the variance.
+- The `cancel` sum and mean are graded in units of `eps * sum(|x|)` (resp.
+  `eps * mean(|x|)`), because the exact total is tiny and ULPs of the result
+  would measure the problem's conditioning instead of the algorithm. A naive
+  left-to-right running sum reaches 3.8 of those units on this family; the
+  compensated sum measures 0.
+- The `uniform` mean's 5 ULPs is the same effect: those means sit near
+  zero, so a ~1e-17 absolute error is several ULPs of the result.
+- The `stream` variance's 44 ULPs is the plain-`f64` accumulation of `m2`
+  over 20000 terms; it is well inside the budget and not compensated.
+
 ## Benchmark: cost vs. naive alternative (PERF-005)
 
 PERF-005 wants every non-exact function's iteration/instruction cost

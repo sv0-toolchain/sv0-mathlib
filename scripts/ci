@@ -9,7 +9,7 @@
 # The legacy sibling layout (../sv0-toolchain) is still auto-detected, and
 # SV0_TOOLCHAIN_ROOT overrides either (sv0-mathlib's own CI sets it).
 #
-# Usage: scripts/ci [--skip-fmt] [--skip-guard] [--skip-run] [--skip-unit] [--skip-fixtures] [--skip-doc] [--skip-parity] [--skip-fixture-parity] [--skip-ulp] [--skip-vm-determinism] [--skip-unit-vm]
+# Usage: scripts/ci [--skip-fmt] [--skip-guard] [--skip-run] [--skip-unit] [--skip-fixtures] [--skip-doc] [--skip-parity] [--skip-fixture-parity] [--skip-ulp] [--skip-vm-determinism] [--skip-unit-vm] [--skip-stats-accuracy]
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -35,6 +35,7 @@ SKIP_FIXTURE_PARITY=0
 SKIP_ULP=0
 SKIP_VM_DETERMINISM=0
 SKIP_UNIT_VM=0
+SKIP_STATS_ACC=0
 for arg in "$@"; do
   case "$arg" in
     --skip-fmt) SKIP_FMT=1 ;;
@@ -47,6 +48,7 @@ for arg in "$@"; do
     --skip-fixture-parity) SKIP_FIXTURE_PARITY=1 ;;
     --skip-vm-determinism) SKIP_VM_DETERMINISM=1 ;;
     --skip-unit-vm) SKIP_UNIT_VM=1 ;;
+    --skip-stats-accuracy) SKIP_STATS_ACC=1 ;;
     --skip-ulp) SKIP_ULP=1 ;;
     *)
       echo "sv0-mathlib ci: unknown argument: $arg" >&2
@@ -170,6 +172,16 @@ if [[ "$SKIP_FIXTURE_PARITY" -eq 0 ]]; then
   printf '' > /tmp/.sv0_drv_path
   SV0_TOOLCHAIN_ROOT="$TOOLCHAIN" python3 "$HERE/scripts/run_fixture_parity.py"
   echo "sv0-mathlib ci: per-fixture value check OK"
+fi
+
+if [[ "$SKIP_STATS_ACC" -eq 0 ]]; then
+  echo "== sv0-mathlib ci: stats accuracy regression gate (exact-rational reference) =="
+  # scripts/run_stats_accuracy.py runs the sv0-emitted Stats accumulator on
+  # seeded data sets and grades every reduction against an exact rational
+  # reference; it fails if any (function, data family) exceeds its budget.
+  printf '' > /tmp/.sv0_drv_path
+  SV0_TOOLCHAIN_ROOT="$TOOLCHAIN" python3 "$HERE/scripts/run_stats_accuracy.py"
+  echo "sv0-mathlib ci: stats accuracy OK"
 fi
 
 if [[ "$SKIP_ULP" -eq 0 ]]; then

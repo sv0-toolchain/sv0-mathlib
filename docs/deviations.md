@@ -149,7 +149,8 @@ toolchain and the spec disagree — write down the deviation and why).
     silently truncates `f64` (BUGS.md #20). A `Stats` value is instead
     threaded by value: `s = stats_push(s, x);`. Consequences:
     - Provided: count, sum (Neumaier compensated), mean, population and
-      sample variance and standard deviation (Welford), min, max, range.
+      sample variance and standard deviation (Welford with a double-double
+      running mean), min, max, range; accuracy measured in `docs/accuracy.md`.
     - **Not provided:** median and percentiles, which need the whole
       sample. They wait on the upstream fix for BUGS.md #20.
     - Total functions with no panics. An undefined result (no observations,

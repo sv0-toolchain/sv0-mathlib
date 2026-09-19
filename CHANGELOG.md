@@ -56,6 +56,20 @@ strengthened or weakened. Versions follow [Semantic Versioning](https://semver.o
   functions (median, percentile) are blocked until upstream adds typed
   element slots, while streaming reductions work via an accumulator struct.
 
+### Fixed
+
+- `stats`: the running mean is now a double-double (`mean` + `mean_lo`).
+  The accuracy audit showed the plain-`f64` Welford mean cost about 9e8 ULPs
+  of variance error on data like `1e9 + noise` (and up to 219 ULPs of mean
+  error); it now measures 10 and 5. `Stats` gained a `mean_lo` field.
+
+### Added (accuracy gate)
+
+- `scripts/run_stats_accuracy.py` + `docs/stats_accuracy_harness.c`: grades
+  every `stats` reduction against an exact rational reference over four
+  seeded data families, as a CI gate (`--skip-stats-accuracy`). Results are
+  in `docs/accuracy.md`.
+
 ### Changed
 
 - CI also runs on a 6-hourly `schedule:` so idle periods still sample

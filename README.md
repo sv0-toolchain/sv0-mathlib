@@ -123,6 +123,7 @@ sv0-mathlib/
 │   ├── check_fixture_oracles.py # random.csv / stats.csv still match their independent oracles
 │   ├── gen_stats_fixtures.py # exact-rational oracle that prints test/fixtures/stats.csv
 │   ├── run_unit_tests_vm.py  # unit + property tests on C and the VM, exit codes compared
+│   ├── run_stats_accuracy.py # stats accuracy gate against an exact rational reference
 │   ├── run_ulp_audit.py      # accuracy-regression gate against docs/accuracy.md's pinned budgets
 │   ├── check_vm_emitter_determinism.py # diagnostic: is the native VM emitter's .sv0b output stable?
 │   └── check_vm_interpreter_determinism.py # diagnostic: is sv0vm's execution of a fixed .sv0b stable?
@@ -138,6 +139,7 @@ sv0-mathlib/
     ├── deviations.md               # where this library departs from SPEC.md, and why
     ├── ulp_audit_harness.c         # the C harness used to produce accuracy.md's numbers
     ├── random_oracle.c             # independent C oracle that prints test/fixtures/random.csv
+    ├── stats_accuracy_harness.c    # C harness run by scripts/run_stats_accuracy.py
     └── requirement_test_matrix.md  # generated: requirement ID -> test mapping
 ```
 
