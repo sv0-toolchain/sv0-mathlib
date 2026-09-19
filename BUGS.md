@@ -1366,6 +1366,59 @@ NOT catch this (their sample points happened not to expose the
 truncation), which is exactly the kind of gap SPEC.md's own property-
 test layer (Section 16.2) exists to catch.
 
+## 20. `Vec<f64>` (and `[f64; N]`) silently truncate on the C backend and hard-fail on the VM
+
+Found 2026-09-19 by the B0 feasibility spike for a statistics module,
+against `sv0-toolchain` `cd7b355`. Every collection element slot is an
+`intptr_t` (`sv0c/runtime/sv0_runtime.h`: `sv0_vec_push(int32_t h,
+intptr_t elem)`, `intptr_t sv0_vec_get(...)`), and slices share that ABI
+(`sv0_slice.data` is an `intptr_t *`). Nothing in the checker rejects a
+`Vec<f64>`, so it compiles.
+
+```sv0
+fn main() -> i32 {
+    let v: Vec<f64> = vec_new();
+    vec_push(v, 1.5);
+    vec_push(v, 2.25);
+    vec_push(v, 0.5);
+    let mut sum: f64 = 0.0;
+    let mut i: i32 = 0;
+    while i < vec_len(v) {
+        let x: f64 = vec_get(v, i);
+        sum = sum + x;
+        i = i + 1;
+    }
+    if sum != 4.25 { return 1; }
+    return 0;
+}
+```
+
+- **C backend:** exits `1`. The emitted C is `sv0_vec_push(v, 1.5);` (an
+  implicit `double` -> `intptr_t` truncation, so `1.5` is stored as `1`)
+  and `int _sv0t5 = sv0_vec_get(v, i);` (the read side is typed `int`).
+  No diagnostic. This is the same silent-wrong-type class as bug #5.
+- **VM backend:** hard failure, `Fail: interpreter: vec_push expects
+  handle and int` (`sv0vm/src/interpreter/interpreter.sml`).
+- `[f64; 3]` with `a[1]` behaves identically (C exit `1`, same VM error).
+- `Vec<StructWithF64>` fails to compile on the C backend (`passing 'P' to
+  parameter of incompatible type 'intptr_t'`), so it is loud, not silent.
+- **Works:** structs with `f64` fields, passed and returned by value, on
+  both backends (probe: a Welford accumulator
+  `struct Acc { n: i32, mean: f64, m2: f64, lo: f64, hi: f64 }` updated by
+  `fn acc_push(a: Acc, x: f64) -> Acc` gave the right mean, `m2`, min and
+  max on the C backend and the VM).
+
+Impact: any API that takes a sample of `f64` values (median, percentile,
+anything needing the whole data set) cannot be written against a `Vec`,
+array or slice today. Streaming reductions (mean, variance, min, max) can,
+via an accumulator struct.
+
+Suggested upstream fix: give the runtime typed element access (store the
+`double` bit pattern in the slot via `memcpy`, with `vec_push`/`vec_get`
+variants selected by the element type), teach the interpreter's `vec_push`
+and `vec_get` to carry `CF64`, and, until then, have the checker reject
+`Vec<f64>`/`[f64; N]` instead of compiling them to wrong code.
+
 ## Working today — genuinely verified (emitted C inspected, not just exit code)
 
 - Single-file compile/verify (`./scripts/sv0 compile`, `verify`, `emit-c`)

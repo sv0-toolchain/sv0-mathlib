@@ -26,6 +26,14 @@ strengthened or weakened. Versions follow [Semantic Versioning](https://semver.o
 - `docs/deviations.md` #11 records that `random` is beyond-spec and not
   cryptographic; README lists the module and its corrected function count.
 
+### Toolchain gaps found
+
+- BUGS.md #20: `Vec<f64>` and `[f64; N]` silently truncate elements on the
+  C backend and hard-fail on the VM (element slots are `intptr_t`). Found
+  by the feasibility spike for a statistics module; it means sample-based
+  functions (median, percentile) are blocked until upstream adds typed
+  element slots, while streaming reductions work via an accumulator struct.
+
 ### Changed
 
 - CI also runs on a 6-hourly `schedule:` so idle periods still sample
