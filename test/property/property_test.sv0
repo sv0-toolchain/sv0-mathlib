@@ -2,8 +2,8 @@
  * "Property tests SHALL use a fixed, checked-in seed for any
  * pseudo-random sample generation so failures are reproducible."
  *
- * `lcg_next`/`lcg_unit` below are a small, deterministic PCG/Knuth-MMIX-
- * style linear congruential generator, seeded by the literal `SEED`
+ * `next_u64`/`unit_f64` (from lib/random.sv0) are a small, deterministic
+ * Knuth-MMIX linear congruential generator, seeded by the literal `SEED`
  * constant checked in below — a PURE function of that seed and nothing
  * else (no OS entropy, no wall-clock, no external input), so re-running
  * this binary any number of times produces bit-identical samples and
@@ -21,8 +21,8 @@
  * generator's own `u64` output via `%`, never round-trips through
  * `f64`.
  */
-use arith::add_wrapping_u64;
-use arith::mul_wrapping_u64;
+use random::next_u64;
+use random::unit_f64;
 use arith::abs_f64;
 use trig::pi_f64;
 use trig::sin_f64;
@@ -40,19 +40,6 @@ use complex::add_complex;
 use complex::mul_complex;
 use complex::approx_eq;
 
-fn lcg_next(state: u64) -> u64 {
-    let a: u64 = 6364136223846793005;
-    let c: u64 = 1442695040888963407;
-    return add_wrapping_u64(mul_wrapping_u64(state, a), c);
-}
-
-/* Maps the generator's raw u64 state to a value in [0.0, 1.0). */
-fn lcg_unit(state: u64) -> f64 {
-    let s: f64 = state;
-    let umax: f64 = 18446744073709551615.0;
-    return s / umax;
-}
-
 fn main() -> i32 {
     let seed: u64 = 88172645463325252;
     let mut state: u64 = seed;
@@ -62,8 +49,8 @@ fn main() -> i32 {
      * domain). */
     let mut i: u32 = 0;
     while i < 30 loop_invariant(i <= 30) {
-        state = lcg_next(state);
-        let u: f64 = lcg_unit(state);
+        state = next_u64(state);
+        let u: f64 = unit_f64(state);
         let x: f64 = (u - 0.5) * 2000.0 * pi_f64();
         let s: f64 = sin_f64(x);
         let c: f64 = cos_f64(x);
@@ -78,10 +65,10 @@ fn main() -> i32 {
      * close to the 0.5 recentering point) and large-magnitude points. */
     let mut j: u32 = 0;
     while j < 30 loop_invariant(j <= 30) {
-        state = lcg_next(state);
-        let ux: f64 = lcg_unit(state);
-        state = lcg_next(state);
-        let uy: f64 = lcg_unit(state);
+        state = next_u64(state);
+        let ux: f64 = unit_f64(state);
+        state = next_u64(state);
+        let uy: f64 = unit_f64(state);
         let x2: f64 = (ux - 0.5) * 2000000.0;
         let y2: f64 = (uy - 0.5) * 2000000.0;
         let p: Polar = to_polar(x2, y2);
@@ -106,9 +93,9 @@ fn main() -> i32 {
     let mut checked_count: u32 = 0;
     while checked_count < 20 loop_invariant(checked_count <= 20) {
         if k >= 500 { return 3; }
-        state = lcg_next(state);
+        state = next_u64(state);
         let a: u64 = (state % 999983) + 1;
-        state = lcg_next(state);
+        state = next_u64(state);
         let m: u64 = (state % 999983) + 2;
         let g: u64 = gcd_u64(a, m);
         if g == 1 {
@@ -127,18 +114,18 @@ fn main() -> i32 {
      * associative (within f64 epsilon), over 20 seeded triples. */
     let mut n: u32 = 0;
     while n < 20 loop_invariant(n <= 20) {
-        state = lcg_next(state);
-        let ua: f64 = lcg_unit(state);
-        state = lcg_next(state);
-        let ub: f64 = lcg_unit(state);
-        state = lcg_next(state);
-        let uc: f64 = lcg_unit(state);
-        state = lcg_next(state);
-        let ud: f64 = lcg_unit(state);
-        state = lcg_next(state);
-        let ue: f64 = lcg_unit(state);
-        state = lcg_next(state);
-        let uf: f64 = lcg_unit(state);
+        state = next_u64(state);
+        let ua: f64 = unit_f64(state);
+        state = next_u64(state);
+        let ub: f64 = unit_f64(state);
+        state = next_u64(state);
+        let uc: f64 = unit_f64(state);
+        state = next_u64(state);
+        let ud: f64 = unit_f64(state);
+        state = next_u64(state);
+        let ue: f64 = unit_f64(state);
+        state = next_u64(state);
+        let uf: f64 = unit_f64(state);
         let ca: Complex = Complex { re: (ua - 0.5) * 200.0, im: (ub - 0.5) * 200.0 };
         let cb: Complex = Complex { re: (uc - 0.5) * 200.0, im: (ud - 0.5) * 200.0 };
         let cc_: Complex = Complex { re: (ue - 0.5) * 200.0, im: (uf - 0.5) * 200.0 };

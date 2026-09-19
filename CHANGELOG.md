@@ -7,6 +7,18 @@ strengthened or weakened. Versions follow [Semantic Versioning](https://semver.o
 
 ## [Unreleased]
 
+### Added
+
+- `lib/random.sv0`: deterministic, seedable `next_u64` / `unit_f64`,
+  extracted from the property test. `unit_f64` now uses the top 53 bits,
+  so it is strictly in `[0.0, 1.0)`; the old full-`u64` division could
+  round the highest states to exactly `1.0`. Not cryptographic.
+
+### Changed
+
+- CI also runs on a 6-hourly `schedule:` so idle periods still sample
+  the mixed-hardware runner fleet for the intermittent VM divergence.
+
 ### Investigation tooling
 
 - New `scripts/check_vm_emitter_determinism.py`, wired into `scripts/ci`

@@ -7,7 +7,7 @@ would name it. Non-exact (ULP-budgeted) functions link their own doc
 comment's `docs/accuracy.md` cross-reference inline; see that file for
 the measured error tables themselves.
 
-**111 public functions across 6 modules.**
+**113 public functions across 7 modules.**
 
 ---
 
@@ -1046,6 +1046,36 @@ fn u64_max_val() -> u64 { return 18446744073709551615; }
 
 u64::MAX — largest representable u64, per this file's shared header
 note above.
+
+---
+
+## `random`
+
+deterministic, seedable pseudo-random generator for tests and simulation.
+
+### `next_u64`
+
+```sv0
+fn next_u64(state: u64) -> u64
+```
+
+Advances the generator: the returned value is both the next state and
+the next raw 64-bit output. Wraps modulo 2^64. Full period (2^64). The
+low bits of an LCG are weak, so derive floats from the HIGH bits
+(`unit_f64` does).
+
+### `unit_f64`
+
+```sv0
+fn unit_f64(state: u64) -> f64
+    ensures(result >= 0.0 && result < 1.0)
+```
+
+Maps a raw u64 state to an f64 in [0.0, 1.0). Uses the top 53 bits
+(`state / 2^11`, exact integer division), which convert to f64 exactly,
+then scales by 2^-53 (a power of two, so exact). The result is always
+strictly below 1.0; the largest value is 1.0 - 2^-53. Dividing the full
+u64 by 2^64 - 1 instead would round the highest states to exactly 1.0.
 
 ---
 
