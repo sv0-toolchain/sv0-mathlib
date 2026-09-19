@@ -5,7 +5,7 @@ TEST-003	check	scripts/check_fixtures.py	boundary/special-value coverage lint ov
 TEST-004	check	scripts/check_fuzz_budget.py	fixed seed per property fixture, pinned in docs/fuzz.tsv
 TEST-005	check	scripts/run_fixture_parity.py	per-fixture C/VM run; the VM leg is advisory (exceptions MX-014)
 TEST-006	check	scripts/ci	the local CI gate, run by .github/workflows/ci.yml on both toolchain legs
-COMPAT-001	check	scripts/ci	the cross-backend parity step runs the toolchain's vm_behavioral_parity.py over this project (layout-sensitive, BUGS.md #22)
+COMPAT-001	check	scripts/ci	the cross-backend parity step runs the toolchain's vm_behavioral_parity.py over this project; before sv0c e0f2d527 it ran a test file's main, not main.sv0 (BUGS.md #22)
 COMPAT-002	check	scripts/run_fixture_parity.py	per-fixture cross-backend check; the VM leg is advisory (exceptions MX-014)
 COMPAT-003	check	.github/sv0-toolchain-pin.txt	the exact sv0-toolchain revision the required CI leg builds against; fixture revisions are in test/fixtures/manifest.md
 DOC-001	check	scripts/check_doc_comments.py	doc-comment coverage lint over every public function

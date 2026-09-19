@@ -31,9 +31,7 @@ import run_fixture_parity as rfp  # noqa: E402 -- reuse its C and VM runners
 # BUGS.md entry that explains it. They are reported as KNOWN, not WARN, and
 # never fail the run; but if one starts passing on the VM the run FAILS until
 # it is removed here, so this list cannot go stale.
-KNOWN_VM_DIVERGENCE = {
-    "unit/complex_test.sv0": "BUGS.md #22 (ln_complex aborts the VM in a small program)",
-}
+KNOWN_VM_DIVERGENCE: dict[str, str] = {}
 
 
 def main() -> int:

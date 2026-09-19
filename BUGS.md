@@ -1368,6 +1368,15 @@ test layer (Section 16.2) exists to catch.
 
 ## 20. `Vec<f64>` (and `[f64; N]`) silently truncate on the C backend and hard-fail on the VM
 
+**STATUS (2026-09-19): MITIGATED in `sv0c` `e3a2ec32`; real `f64` element
+support is still missing.** The checker now refuses the ways a float can
+enter a collection instead of compiling wrong code: `vec_push` / `vec_set`
+with a float element, an array literal of float literals, and a `Vec<f64>` /
+`[f64; N]` `let` annotation all fail with `E0447`. (Not covered: a `Vec<f64>`
+in a function signature or struct field, and arrays whose elements are not
+all literals; none of those can be populated without one of the covered
+operations.) Median and percentile still need typed element slots.
+
 Found 2026-09-19 by the B0 feasibility spike for a statistics module,
 against `sv0-toolchain` `cd7b355`. Every collection element slot is an
 `intptr_t` (`sv0c/runtime/sv0_runtime.h`: `sv0_vec_push(int32_t h,
@@ -1421,6 +1430,14 @@ and `vec_get` to carry `CF64`, and, until then, have the checker reject
 
 ## 21. VM emitter: comparing a `u64` struct field against a function-call result gives the wrong answer
 
+**STATUS (2026-09-19): FIXED** (`sv0-toolchain` `1e3cabb`, `sv0c` `e0f2d527`).
+The VM compose main recorded a callee's return category only for `double`
+and `int64_t`, so a call returning `u64` had category 0 and compared signed.
+It now uses the shared `megatu_cty_category` mapping. The struct-field half
+of the same family (a binop straight on a field) is fixed too, see #22.
+Regression: `sv0c/test/behavior/cases/struct_field_operands.sv0` (native +
+VM parity).
+
 Found 2026-09-19 when `scripts/run_unit_tests_vm.py` first ran
 `test/unit/random_test.sv0` on the VM (C backend exit 0, VM exit 34),
 against `sv0-toolchain` `cd7b355`. Minimal repro:
@@ -1448,50 +1465,51 @@ to be emitted with the wrong operand width or signedness when one side is a
 Workaround (applied in `test/unit/random_test.sv0`): bind either side to a
 local before comparing. No `lib/` code hits it (they compare locals).
 
-## 22. VM results depend on what else is in the project (and `ln_complex` fails in small programs)
+## 22. `--project` ran the WRONG `main` (nested test entries), which hid VM parity failures
 
-Found 2026-09-19 while adding `test/unit/complex_test.sv0`, against
-`sv0-toolchain` `cd7b355`. Both symptoms are VM-only (the C backend is
-correct in every case below) and deterministic, unlike the intermittent
-divergence in #2.
+**STATUS (2026-09-19): FIXED** (`sv0c` `e0f2d527`, `sv0-toolchain` `1e3cabb`).
+Found while adding `test/unit/complex_test.sv0`. The first symptom looked
+like "VM results depend on unrelated files"; the real story is worse, and
+mostly about THIS repo's gates:
 
-1. **`ln_complex` aborts the VM in a small program.** With `lib/` plus this
-   6-line entry, the C backend exits 0 and `sv0vm` dies with
-   `Fail: interpreter: arithmetic on non-int`:
+1. **Root cause: nested entry points were concatenated into the program.**
+   `--project <dir>` source-concatenates every `.sv0` under the directory.
+   `test/unit/*.sv0` and `test/property/*.sv0` each define `fn main`, so the
+   translation unit held many `main`s and the compiler kept an arbitrary one.
+   With `test/` present, **`main.sv0`'s `main` never ran, on either
+   backend.** The "compile + run full project" step and the whole-library
+   cross-backend parity gate (COMPAT-001) were both executing a test file's
+   `main` and passing. (Marker check: a `main.sv0` that just `return 77;`
+   still exited 0 in the real layout.) This is why a copy of `lib/` +
+   `main.sv0` without `test/` behaved differently from the repo: it was the
+   first time `main.sv0` actually ran on the VM.
+   Fix: with exactly one entry file directly in the project directory, nested
+   files that define their own `fn main` are dropped from the program
+   (`link_listing_drop_nested_entries`). Fixture
+   `sv0c/test/integration/project_root_entry`.
+2. **Once `main.sv0` really ran on the VM it exposed two u32 mismatches** (the
+   C backend was right): `sub_wrapping_u32(0, 1) != u32_max_val()` and a
+   `u32::MAX / a` division. The VM kept `u32` as a plain `i32`, so values
+   above `2^31 - 1` were negative. `u32` is now its own VM category: still an
+   `i32` bit pattern for add/sub/mul/shl/bitwise (so the i32 round-trip trick
+   in `arith.sv0` works), zero-extended where the unsigned value matters
+   (compare, div, rem, `>>`, widening). Regression:
+   `sv0c/test/behavior/cases/u32_wrap.sv0`. (The C backend types u32 bitwise
+   temps as `int`, so u32 `&`/`|`/`^` with the high bit set is not covered.)
+3. **`ln_complex` aborted the VM in small programs** (`Fail: interpreter:
+   arithmetic on non-int`): `ln_complex` adds two struct-field operands
+   directly (`combined.lo + a.lo`) and the VM emitter typed a field operand
+   as `int`. Field categories now travel with the slot's field layout, so
+   f64 / i64 / u64 fields pick the right opcode. Regression:
+   `struct_field_operands.sv0`.
 
-   ```sv0
-   use complex::Complex;
-   use complex::ln_complex;
-   fn main() -> i32 {
-       let e_real: Complex = Complex { re: 2.718281828459045, im: 0.0 };
-       let l: Complex = ln_complex(e_real);
-       if l.re != 1.0 { return 1; }
-       return 0;
-   }
-   ```
+The C backend also mistypes `(one << 63) + one` for a `u64` (temp typed
+`int`); noted while writing the regression, not fixed.
 
-   `ln_f64`, `hypot_f64`, `add_complex` and `exp_complex` alone are fine, and
-   the SAME `ln_complex` call inside this repo's full `main.sv0` (real
-   layout) passes on the VM.
-2. **The result of an unchanged program depends on unrelated files.** A
-   project directory holding only `lib/` and `main.sv0` (both copied from
-   this repo): C exit 0, VM exit **168** (assertion
-   `sub_wrapping_u32(0, 1) != u32_max_val()`). Add this repo's `test/`
-   directory beside them and the VM exits 0. Adding one tiny unrelated
-   `.sv0` file does not change it (still 168); copying `lib/` instead of
-   symlinking it does not either. Same emitted-bytecode path for the wrapper
-   and the direct emitter (`cmp` identical), so it is the compiled program's
-   contents, not the invocation.
-
-Impact: the whole-library cross-backend gate (`vm_behavioral_parity.py`,
-COMPAT-001) compiles `--project sv0-mathlib`, which includes `test/`, and
-passes, so its evidence is real for that layout but is layout-sensitive. It
-looks like a size- or ordering-dependent defect in constant/function
-pooling or in u32 wrap handling in the native VM emitter; not root-caused.
-
-Workaround: `run_unit_tests_vm.py` lists `unit/complex_test.sv0` under
-`KNOWN_VM_DIVERGENCE` (its `ln_complex`/`pow_complex` checks hit symptom 1);
-the C backend gates it as usual.
+Consequence for this repo: the pinned CI leg predates the fix, so until
+`.github/sv0-toolchain-pin.txt` moves past `1e3cabb` its "compile + run" and
+parity steps still exercise a test `main`. From the fix on they run
+`main.sv0` for real (it passes on both backends).
 
 ## Working today — genuinely verified (emitted C inspected, not just exit code)
 

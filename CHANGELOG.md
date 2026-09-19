@@ -46,21 +46,37 @@ strengthened or weakened. Versions follow [Semantic Versioning](https://semver.o
 
 ### Toolchain gaps found
 
-- BUGS.md #22: VM results depend on what else is in the project: `main.sv0`
-  with only `lib/` exits 168 on the VM (C: 0) but 0 once `test/` is added,
-  and `ln_complex` aborts the VM in a small program. Found while adding the
-  complex unit test; `complex_test.sv0` is a KNOWN VM divergence in
-  `run_unit_tests_vm.py` (C-gated as usual).
+- BUGS.md #22: found while adding the complex unit test; the root cause was
+  `--project` running a nested test `main` instead of `main.sv0`. Fixed, see
+  above.
 
-- BUGS.md #21: the VM emitter mis-evaluates `struct.u64_field >= call()`
-  (C is correct). Found by the new VM unit-test runner; worked around in
-  `random_test.sv0` by comparing against a local.
+- BUGS.md #21: the VM emitter mis-evaluated `struct.u64_field >= call()`
+  (C was correct). Found by the new VM unit-test runner. Fixed, see above.
 
 - BUGS.md #20: `Vec<f64>` and `[f64; N]` silently truncate elements on the
   C backend and hard-fail on the VM (element slots are `intptr_t`). Found
   by the feasibility spike for a statistics module; it means sample-based
   functions (median, percentile) are blocked until upstream adds typed
   element slots, while streaming reductions work via an accumulator struct.
+
+### Toolchain fixes picked up (pin moved to `1e3cabb`)
+
+- **CI was not running `main.sv0`.** `--project` concatenated the nested
+  `test/**/*.sv0` entry points into the program and the compiler kept one of
+  their `main`s, so "compile + run" and the cross-backend parity gate
+  (COMPAT-001) had been passing on a test file's `main`. Fixed in `sv0c`
+  (`e0f2d527`): a directory with one root entry file drops nested files that
+  define `fn main`. `main.sv0` now genuinely runs, and passes, on both
+  backends. BUGS.md #22.
+- The VM now types struct-field operands (f64/i64/u64 fields), returns from
+  `u64`-returning calls, and `u32` values correctly, which is what made
+  `ln_complex`, `sub_wrapping_u32` and `u32::MAX / a` pass on the VM.
+  BUGS.md #21, #22. `unit/complex_test.sv0` is no longer a known VM
+  divergence, and `random_test.sv0` compares a struct field to a call
+  directly again.
+- The checker rejects f64/f32 elements in a `Vec`, array or slice (E0447)
+  instead of compiling them to truncated values. BUGS.md #20 (mitigated;
+  typed element slots are still missing, so no median/percentile).
 
 ### Governance
 
