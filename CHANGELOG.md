@@ -46,6 +46,12 @@ strengthened or weakened. Versions follow [Semantic Versioning](https://semver.o
 
 ### Toolchain gaps found
 
+- BUGS.md #22: VM results depend on what else is in the project: `main.sv0`
+  with only `lib/` exits 168 on the VM (C: 0) but 0 once `test/` is added,
+  and `ln_complex` aborts the VM in a small program. Found while adding the
+  complex unit test; `complex_test.sv0` is a KNOWN VM divergence in
+  `run_unit_tests_vm.py` (C-gated as usual).
+
 - BUGS.md #21: the VM emitter mis-evaluates `struct.u64_field >= call()`
   (C is correct). Found by the new VM unit-test runner; worked around in
   `random_test.sv0` by comparing against a local.
@@ -57,6 +63,21 @@ strengthened or weakened. Versions follow [Semantic Versioning](https://semver.o
   element slots, while streaming reductions work via an accumulator struct.
 
 ### Governance
+
+- Traceability: `docs/requirements.tsv` snapshots all 65 requirements in
+  SPEC.md's tables (`scripts/extract_requirements.py`; the SPEC is in
+  another repo, so CI works offline from the snapshot, which records the SPEC
+  commit). `scripts/check_traceability.py` (in `scripts/ci`) fails unless
+  every requirement has a `REQ:`-tagged test, a named CI check or process
+  (`docs/traceability.tsv`), a registered exception, or SPEC release
+  `Future`; the non-waivable ones (`PERF-002`, `COMPAT-001`, `TEST-004`)
+  must have a test or a check. It also catches REQ-tag typos and keeps
+  `run_unit_tests.py`'s `REQUIRED_IDS` consistent with the SPEC.
+  `docs/traceability.md` is generated. 43 of the 65 were already covered by
+  the requirement matrix; the other 22 are now accounted for too.
+- New `test/unit/complex_test.sv0` gives CPLX-001..007 real per-requirement
+  tests (they were only exercised, untagged, inside `main.sv0`), and the
+  requirement matrix now covers CPLX-001..006.
 
 - Fuzz budget: `test/property/property_test.sv0` is split into one seeded
   property per file (`trig_identity`, `polar_roundtrip`, `modular_inverse`,

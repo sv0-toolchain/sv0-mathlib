@@ -135,6 +135,10 @@ if [[ "$SKIP_FIXTURES" -eq 0 ]]; then
   # Fuzz budget: every test/property/*.sv0 fixture is pinned in docs/fuzz.tsv
   # (seed + ROUNDS + floor); docs/fuzz-evidence.md is regenerated from it.
   python3 "$HERE/scripts/check_fuzz_budget.py" --write-md
+  # Traceability: every requirement in the SPEC snapshot (docs/requirements.tsv)
+  # has a tagged test, a named CI check/process, a registered exception, or is
+  # Future-scoped; docs/traceability.md is regenerated from that.
+  python3 "$HERE/scripts/check_traceability.py" --write-md
   echo "sv0-mathlib ci: fixtures OK"
 fi
 

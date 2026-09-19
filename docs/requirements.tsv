@@ -1,0 +1,66 @@
+id	release	section	summary	spec_commit
+CONV-001	F0	8. Numeric conventions (governs every module)	The library SHALL expose one module per domain: math::arith, math::modular, math::trig, math::polar, ...	f6fc99b
+CONV-002	F0	8. Numeric conventions (governs every module)	f64 SHALL be the primary floating-point type for every transcendental, polar, and complex function; every ...	f6fc99b
+CONV-003	R0.2	8. Numeric conventions (governs every module)	An f32 variant SHALL be provided only where Section 15's error-bound table defines an explicit, separately ...	f6fc99b
+CONV-004	F0	8. Numeric conventions (governs every module)	Every public function SHALL be a concrete, per-type function (e.g., sqrt_f64, gcd_u64), not a generic ...	f6fc99b
+CONV-005	F0	8. Numeric conventions (governs every module)	A function with a mathematical domain restriction (division, sqrt of a negative real, asin/acos outside [-1, ...	f6fc99b
+CONV-006	F0	8. Numeric conventions (governs every module)	The library SHALL NOT read %'s behavior on negative operands as a given. Every place floor/Euclidean ...	f6fc99b
+CONV-007	F0	8. Numeric conventions (governs every module)	"Every public function SHALL carry at least one requires clause (or an explicit ""total function, no ..."	f6fc99b
+CONV-008	R0.1	8. Numeric conventions (governs every module)	Every function containing a while loop SHALL carry at least one loop_invariant sufficient to explain ...	f6fc99b
+CONV-009	R0.1	8. Numeric conventions (governs every module)	Contract expressions SHALL be pure, per contracts/semantics.md appendix rule 2 (no side effects, no mutation) ...	f6fc99b
+CONV-010	R0.1	8. Numeric conventions (governs every module)	"This library SHALL be buildable and testable with contract-mode = ""runtime"" (default) and SHALL be ..."	f6fc99b
+ARITH-001	F0	11.2 Requirements	abs_i32/abs_i64/abs_f64 SHALL be provided with ensures(result >= 0); the signed-integer forms SHALL carry ...	f6fc99b
+ARITH-002	F0	11.2 Requirements	sign_i32/sign_i64/sign_f64 SHALL return -1, 0, or 1 (matching input type) with ensures(result == -1 \	f6fc99b
+ARITH-003	F0	11.2 Requirements	min_*/max_* SHALL be provided per concrete numeric type with ensures(result == a \	f6fc99b
+ARITH-004	F0	11.2 Requirements	clamp_*(x, lo, hi) SHALL carry requires(lo <= hi) and ensures(result >= lo && result <= hi) and ensures(lo <= ...	f6fc99b
+ARITH-005	R0.1	11.2 Requirements	floor_f64, ceil_f64, round_f64, trunc_f64 SHALL be provided with ensures pinning each function's rounding ...	f6fc99b
+ARITH-006	R0.1	11.2 Requirements	is_nan_f64, is_finite_f64, is_infinite_f64 SHALL be provided and SHALL be the only sanctioned way this ...	f6fc99b
+ARITH-007	R0.1	11.2 Requirements	pow_i64(base: i64, exp: u32) -> i64 SHALL use exponentiation by squaring with requires(exp < 64 \	f6fc99b
+ARITH-008	R0.1	11.2 Requirements	add_wrapping_*, sub_wrapping_*, mul_wrapping_* SHALL be provided per integer type with ensures describing ...	f6fc99b
+ARITH-009	R0.1	11.2 Requirements	lerp_f64(a: f64, b: f64, t: f64) -> f64 SHALL carry requires(t >= 0.0 && t <= 1.0) and ensures(t == 0.0 ==> ...	f6fc99b
+ARITH-010	R0.1	11.2 Requirements	fma_f64(a: f64, b: f64, c: f64) -> f64 (fused multiply-add, single rounding) SHALL be provided with ensures ...	f6fc99b
+MOD-001	R0.1	12.2 Requirements	floor_mod_i64(a: i64, m: i64) -> i64 SHALL carry requires(m > 0) and ensures(result >= 0 && result < m) and ...	f6fc99b
+MOD-002	R0.1	12.2 Requirements	gcd_u64(a: u64, b: u64) -> u64 SHALL match contracts/semantics.md's own canonical example: requires(a > 0), ...	f6fc99b
+MOD-003	R0.1	12.2 Requirements	lcm_u64(a: u64, b: u64) -> u64 SHALL carry requires(a > 0 && b > 0), ensures(result % a == 0 && result % b == ...	f6fc99b
+MOD-004	R0.1	12.2 Requirements	add_mod_u64, sub_mod_u64, mul_mod_u64 SHALL each carry requires(m > 0) and ensures(result < m), and SHALL ...	f6fc99b
+MOD-005	R0.2	12.2 Requirements	pow_mod_u64(base: u64, exp: u64, m: u64) -> u64 (modular exponentiation) SHALL carry requires(m > 0), use ...	f6fc99b
+MOD-006	R0.2	12.2 Requirements	mod_inverse_u64(a: u64, m: u64) -> Option<u64> SHALL be implemented via the extended Euclidean algorithm, ...	f6fc99b
+MOD-007	R0.2	12.2 Requirements	is_congruent_i64(a: i64, b: i64, m: i64) -> bool SHALL carry requires(m > 0) and ensures(result == ...	f6fc99b
+TRIG-001	R0.2	13.2 Requirements	sin_f64, cos_f64 SHALL be total functions over all finite f64 (no requires on domain), implemented with ...	f6fc99b
+TRIG-002	R0.2	13.2 Requirements	tan_f64(x) SHALL be sin_f64(x) / cos_f64(x) with a requires excluding statically-known asymptote inputs is ...	f6fc99b
+TRIG-003	R0.2	13.2 Requirements	asin_f64, acos_f64 SHALL carry requires(x >= -1.0 && x <= 1.0) with companion ...	f6fc99b
+TRIG-004	R0.2	13.2 Requirements	atan_f64 SHALL be a total function over all finite f64 with ensures(result > -pi/2 && result < pi/2). ...	f6fc99b
+TRIG-005	R0.2	13.2 Requirements	sinh_f64, cosh_f64, tanh_f64 SHALL be provided via exp_f64 (Section 14, shared with math::arith's pow_f64) ...	f6fc99b
+TRIG-006	R0.2	13.2 Requirements	to_radians_f64(deg: f64) -> f64 and to_degrees_f64(rad: f64) -> f64 SHALL be exact inverses of each other up ...	f6fc99b
+TRIG-007	R0.2	13.2 Requirements	hypot_f64(x: f64, y: f64) -> f64 SHALL compute sqrt(x*x + y*y) using an overflow/underflow-avoiding scaled ...	f6fc99b
+PERF-001	R0.1	15. Numeric accuracy and error-bound policy	docs/accuracy.md SHALL contain one row per non-exact public function with its measured maximum ULP error over ...	f6fc99b
+PERF-002	R0.2	15. Numeric accuracy and error-bound policy	sqrt_f64 SHALL be within **2 ULP** of the reference value over its full non-negative domain fixture; ...	f6fc99b
+PERF-003	Future	15. Numeric accuracy and error-bound policy	When a Tier 2 native builtin exists for a function, this library's Tier 1 implementation SHALL be ...	f6fc99b
+PERF-004	R0.1	15. Numeric accuracy and error-bound policy	"Integer and modular functions (Section 12) are exact by construction; ""accuracy"" for them means ..."	f6fc99b
+PERF-005	R0.2	15. Numeric accuracy and error-bound policy	Every non-exact function SHALL be benchmarked (iteration/instruction count, not wall-clock, to stay portable ...	f6fc99b
+TEST-001	F0	16.3 Requirements	Every requirement ID in Sections 8, 11, 12, 13, 15, and 17 SHALL map to at least one test in test/.	f6fc99b
+TEST-002	F0	16.3 Requirements	Every fixture file SHALL record its provenance: hand-derived, generated from a documented high-precision ...	f6fc99b
+TEST-003	R0.1	16.3 Requirements	Domain-boundary and NaN/Infinity/-0.0 cases SHALL be present in every applicable fixture table, not only ...	f6fc99b
+TEST-004	R0.1	16.3 Requirements	Property tests SHALL use a fixed, checked-in seed for any pseudo-random sample generation so failures are ...	f6fc99b
+TEST-005	R0.2	16.3 Requirements	Cross-backend parity tests (16.2) SHALL run in CI for every release-scoped requirement's fixture set.	f6fc99b
+TEST-006	R1	16.3 Requirements	The full test suite SHALL pass under ./scripts/sv0 test-guards conventions for .sv0 formatting/lint parity ...	f6fc99b
+POLAR-001	R0.3	17.2 Requirements	struct Polar { pub r: f64, pub theta: f64 } SHALL be defined, Copy (auto-derived, both fields f64).	f6fc99b
+POLAR-002	R0.3	17.2 Requirements	to_polar(x: f64, y: f64) -> Polar SHALL use hypot_f64 (TRIG-007) for r and atan2_f64 (TRIG-004) for theta, ...	f6fc99b
+POLAR-003	R0.3	17.2 Requirements	from_polar(p: Polar) -> (f64, f64) (returning (x, y)) SHALL carry requires(p.r >= 0.0) and use ...	f6fc99b
+POLAR-004	R0.3	17.2 Requirements	to_polar composed with from_polar SHALL round-trip within the accuracy budget: ensures-documented as a ...	f6fc99b
+POLAR-005	R0.3	17.2 Requirements	scale_polar(p: Polar, k: f64) -> Polar SHALL carry requires(k >= 0.0) (negative scale is a rotation-by-pi ...	f6fc99b
+CPLX-001	R0.3	18.2 Requirements	struct Complex { pub re: f64, pub im: f64 } SHALL be defined exactly matching sv0doc/type-system/rules.md ...	f6fc99b
+CPLX-002	R0.3	18.2 Requirements	impl Add for Complex, impl Sub for Complex, impl Neg for Complex SHALL implement componentwise arithmetic, ...	f6fc99b
+CPLX-003	R0.3	18.2 Requirements	impl Mul for Complex SHALL implement (a.re*b.re - a.im*b.im, a.re*b.im + a.im*b.re) and impl Div for Complex ...	f6fc99b
+CPLX-004	R0.3	18.2 Requirements	modulus(c: Complex) -> f64 SHALL be hypot_f64(c.re, c.im) (reusing TRIG-007's overflow-safe form) with ...	f6fc99b
+CPLX-005	R0.3	18.2 Requirements	conjugate(c: Complex) -> Complex SHALL carry ensures(result.re == c.re && result.im == -c.im). ...	f6fc99b
+CPLX-006	R0.3	18.2 Requirements	Complex SHALL NOT auto-derive or hand-implement bitwise Eq as its primary comparison; an approx_eq(a: ...	f6fc99b
+CPLX-007	Future	18.2 Requirements	exp_complex, ln_complex, and pow_complex (Euler's-formula-based complex exponential/logarithm/power) SHALL be ...	f6fc99b
+COMPAT-001	R0.1	19. Compatibility and cross-backend parity	Every integer and modular function SHALL produce bit-identical results on the C backend (emit-c) and the VM ...	f6fc99b
+COMPAT-002	R0.2	19. Compatibility and cross-backend parity	Every floating-point function SHALL produce results within the same pinned ULP bound (Section 15) on both ...	f6fc99b
+COMPAT-003	R0.1	19. Compatibility and cross-backend parity	This library SHALL compile and pass its full test suite against the audited sv0c/sv0vm revisions in Section ...	f6fc99b
+COMPAT-004	Future	19. Compatibility and cross-backend parity	If sv0c's generics support matures to the point that a numeric-trait-bounded generic facade (fn abs<T: ...	f6fc99b
+DOC-001	F0	20. Documentation and change control	Every public function SHALL have a doc comment stating its domain, its exact contract in prose, and (for ...	f6fc99b
+DOC-002	R0.1	20. Documentation and change control	README.md SHALL state the Tier 1/Tier 2 distinction (Section 4.3), the current release's scope, and ...	f6fc99b
+DOC-003	R1	20. Documentation and change control	Each release SHALL record user-visible changes, any tightened or loosened accuracy bound (PERF-002), and any ...	f6fc99b
+DOC-004	F0	20. Documentation and change control	Material changes to a public contract (requires/ensures weakened or strengthened in an incompatible way), an ...	f6fc99b

@@ -1,0 +1,16 @@
+id	mechanism	evidence	notes
+TEST-001	check	scripts/run_unit_tests.py	generates docs/requirement_test_matrix.md and fails on any uncovered in-scope requirement
+TEST-002	check	scripts/check_fixtures.py	fixture-manifest completeness: every fixture CSV has a provenance and toolchain-revision row
+TEST-003	check	scripts/check_fixtures.py	boundary/special-value coverage lint over the fixture tables
+TEST-004	check	scripts/check_fuzz_budget.py	fixed seed per property fixture, pinned in docs/fuzz.tsv
+TEST-005	check	scripts/run_fixture_parity.py	per-fixture C/VM run; the VM leg is advisory (exceptions MX-014)
+TEST-006	check	scripts/ci	the local CI gate, run by .github/workflows/ci.yml on both toolchain legs
+COMPAT-001	check	scripts/ci	the cross-backend parity step runs the toolchain's vm_behavioral_parity.py over this project (layout-sensitive, BUGS.md #22)
+COMPAT-002	check	scripts/run_fixture_parity.py	per-fixture cross-backend check; the VM leg is advisory (exceptions MX-014)
+COMPAT-003	check	.github/sv0-toolchain-pin.txt	the exact sv0-toolchain revision the required CI leg builds against; fixture revisions are in test/fixtures/manifest.md
+DOC-001	check	scripts/check_doc_comments.py	doc-comment coverage lint over every public function
+DOC-002	process	README.md	Tier 1 / Tier 2 section, current release scope, and the pinned toolchain revision
+DOC-003	process	CHANGELOG.md	records user-visible changes, accuracy-bound and contract changes per release
+DOC-004	process	docs/deviations.md	specification-diff review is a PR process step; every divergence from SPEC.md is recorded here and in docs/exceptions.tsv
+PERF-003	future		SPEC release is Future
+COMPAT-004	future		SPEC release is Future
