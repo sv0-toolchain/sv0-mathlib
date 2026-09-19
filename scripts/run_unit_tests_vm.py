@@ -27,6 +27,15 @@ sys.path.insert(0, str(HERE / "scripts"))
 import run_fixture_parity as rfp  # noqa: E402 -- reuse its C and VM runners
 
 
+# Test programs whose VM run is known to diverge from the C backend, with the
+# BUGS.md entry that explains it. They are reported as KNOWN, not WARN, and
+# never fail the run; but if one starts passing on the VM the run FAILS until
+# it is removed here, so this list cannot go stale.
+KNOWN_VM_DIVERGENCE = {
+    "unit/complex_test.sv0": "BUGS.md #22 (ln_complex aborts the VM in a small program)",
+}
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--toolchain-root", type=Path,
@@ -50,6 +59,14 @@ def main() -> int:
             print(f"run_unit_tests_vm: {tag}: FAIL on C backend (exit {c_exit}) {c_out[-200:]}",
                   file=sys.stderr)
             hard_fail = True
+        elif tag in KNOWN_VM_DIVERGENCE:
+            if v_exit == 0:
+                print(f"run_unit_tests_vm: {tag}: now PASSES on the VM — remove it from "
+                      f"KNOWN_VM_DIVERGENCE ({KNOWN_VM_DIVERGENCE[tag]})", file=sys.stderr)
+                hard_fail = True
+            else:
+                print(f"run_unit_tests_vm: {tag}: KNOWN VM divergence — {KNOWN_VM_DIVERGENCE[tag]} "
+                      f"(VM exit {v_exit})")
         elif v_exit == 0:
             print(f"run_unit_tests_vm: {tag}: PASS (C and VM agree)")
         else:

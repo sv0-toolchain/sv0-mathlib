@@ -1448,6 +1448,51 @@ to be emitted with the wrong operand width or signedness when one side is a
 Workaround (applied in `test/unit/random_test.sv0`): bind either side to a
 local before comparing. No `lib/` code hits it (they compare locals).
 
+## 22. VM results depend on what else is in the project (and `ln_complex` fails in small programs)
+
+Found 2026-09-19 while adding `test/unit/complex_test.sv0`, against
+`sv0-toolchain` `cd7b355`. Both symptoms are VM-only (the C backend is
+correct in every case below) and deterministic, unlike the intermittent
+divergence in #2.
+
+1. **`ln_complex` aborts the VM in a small program.** With `lib/` plus this
+   6-line entry, the C backend exits 0 and `sv0vm` dies with
+   `Fail: interpreter: arithmetic on non-int`:
+
+   ```sv0
+   use complex::Complex;
+   use complex::ln_complex;
+   fn main() -> i32 {
+       let e_real: Complex = Complex { re: 2.718281828459045, im: 0.0 };
+       let l: Complex = ln_complex(e_real);
+       if l.re != 1.0 { return 1; }
+       return 0;
+   }
+   ```
+
+   `ln_f64`, `hypot_f64`, `add_complex` and `exp_complex` alone are fine, and
+   the SAME `ln_complex` call inside this repo's full `main.sv0` (real
+   layout) passes on the VM.
+2. **The result of an unchanged program depends on unrelated files.** A
+   project directory holding only `lib/` and `main.sv0` (both copied from
+   this repo): C exit 0, VM exit **168** (assertion
+   `sub_wrapping_u32(0, 1) != u32_max_val()`). Add this repo's `test/`
+   directory beside them and the VM exits 0. Adding one tiny unrelated
+   `.sv0` file does not change it (still 168); copying `lib/` instead of
+   symlinking it does not either. Same emitted-bytecode path for the wrapper
+   and the direct emitter (`cmp` identical), so it is the compiled program's
+   contents, not the invocation.
+
+Impact: the whole-library cross-backend gate (`vm_behavioral_parity.py`,
+COMPAT-001) compiles `--project sv0-mathlib`, which includes `test/`, and
+passes, so its evidence is real for that layout but is layout-sensitive. It
+looks like a size- or ordering-dependent defect in constant/function
+pooling or in u32 wrap handling in the native VM emitter; not root-caused.
+
+Workaround: `run_unit_tests_vm.py` lists `unit/complex_test.sv0` under
+`KNOWN_VM_DIVERGENCE` (its `ln_complex`/`pow_complex` checks hit symptom 1);
+the C backend gates it as usual.
+
 ## Working today — genuinely verified (emitted C inspected, not just exit code)
 
 - Single-file compile/verify (`./scripts/sv0 compile`, `verify`, `emit-c`)

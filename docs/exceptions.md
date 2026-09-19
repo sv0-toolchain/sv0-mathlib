@@ -34,6 +34,7 @@ Non-waivable requirements (never registrable): COMPAT-001, PERF-002, TEST-004.
 | MX-023 | - | toolchain-gap | BUGS.md#20 | open | fixed upstream (a fix task is filed; no fixed date) |
 | MX-024 | - | toolchain-gap | BUGS.md#21 | open | fixed upstream (a fix task is filed; no fixed date) |
 | MX-025 | - | deviation | deviations.md#2 | open | the toolchain defines an `sv0.toml` project root this library can adopt (no fixed date) |
+| MX-026 | - | toolchain-gap | BUGS.md#22 | open | fixed upstream (a fix task is filed; no fixed date) |
 
 ## Rationale
 
@@ -62,3 +63,4 @@ Non-waivable requirements (never registrable): COMPAT-001, PERF-002, TEST-004.
 - **MX-023** (toolchain-gap, open): `Vec<f64>` and `[f64; N]` silently truncate on the C backend and fail on the VM. `stats` is a streaming accumulator for this reason; see MX-012.
 - **MX-024** (toolchain-gap, open): The VM emitter mis-evaluates `struct.u64_field >= call()`. Worked around in a unit test by comparing against a local; no `lib/` code is affected.
 - **MX-025** (deviation, open): The project is driven by `--project <dir>` paths from an sv0-toolchain checkout rather than an `sv0.toml` root, because deviation 2 records that no such project convention existed to root it a different way. It stays its own repository with its own history, tags and releases.
+- **MX-026** (toolchain-gap, open): VM results depend on unrelated project files, and `ln_complex` aborts the VM in a small program. COMPAT-001 is not waived: its whole-library gate passes for the layout it compiles (`--project sv0-mathlib`, including test/) but is layout-sensitive; `complex_test.sv0` is a KNOWN VM divergence in run_unit_tests_vm.py. The C backend is correct throughout.

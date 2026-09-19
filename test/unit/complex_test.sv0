@@ -1,0 +1,150 @@
+/* TEST-001 unit test for math::complex — covers CPLX-001..007. */
+use complex::Complex;
+use complex::ComplexResult;
+use complex::add_complex;
+use complex::sub_complex;
+use complex::neg_complex;
+use complex::mul_complex;
+use complex::div_complex;
+use complex::div_checked_complex;
+use complex::modulus;
+use complex::argument;
+use complex::conjugate;
+use complex::to_polar_complex;
+use complex::from_polar_complex;
+use complex::approx_eq;
+use complex::exp_complex;
+use complex::ln_complex;
+use complex::pow_complex;
+use polar::Polar;
+use trig::pi_f64;
+use arith::abs_f64;
+
+/* BUGS.md #18 workaround: `let x: Complex = <bare variable of type Complex>;`
+ * mistypes the new local as `int`; route the copy through an identity call. */
+fn identity_complex(c: Complex) -> Complex { return c; }
+
+fn main() -> i32 {
+    /* REQ: CPLX-001 — struct Complex { re, im } (both f64, Copy): a value is
+     * still usable, unchanged, after being copied. */
+    let z0: Complex = Complex { re: 1.5, im: 0.0 - 2.5 };
+    let z0_copy: Complex = identity_complex(z0);
+    if z0.re != 1.5 { return 1; }
+    if z0.im != (0.0 - 2.5) { return 2; }
+    if z0_copy.re != 1.5 { return 3; }
+    if z0_copy.im != (0.0 - 2.5) { return 4; }
+
+    /* REQ: CPLX-002 — componentwise add / sub / neg, exact. */
+    let c1: Complex = Complex { re: 3.0, im: 4.0 };
+    let c2: Complex = Complex { re: 1.0, im: 2.0 };
+    let c_add: Complex = add_complex(c1, c2);
+    if c_add.re != 4.0 { return 10; }
+    if c_add.im != 6.0 { return 11; }
+    let c_sub: Complex = sub_complex(c1, c2);
+    if c_sub.re != 2.0 { return 12; }
+    if c_sub.im != 2.0 { return 13; }
+    let c_neg: Complex = neg_complex(c1);
+    if c_neg.re != (0.0 - 3.0) { return 14; }
+    if c_neg.im != (0.0 - 4.0) { return 15; }
+    let c_cancel: Complex = add_complex(c1, c_neg);
+    if c_cancel.re != 0.0 { return 16; }
+    if c_cancel.im != 0.0 { return 17; }
+
+    /* REQ: CPLX-003 — multiplication, i*i = -1, division, and the checked
+     * division for a zero divisor. */
+    let c_mul: Complex = mul_complex(c1, c2);
+    if c_mul.re != (0.0 - 5.0) { return 20; }
+    if c_mul.im != 10.0 { return 21; }
+    let i_val: Complex = Complex { re: 0.0, im: 1.0 };
+    let i_sq: Complex = mul_complex(i_val, i_val);
+    if i_sq.re != (0.0 - 1.0) { return 22; }
+    if i_sq.im != 0.0 { return 23; }
+    let c_div: Complex = div_complex(c1, c2);
+    if abs_f64(c_div.re - 2.2) >= 0.000000000000001 { return 24; }
+    if abs_f64(c_div.im - (0.0 - 0.4)) >= 0.000000000000001 { return 25; }
+    let dc_ok: ComplexResult = div_checked_complex(c1, c2);
+    if !dc_ok.ok { return 26; }
+    if abs_f64(dc_ok.re - 2.2) >= 0.000000000000001 { return 27; }
+    let origin: Complex = Complex { re: 0.0, im: 0.0 };
+    let dc_zero: ComplexResult = div_checked_complex(c1, origin);
+    if dc_zero.ok { return 28; }
+    /* Overflow-safe: a naive |b|^2 denominator would overflow here. */
+    let mut big: f64 = 1.0;
+    let mut e: i32 = 0;
+    while e < 18 loop_invariant(e >= 0) {
+        big = big * 100000000000.0;
+        e = e + 1;
+    }
+    let bb: Complex = Complex { re: big, im: big };
+    let bb_div: Complex = div_complex(bb, bb);
+    if abs_f64(bb_div.re - 1.0) >= 0.000000000001 { return 29; }
+    if abs_f64(bb_div.im) >= 0.000000000001 { return 30; }
+
+    /* REQ: CPLX-004 — modulus (overflow-safe hypot) and argument. */
+    if modulus(c1) != 5.0 { return 40; }
+    if modulus(origin) != 0.0 { return 41; }
+    let big_mod: f64 = modulus(bb);
+    if big_mod < big { return 42; }
+    if big_mod > big * 1.5 { return 43; }
+    if abs_f64(argument(c1) - 0.9272952180016122) >= 0.000000000000001 { return 44; }
+    let q1: Complex = Complex { re: 1.0, im: 1.0 };
+    if abs_f64(argument(q1) - pi_f64() / 4.0) >= 0.000000000000001 { return 45; }
+    let neg_real: Complex = Complex { re: 0.0 - 1.0, im: 0.0 };
+    if abs_f64(argument(neg_real) - pi_f64()) >= 0.000000000000001 { return 46; }
+    let neg_imag: Complex = Complex { re: 0.0, im: 0.0 - 1.0 };
+    if abs_f64(argument(neg_imag) + pi_f64() / 2.0) >= 0.000000000000001 { return 47; }
+
+    /* REQ: CPLX-005 — conjugate and polar interoperability. */
+    let c_conj: Complex = conjugate(c1);
+    if c_conj.re != 3.0 { return 50; }
+    if c_conj.im != (0.0 - 4.0) { return 51; }
+    let conj_twice: Complex = conjugate(c_conj);
+    if conj_twice.re != 3.0 { return 52; }
+    if conj_twice.im != 4.0 { return 53; }
+    let cp: Polar = to_polar_complex(c1);
+    if cp.r != 5.0 { return 54; }
+    let cc: Complex = from_polar_complex(cp);
+    if !approx_eq(cc, c1, 0.000000000001) { return 55; }
+    let imag2: Complex = Complex { re: 0.0, im: 2.0 };
+    let ip: Polar = to_polar_complex(imag2);
+    if abs_f64(ip.r - 2.0) >= 0.000000000000001 { return 56; }
+    if abs_f64(ip.theta - pi_f64() / 2.0) >= 0.000000000000001 { return 57; }
+
+    /* REQ: CPLX-006 — approx_eq is the comparison: tolerance boundary,
+     * symmetry, zero epsilon on identical values, NaN never close. */
+    if !approx_eq(c1, c1, 0.0) { return 60; }
+    if approx_eq(c1, c2, 0.000000000001) { return 61; }
+    let near_re: f64 = 3.0 + 0.0000001;
+    let near: Complex = Complex { re: near_re, im: 4.0 };
+    if !approx_eq(c1, near, 0.000001) { return 62; }
+    if approx_eq(c1, near, 0.00000001) { return 63; }
+    if approx_eq(c1, near, 0.000001) != approx_eq(near, c1, 0.000001) { return 64; }
+    let nan: f64 = 0.0 / 0.0;
+    let nan_c: Complex = Complex { re: nan, im: 0.0 };
+    if approx_eq(nan_c, nan_c, 1.0) { return 65; }
+
+    /* REQ: CPLX-007 — exp / ln / pow: Euler's identity, ln e, exp(ln z) = z,
+     * pow with a small integer exponent, and z^0 = 1. */
+    let i_pi: Complex = Complex { re: 0.0, im: pi_f64() };
+    let euler: Complex = exp_complex(i_pi);
+    let neg_one: Complex = Complex { re: 0.0 - 1.0, im: 0.0 };
+    if !approx_eq(euler, neg_one, 0.000000000001) { return 70; }
+    let e_real: Complex = Complex { re: 2.718281828459045, im: 0.0 };
+    let one_c: Complex = Complex { re: 1.0, im: 0.0 };
+    if !approx_eq(ln_complex(e_real), one_c, 0.000000000001) { return 71; }
+    let z: Complex = Complex { re: 1.0, im: 1.0 };
+    let z_ln: Complex = ln_complex(z);
+    if !approx_eq(exp_complex(z_ln), z, 0.000000000001) { return 72; }
+    let two_c: Complex = Complex { re: 2.0, im: 0.0 };
+    let three_c: Complex = Complex { re: 3.0, im: 0.0 };
+    let z_sq: Complex = mul_complex(z, z);
+    let z_cube: Complex = mul_complex(z_sq, z);
+    if !approx_eq(pow_complex(z, two_c), z_sq, 0.000000000001) { return 73; }
+    if !approx_eq(pow_complex(z, three_c), z_cube, 0.000000000001) { return 74; }
+    if !approx_eq(pow_complex(two_c, origin), one_c, 0.000000000001) { return 75; }
+    let ln_i: Complex = ln_complex(i_val);
+    if abs_f64(ln_i.re) >= 0.000000000001 { return 76; }
+    if abs_f64(ln_i.im - pi_f64() / 2.0) >= 0.000000000001 { return 77; }
+
+    return 0;
+}
