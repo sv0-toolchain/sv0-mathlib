@@ -59,5 +59,6 @@ Covers SPEC.md Sections 8 (CONV-*), 11 (ARITH-*), 12 (MOD-*), 13
 | `unit/arith_test.sv0` | PASS |
 | `unit/modular_test.sv0` | PASS |
 | `unit/polar_test.sv0` | PASS |
+| `unit/random_test.sv0` | PASS |
 | `unit/trig_test.sv0` | PASS |
 

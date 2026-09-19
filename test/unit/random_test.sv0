@@ -1,0 +1,126 @@
+/* TEST-001 unit test for module::random — next_u64, unit_f64, below_u64,
+ * uniform_f64. Not tied to a SPEC.md requirement ID (the module is a
+ * beyond-spec addition; see docs/deviations.md). */
+use random::next_u64;
+use random::unit_f64;
+use random::below_u64;
+use random::uniform_f64;
+use random::BelowU64;
+use arith::abs_f64;
+use prelude::u64_max_val;
+
+fn main() -> i32 {
+    /* next_u64: pure and deterministic; distinct successive states. */
+    let s0: u64 = 88172645463325252;
+    if next_u64(s0) != next_u64(s0) { return 1; }
+    if next_u64(s0) == s0 { return 2; }
+    if next_u64(next_u64(s0)) == next_u64(s0) { return 3; }
+
+    /* unit_f64: strictly below 1.0 even at the maximum state, and 0.0 at
+     * state 0. */
+    if unit_f64(u64_max_val()) >= 1.0 { return 10; }
+    if unit_f64(u64_max_val()) <= 0.999999 { return 11; }
+    if unit_f64(0) != 0.0 { return 12; }
+    if unit_f64(2047) != 0.0 { return 13; }
+    if unit_f64(2048) <= 0.0 { return 14; }
+    let mut st: u64 = s0;
+    let mut i: i32 = 0;
+    while i < 2000 loop_invariant(i >= 0) {
+        st = next_u64(st);
+        let u: f64 = unit_f64(st);
+        if u < 0.0 { return 15; }
+        if u >= 1.0 { return 16; }
+        i = i + 1;
+    }
+
+    /* below_u64: n == 1 always yields 0 and still advances the state. */
+    let b1: BelowU64 = below_u64(s0, 1);
+    if b1.value != 0 { return 20; }
+    if b1.state != next_u64(s0) { return 21; }
+
+    /* Every result is in range, for small, power-of-two, and huge n. */
+    let mut s: u64 = s0;
+    let mut j: i32 = 0;
+    while j < 1000 loop_invariant(j >= 0) {
+        let r3: BelowU64 = below_u64(s, 3);
+        if r3.value >= 3 { return 30; }
+        let r8: BelowU64 = below_u64(r3.state, 8);
+        if r8.value >= 8 { return 31; }
+        let r10: BelowU64 = below_u64(r8.state, 1000000007);
+        if r10.value >= 1000000007 { return 32; }
+        let big: u64 = 9223372036854775809;
+        let rb: BelowU64 = below_u64(r10.state, big);
+        if rb.value >= big { return 33; }
+        let rmax: BelowU64 = below_u64(rb.state, u64_max_val());
+        if rmax.value >= u64_max_val() { return 34; }
+        s = rmax.state;
+        j = j + 1;
+    }
+
+    /* Deterministic: same (state, n) -> same result and next state. */
+    let d1: BelowU64 = below_u64(s0, 97);
+    let d2: BelowU64 = below_u64(s0, 97);
+    if d1.value != d2.value { return 40; }
+    if d1.state != d2.state { return 41; }
+
+    /* Rejection path is exercised: for n = 2^63 + 1 the bucket width is 1
+     * and about half of raw draws are rejected, so some state must consume
+     * more than one raw draw, and the returned state must be a real
+     * successor of the input. */
+    let nrej: u64 = 9223372036854775809;
+    let mut saw_reject: bool = false;
+    let mut k: i32 = 0;
+    let mut sk: u64 = s0;
+    while k < 200 loop_invariant(k >= 0) {
+        let rk: BelowU64 = below_u64(sk, nrej);
+        if rk.state != next_u64(sk) { saw_reject = true; }
+        sk = rk.state;
+        k = k + 1;
+    }
+    if !saw_reject { return 50; }
+
+    /* Rough uniformity for n = 3 over 3000 draws: each bucket within
+     * 800..1200 (a loose bound; catches gross bias, not subtle skew). */
+    let mut c0: i32 = 0;
+    let mut c1: i32 = 0;
+    let mut c2: i32 = 0;
+    let mut sq: u64 = s0;
+    let mut m: i32 = 0;
+    while m < 3000 loop_invariant(m >= 0) {
+        let rq: BelowU64 = below_u64(sq, 3);
+        sq = rq.state;
+        if rq.value == 0 { c0 = c0 + 1; }
+        if rq.value == 1 { c1 = c1 + 1; }
+        if rq.value == 2 { c2 = c2 + 1; }
+        m = m + 1;
+    }
+    if c0 < 800 { return 60; }
+    if c0 > 1200 { return 61; }
+    if c1 < 800 { return 62; }
+    if c1 > 1200 { return 63; }
+    if c2 < 800 { return 64; }
+    if c2 > 1200 { return 65; }
+
+    /* uniform_f64: in range, degenerate range, negative range, and the
+     * unit-interval endpoints. */
+    if uniform_f64(0, 2.0, 5.0) != 2.0 { return 70; }
+    if uniform_f64(u64_max_val(), 2.0, 5.0) > 5.0 { return 71; }
+    if uniform_f64(u64_max_val(), 2.0, 5.0) < 4.99 { return 72; }
+    if uniform_f64(s0, 3.5, 3.5) != 3.5 { return 73; }
+    let mut su: u64 = s0;
+    let mut sum: f64 = 0.0;
+    let mut n: i32 = 0;
+    while n < 2000 loop_invariant(n >= 0) {
+        su = next_u64(su);
+        let v: f64 = uniform_f64(su, 0.0 - 10.0, 0.0 - 4.0);
+        if v < 0.0 - 10.0 { return 74; }
+        if v > 0.0 - 4.0 { return 75; }
+        sum = sum + v;
+        n = n + 1;
+    }
+    /* Mean of U(-10, -4) is -7; loose bound of 0.5 over 2000 samples. */
+    let mean: f64 = sum / 2000.0;
+    if abs_f64(mean - (0.0 - 7.0)) >= 0.5 { return 76; }
+
+    return 0;
+}

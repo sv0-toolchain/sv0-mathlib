@@ -13,6 +13,11 @@ strengthened or weakened. Versions follow [Semantic Versioning](https://semver.o
   extracted from the property test. `unit_f64` now uses the top 53 bits,
   so it is strictly in `[0.0, 1.0)`; the old full-`u64` division could
   round the highest states to exactly `1.0`. Not cryptographic.
+- `random::below_u64` (unbiased uniform integer in `[0, n)` via bucketed
+  rejection sampling, returning a `BelowU64 { value, state }`) and
+  `random::uniform_f64` (uniform f64 in `[lo, hi]`), with
+  `test/unit/random_test.sv0` covering range, determinism, the rejection
+  path, and rough uniformity.
 
 ### Changed
 

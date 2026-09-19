@@ -7,7 +7,7 @@ would name it. Non-exact (ULP-budgeted) functions link their own doc
 comment's `docs/accuracy.md` cross-reference inline; see that file for
 the measured error tables themselves.
 
-**113 public functions across 7 modules.**
+**115 public functions across 7 modules.**
 
 ---
 
@@ -1053,6 +1053,21 @@ note above.
 
 deterministic, seedable pseudo-random generator for tests and simulation.
 
+### `below_u64`
+
+```sv0
+fn below_u64(state: u64, n: u64) -> BelowU64
+    requires(n > 0)
+```
+
+Uniform integer in [0, n) with no modulo bias. Divides the u64 range
+into `n` equal buckets of width `w = floor(2^64 / n)` and returns the
+bucket a raw draw lands in, redrawing when it falls in the leftover
+sliver above `n * w` (fewer than `n` values, so the expected number of
+draws is below 2). Bucketing by division uses the HIGH bits, which is
+what an LCG needs; `draw % n` would use its weak low bits. Requires
+`n > 0`.
+
 ### `next_u64`
 
 ```sv0
@@ -1063,6 +1078,20 @@ Advances the generator: the returned value is both the next state and
 the next raw 64-bit output. Wraps modulo 2^64. Full period (2^64). The
 low bits of an LCG are weak, so derive floats from the HIGH bits
 (`unit_f64` does).
+
+### `uniform_f64`
+
+```sv0
+fn uniform_f64(state: u64, lo: f64, hi: f64) -> f64
+    requires(lo <= hi)
+    ensures(result >= lo && result <= hi)
+```
+
+Uniform f64 in [lo, hi] from one raw generator state (pass the state
+returned by `next_u64`). `lo + unit_f64(state) * (hi - lo)`; when the
+range is wide relative to `lo`, rounding can land exactly on `hi`, so
+the interval is closed at the top. `lo == hi` returns `lo`. `hi - lo`
+must be finite: an infinite span returns infinity or NaN.
 
 ### `unit_f64`
 
