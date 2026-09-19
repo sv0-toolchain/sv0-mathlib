@@ -2,7 +2,8 @@
 
 A numeric library for the [sv0](https://github.com/sv4u/sv0-toolchain)
 programming language: arithmetic, modular arithmetic, trigonometry, polar
-coordinates, and complex numbers, built contract-first per
+coordinates, complex numbers, and a small seedable test PRNG, built
+contract-first per
 [SPEC.md](https://github.com/sv4u/project-specs/blob/main/sv0-mathlib/SPEC.md).
 
 **Status: `v0.1.0`, released 2026-08-30.** The full SPEC.md ladder (F0
@@ -21,9 +22,10 @@ and the spec disagree, and why.
 | [`trig`](lib/trig.sv0) | sqrt, trigonometric/hyperbolic functions, degree/radian conversion, hypot | §13–14 |
 | [`polar`](lib/polar.sv0) | Cartesian/polar conversion, polar-form scale and rotate | §17 |
 | [`complex`](lib/complex.sv0) | `Complex` arithmetic, modulus/argument/conjugate, polar interop, `exp`/`ln`/`pow` | §18 |
+| [`random`](lib/random.sv0) | deterministic seedable PRNG (`next_u64`, `unit_f64`, unbiased `below_u64`, `uniform_f64`) — **not cryptographic**, beyond-spec (deviation 11) | — |
 | `prelude` | shared `Option`/`Result`-shaped types used across the above | — |
 
-111 public functions total — see [docs/api.md](docs/api.md) for the full
+115 public functions total — see [docs/api.md](docs/api.md) for the full
 generated reference (signature, contract, and doc comment per function).
 
 ## Quick example

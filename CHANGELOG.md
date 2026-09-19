@@ -23,6 +23,8 @@ strengthened or weakened. Versions follow [Semantic Versioning](https://semver.o
   C oracle `docs/random_oracle.c`. `run_fixture_parity.py` checks every row
   on both backends (both match today); `check_random_oracle.py` gates the
   CSV against the oracle so it cannot silently drift.
+- `docs/deviations.md` #11 records that `random` is beyond-spec and not
+  cryptographic; README lists the module and its corrected function count.
 
 ### Changed
 

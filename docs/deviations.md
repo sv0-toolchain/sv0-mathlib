@@ -116,3 +116,29 @@ toolchain and the spec disagree — write down the deviation and why).
     the same "tree inside sv0-toolchain" answer — no `sv0.toml`-rooted
     convention exists in the toolchain to root a project a different
     way, confirmed empirically.)
+11. **`math::random` is beyond SPEC.md, and deliberately not
+    cryptographic.** SPEC.md has no PRNG section; the module grew out of
+    the property-test generator that TEST-004 requires (fixed,
+    checked-in seed, reproducible failures) once it needed a second
+    consumer. Consequences worth knowing:
+    - It has no requirement IDs, so it is absent from
+      `docs/requirement_test_matrix.md`. It is instead covered by
+      `test/unit/random_test.sv0`, the golden rows in
+      `test/fixtures/random.csv` (produced by an independent C oracle,
+      `docs/random_oracle.c`, and checked on both backends), and the
+      seeded property tests.
+    - The generator is a 64-bit LCG (Knuth's MMIX constants). Its state
+      is its output, so one value reveals every later one, and its low
+      bits are weak. It is for tests and simulation only. Nothing in the
+      planned M5 crypto work (hashing, AEAD, signatures) may draw keys,
+      nonces or salts from it.
+    - State is threaded by value (`state = next_u64(state)`) because sv0
+      has no globals. `below_u64` returns a `BelowU64 { value, state }`
+      struct because rejection sampling consumes a variable number of
+      draws and this compiler slice has no tuples (same reason as
+      deviation 6).
+    - `unit_f64` returns values in `[0.0, 1.0)` using the top 53 bits.
+      The earlier property-test helper divided the full `u64` by
+      `2^64 - 1`, which rounds the highest states to exactly `1.0`.
+      `uniform_f64` is closed at the top (`[lo, hi]`), because
+      `lo + u * (hi - lo)` can round up to `hi`.
