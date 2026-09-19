@@ -120,7 +120,8 @@ sv0-mathlib/
 │   ├── check_doc_comments.py # doc-comment coverage lint
 │   ├── gen_api_docs.py       # generates docs/api.md
 │   ├── run_fixture_parity.py # drives every fixture row through a live build, checks vs. expected
-│   ├── check_random_oracle.py # random.csv still matches its independent C oracle
+│   ├── check_fixture_oracles.py # random.csv / stats.csv still match their independent oracles
+│   ├── gen_stats_fixtures.py # exact-rational oracle that prints test/fixtures/stats.csv
 │   ├── run_unit_tests_vm.py  # unit + property tests on C and the VM, exit codes compared
 │   ├── run_ulp_audit.py      # accuracy-regression gate against docs/accuracy.md's pinned budgets
 │   ├── check_vm_emitter_determinism.py # diagnostic: is the native VM emitter's .sv0b output stable?

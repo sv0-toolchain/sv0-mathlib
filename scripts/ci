@@ -125,7 +125,7 @@ fi
 if [[ "$SKIP_FIXTURES" -eq 0 ]]; then
   echo "== sv0-mathlib ci: fixture manifest + boundary-coverage lint (TEST-002/TEST-003) =="
   python3 "$HERE/scripts/check_fixtures.py"
-  python3 "$HERE/scripts/check_random_oracle.py"
+  python3 "$HERE/scripts/check_fixture_oracles.py"
   echo "sv0-mathlib ci: fixtures OK"
 fi
 
@@ -158,7 +158,7 @@ if [[ "$SKIP_FIXTURE_PARITY" -eq 0 ]]; then
   echo "== sv0-mathlib ci: per-fixture value check (COMPAT-002 / TEST-005) =="
   # vm_behavioral_parity.py above compares only the whole-library exit
   # code between backends. run_fixture_parity.py goes row-by-row: it
-  # generates one fn main()->i32 from test/fixtures/{rounding,trig,random}.csv
+  # generates one fn main()->i32 from test/fixtures/{rounding,trig,random,stats}.csv
   # (one check per row+function), then compiles+runs it and checks each
   # result against the fixture's own EXPECTED column. The C-backend leg
   # GATES (this is the reproducible form of the one-time manual check the

@@ -21,7 +21,7 @@ strengthened or weakened. Versions follow [Semantic Versioning](https://semver.o
 - `test/fixtures/random.csv` (37 golden rows for `next_u64`, `unit_f64`,
   `below_u64`, including rejection-path states) printed by the independent
   C oracle `docs/random_oracle.c`. `run_fixture_parity.py` checks every row
-  on both backends (both match today); `check_random_oracle.py` gates the
+  on both backends (both match today); `check_fixture_oracles.py` gates the
   CSV against the oracle so it cannot silently drift.
 - `docs/deviations.md` #11 records that `random` is beyond-spec and not
   cryptographic; README lists the module and its corrected function count.
@@ -32,6 +32,13 @@ strengthened or weakened. Versions follow [Semantic Versioning](https://semver.o
   compensated sum, total functions returning NaN when undefined, defined
   NaN/infinity behavior. No median/percentile: the toolchain cannot store
   `f64` in a `Vec` (BUGS.md #20). See `docs/deviations.md` #12.
+- `test/fixtures/stats.csv` (155 rows over 16 data sets) printed by an
+  exact-rational oracle, `scripts/gen_stats_fixtures.py` (a C `long double`
+  oracle was rejected: `long double` is plain `double` on arm64).
+  `run_fixture_parity.py` runs it as a second generated program on both
+  backends (both match); `check_fixture_oracles.py` (renamed from
+  `check_random_oracle.py`) gates both CSVs against their oracles.
+  Property tests add shift/scale invariance and bounds checks for `stats`.
 - `scripts/run_unit_tests_vm.py` (in `scripts/ci`, `--skip-unit-vm`): runs
   every unit and property test on both backends and compares exit codes,
   so `random` and `stats` are cross-checked on the VM. C failures gate;
