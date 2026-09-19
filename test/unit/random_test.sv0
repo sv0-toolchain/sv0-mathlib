@@ -62,8 +62,12 @@ fn main() -> i32 {
         let big: u64 = 9223372036854775809;
         let rb: BelowU64 = below_u64(r10.state, big);
         if rb.value >= big { return 33; }
-        let rmax: BelowU64 = below_u64(rb.state, u64_max_val());
-        if rmax.value >= u64_max_val() { return 34; }
+        let umax: u64 = u64_max_val();
+        let rmax: BelowU64 = below_u64(rb.state, umax);
+        /* Compare against a LOCAL: `rmax.value >= u64_max_val()` (a u64 struct
+         * field against a call result) is miscompiled by the VM emitter,
+         * BUGS.md #21. */
+        if rmax.value >= umax { return 34; }
         s = rmax.state;
         j = j + 1;
     }

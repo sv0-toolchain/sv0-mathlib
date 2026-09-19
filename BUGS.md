@@ -1419,6 +1419,35 @@ variants selected by the element type), teach the interpreter's `vec_push`
 and `vec_get` to carry `CF64`, and, until then, have the checker reject
 `Vec<f64>`/`[f64; N]` instead of compiling them to wrong code.
 
+## 21. VM emitter: comparing a `u64` struct field against a function-call result gives the wrong answer
+
+Found 2026-09-19 when `scripts/run_unit_tests_vm.py` first ran
+`test/unit/random_test.sv0` on the VM (C backend exit 0, VM exit 34),
+against `sv0-toolchain` `cd7b355`. Minimal repro:
+
+```sv0
+struct B { value: u64, state: u64 }
+fn big() -> u64 { return 18446744073709551615; }
+fn mk() -> B { return B { value: 2298002831526445863, state: 1 }; }
+fn main() -> i32 {
+    let b: B = mk();
+    if b.value >= big() { return 1; }   // C: not taken. VM: taken.
+    return 0;
+}
+```
+
+Only that combination fails. Verified fine on the VM: the same comparison
+with the struct field first copied into a local (`let v: u64 = b.value;`),
+the call result first copied into a local (`let m: u64 = big();`), a plain
+local against a call, and the `i32`/`i64` versions of the struct-field-vs-call
+comparison. It looks like the same "temp/call type-category" family as the
+three VM emitter bugs fixed during the float-parity work: the compare seems
+to be emitted with the wrong operand width or signedness when one side is a
+`u64` field access and the other a call.
+
+Workaround (applied in `test/unit/random_test.sv0`): bind either side to a
+local before comparing. No `lib/` code hits it (they compare locals).
+
 ## Working today — genuinely verified (emitted C inspected, not just exit code)
 
 - Single-file compile/verify (`./scripts/sv0 compile`, `verify`, `emit-c`)

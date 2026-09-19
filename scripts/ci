@@ -9,7 +9,7 @@
 # The legacy sibling layout (../sv0-toolchain) is still auto-detected, and
 # SV0_TOOLCHAIN_ROOT overrides either (sv0-mathlib's own CI sets it).
 #
-# Usage: scripts/ci [--skip-fmt] [--skip-guard] [--skip-run] [--skip-unit] [--skip-fixtures] [--skip-doc] [--skip-parity] [--skip-fixture-parity] [--skip-ulp] [--skip-vm-determinism]
+# Usage: scripts/ci [--skip-fmt] [--skip-guard] [--skip-run] [--skip-unit] [--skip-fixtures] [--skip-doc] [--skip-parity] [--skip-fixture-parity] [--skip-ulp] [--skip-vm-determinism] [--skip-unit-vm]
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -34,6 +34,7 @@ SKIP_PARITY=0
 SKIP_FIXTURE_PARITY=0
 SKIP_ULP=0
 SKIP_VM_DETERMINISM=0
+SKIP_UNIT_VM=0
 for arg in "$@"; do
   case "$arg" in
     --skip-fmt) SKIP_FMT=1 ;;
@@ -45,6 +46,7 @@ for arg in "$@"; do
     --skip-parity) SKIP_PARITY=1 ;;
     --skip-fixture-parity) SKIP_FIXTURE_PARITY=1 ;;
     --skip-vm-determinism) SKIP_VM_DETERMINISM=1 ;;
+    --skip-unit-vm) SKIP_UNIT_VM=1 ;;
     --skip-ulp) SKIP_ULP=1 ;;
     *)
       echo "sv0-mathlib ci: unknown argument: $arg" >&2
@@ -107,6 +109,17 @@ if [[ "$SKIP_UNIT" -eq 0 ]]; then
   printf '' > /tmp/.sv0_drv_path
   SV0_TOOLCHAIN_ROOT="$TOOLCHAIN" python3 "$HERE/scripts/run_unit_tests.py"
   echo "sv0-mathlib ci: test/unit + test/property + matrix OK"
+fi
+
+if [[ "$SKIP_UNIT_VM" -eq 0 && "$SKIP_UNIT" -eq 0 ]]; then
+  echo "== sv0-mathlib ci: unit + property tests on the VM backend (C/VM exit-code agreement) =="
+  # run_unit_tests.py gates the C backend only; this runs the same programs
+  # on sv0vm too, so modules the whole-library parity main never touches
+  # (random, stats) are cross-checked. C failures gate; the VM leg is
+  # advisory, like run_fixture_parity.py's (BUGS.md). --strict-vm to gate.
+  printf '' > /tmp/.sv0_drv_path
+  SV0_TOOLCHAIN_ROOT="$TOOLCHAIN" python3 "$HERE/scripts/run_unit_tests_vm.py"
+  echo "sv0-mathlib ci: unit tests on VM OK"
 fi
 
 if [[ "$SKIP_FIXTURES" -eq 0 ]]; then
