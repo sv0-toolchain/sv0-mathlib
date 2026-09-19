@@ -120,6 +120,7 @@ sv0-mathlib/
 │   ├── check_doc_comments.py # doc-comment coverage lint
 │   ├── gen_api_docs.py       # generates docs/api.md
 │   ├── run_fixture_parity.py # drives every fixture row through a live build, checks vs. expected
+│   ├── check_fuzz_budget.py  # fuzz budget: each property fixture's seed/ROUNDS pinned in docs/fuzz.tsv
 │   ├── check_exceptions.py   # exceptions registry: schema, references, completeness (docs/exceptions.tsv)
 │   ├── check_fixture_oracles.py # random.csv / stats.csv still match their independent oracles
 │   ├── gen_stats_fixtures.py # exact-rational oracle that prints test/fixtures/stats.csv
@@ -131,13 +132,14 @@ sv0-mathlib/
 ├── lib/               # arith, modular, trig, polar, complex, random, stats, prelude
 ├── test/
 │   ├── unit/           # one standalone fn main()->i32 binary per module
-│   ├── property/       # seeded-PRNG algebraic-invariant checks
+│   ├── property/       # one seeded algebraic-invariant fixture per file (budgets in docs/fuzz.tsv)
 │   ├── fixtures/       # boundary/special-value CSV tables + manifest
 │   └── parity/         # cross-backend parity (see parity/README.md)
 └── docs/
     ├── api.md                      # generated: full function reference
     ├── accuracy.md                 # measured ULP error per non-exact function
     ├── deviations.md               # where this library departs from SPEC.md, and why
+    ├── fuzz.tsv / fuzz-evidence.md # recorded fuzz budget per property fixture
     ├── exceptions.tsv / .md        # the approved-exceptions registry (deviations, deferrals, advisory gates, open toolchain gaps)
     ├── ulp_audit_harness.c         # the C harness used to produce accuracy.md's numbers
     ├── random_oracle.c             # independent C oracle that prints test/fixtures/random.csv

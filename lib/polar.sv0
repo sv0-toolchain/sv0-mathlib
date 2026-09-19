@@ -45,7 +45,7 @@ fn to_polar(x: f64, y: f64) -> Polar
 /* BUGS.md #19: a struct-literal field initializer that is itself a
  * binop involving a struct-field access mistypes as `int` under the
  * newer `sv0c` `53de895` revision (`scripts/ci`'s own toolchain,
- * unpinned) — found via `test/property/property_test.sv0`. Every field
+ * unpinned) — found via the property tests (`test/property/`, formerly one `property_test.sv0`). Every field
  * used below is copied to its own local FIRST (bugs #13/#16's own
  * established workaround), so no struct literal ever combines a raw
  * field access with anything else.

@@ -58,6 +58,18 @@ strengthened or weakened. Versions follow [Semantic Versioning](https://semver.o
 
 ### Governance
 
+- Fuzz budget: `test/property/property_test.sv0` is split into one seeded
+  property per file (`trig_identity`, `polar_roundtrip`, `modular_inverse`,
+  `complex_algebra`, `stats`), each with its own pinned seed and a
+  `let ROUNDS: i32 = N;` budget. `docs/fuzz.tsv` records seed, rounds and a
+  floor per fixture; `scripts/check_fuzz_budget.py` (in `scripts/ci`) fails
+  if a fixture and the manifest disagree, `ROUNDS` drops under its floor, a
+  fixture is unlisted, or a listed `REQ:` tag is missing. Ported from
+  sv0-strings; `docs/fuzz-evidence.md` is generated. Sample values differ
+  from the old single-stream file (each fixture now starts at its own
+  seed); coverage of every property is unchanged and all five pass on both
+  backends.
+
 - `docs/exceptions.tsv` (25 rows, `docs/exceptions.md` generated from it) is
   now the single register of everything the library ships that falls short
   of SPEC.md or its own gates: every numbered deviation, the beyond-spec

@@ -132,6 +132,9 @@ if [[ "$SKIP_FIXTURES" -eq 0 ]]; then
   # markdown view regenerated, like docs/api.md. It reads the requirement
   # matrix the unit stage writes, so it stays after that stage.
   python3 "$HERE/scripts/check_exceptions.py" --write-md
+  # Fuzz budget: every test/property/*.sv0 fixture is pinned in docs/fuzz.tsv
+  # (seed + ROUNDS + floor); docs/fuzz-evidence.md is regenerated from it.
+  python3 "$HERE/scripts/check_fuzz_budget.py" --write-md
   echo "sv0-mathlib ci: fixtures OK"
 fi
 

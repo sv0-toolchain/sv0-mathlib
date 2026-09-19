@@ -1,0 +1,44 @@
+/* TEST-001 property layer and TEST-004 (fixed seed). One property per file;
+ * `ROUNDS` (the number of coprime samples that must be checked) and the seed
+ * are pinned by docs/fuzz.tsv (see trig_identity_property.sv0). */
+use random::next_u64;
+use modular::gcd_u64;
+use modular::mod_inverse_u64;
+use modular::mul_mod_u64;
+use prelude::OptionU64;
+
+fn main() -> i32 {
+    let ROUNDS: i32 = 20;
+    let mut state: u64 = 2685821657736338717;
+
+    /* REQ: MOD-006 property — mod_inverse_u64 composed with mul_mod_u64
+     * yields 1, for seeded coprime (a,m) pairs. Draws are integer u64
+     * samples directly from the generator (`% range`, safe per CONV-006 —
+     * the operands are unsigned, never negative), not round-tripped through
+     * f64. Non-coprime draws are skipped (MOD-006's own contract only
+     * promises the inverse property when `gcd_checked_u64(a, m) == 1`); a
+     * bounded outer loop guards against an unlucky seed making every draw
+     * non-coprime, and at least 15 of the ROUNDS target samples must have
+     * actually been coprime-and-checked, so this can't pass vacuously. */
+    let mut k: i32 = 0;
+    let mut checked_count: i32 = 0;
+    while checked_count < ROUNDS loop_invariant(checked_count <= ROUNDS) {
+        if k >= 500 { return 3; }
+        state = next_u64(state);
+        let a: u64 = (state % 999983) + 1;
+        state = next_u64(state);
+        let m: u64 = (state % 999983) + 2;
+        let g: u64 = gcd_u64(a, m);
+        if g == 1 {
+            let inv_ok: bool = match mod_inverse_u64(a, m) {
+                OptionU64::Some(inv) => mul_mod_u64(a, inv, m) == 1,
+                OptionU64::None => false,
+            };
+            if !inv_ok { return 3; }
+            checked_count = checked_count + 1;
+        }
+        k = k + 1;
+    }
+    if checked_count < 15 { return 3; }
+    return 0;
+}

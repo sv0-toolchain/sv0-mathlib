@@ -1,0 +1,172 @@
+#!/usr/bin/env python3
+"""Fuzz evidence manifest + recorded-budget check (the sv0-mathlib port of
+sv0-strings' tools/check_fuzz_budget.py).
+
+`docs/fuzz.tsv` has one row per `test/property/*.sv0` fixture (one seeded
+property per file) recording the requirements it covers, the backends, the
+PRNG seed, the iteration count, and the recorded floor. This checker
+asserts, dependency-free and without the sv0 toolchain:
+
+  * every property fixture has exactly one manifest row and vice versa;
+    ids are unique and `FZ-`-prefixed;
+  * `backends` is `c,vm` (the fixtures run on both: the C leg gates in
+    run_unit_tests.py, the VM leg via run_unit_tests_vm.py);
+  * the fixture's `let ROUNDS: i32 = N;` equals the manifest `rounds`, and
+    `rounds >= min_rounds >= 1`, so the budget cannot silently shrink;
+  * ROUNDS is actually used by a loop (not a dead constant);
+  * the fixture's `let mut state: u64 = N;` equals the manifest `seed`, so a
+    run is reproducible from the manifest alone (TEST-004);
+  * every requirement the row lists appears as `REQ: <id>` in the fixture.
+
+`--write-md` regenerates docs/fuzz-evidence.md from the manifest (scripts/ci
+does this, like docs/api.md). Exit 0 = OK; 1 = errors.
+"""
+
+from __future__ import annotations
+
+import argparse
+import csv
+import re
+import sys
+from pathlib import Path
+
+HERE = Path(__file__).resolve().parent.parent
+TSV = HERE / "docs" / "fuzz.tsv"
+MD = HERE / "docs" / "fuzz-evidence.md"
+PROPERTY_DIR = HERE / "test" / "property"
+
+COLUMNS = ["id", "fixture", "requirements", "backends", "seed", "rounds",
+           "min_rounds", "invariants", "oracle"]
+ROUNDS_RE = re.compile(r"let\s+ROUNDS\s*:\s*i32\s*=\s*(\d+)\s*;")
+SEED_RE = re.compile(r"let\s+mut\s+state\s*:\s*u64\s*=\s*(\d+)\s*;")
+LOOP_USE_RE = re.compile(r"\bwhile\b[^{]*<\s*ROUNDS\b")
+
+
+def load() -> tuple[list[str], list[dict[str, str]]]:
+    with TSV.open(encoding="utf-8", newline="") as f:
+        r = csv.DictReader(f, delimiter="\t")
+        return list(r.fieldnames or []), list(r)
+
+
+def check(rows: list[dict[str, str]]) -> list[str]:
+    errs: list[str] = []
+    seen: set[str] = set()
+    catalog: set[str] = set()
+    seeds: dict[str, str] = {}
+
+    for i, row in enumerate(rows, start=2):
+        fid, fx = row["id"], row["fixture"]
+        where = f"fuzz.tsv:{i} ({fid or '<no id>'})"
+        if fid in seen:
+            errs.append(f"{where}: duplicate id")
+        seen.add(fid)
+        if not fid.startswith("FZ-"):
+            errs.append(f"{where}: id must be FZ-...")
+        for c in COLUMNS:
+            if not (row.get(c) or "").strip():
+                errs.append(f"{where}: column {c!r} is empty")
+
+        catalog.add(fx)
+        fp = HERE / fx
+        if not fp.exists():
+            errs.append(f"{where}: fixture path does not exist: {fx}")
+            continue
+        text = fp.read_text(encoding="utf-8")
+
+        if row["backends"].strip() != "c,vm":
+            errs.append(f"{where}: backends must be 'c,vm' (got {row['backends']!r})")
+
+        try:
+            rounds, floor = int(row["rounds"]), int(row["min_rounds"])
+        except ValueError:
+            errs.append(f"{where}: rounds / min_rounds must be integers")
+            continue
+        if floor < 1:
+            errs.append(f"{where}: min_rounds must be >= 1")
+        if rounds < floor:
+            errs.append(f"{where}: rounds {rounds} < recorded budget floor {floor}")
+
+        m = ROUNDS_RE.search(text)
+        if not m:
+            errs.append(f"{where}: fixture has no `let ROUNDS: i32 = N;`")
+        elif int(m.group(1)) != rounds:
+            errs.append(f"{where}: fixture ROUNDS {m.group(1)} != manifest rounds {rounds}")
+        if m and not LOOP_USE_RE.search(text):
+            errs.append(f"{where}: ROUNDS is defined but no `while ... < ROUNDS` loop uses it")
+
+        s = SEED_RE.search(text)
+        if not s:
+            errs.append(f"{where}: fixture has no `let mut state: u64 = N;`")
+        elif int(s.group(1)) != int(row["seed"]):
+            errs.append(f"{where}: fixture seed {s.group(1)} != manifest seed {row['seed']}")
+        if row["seed"] in seeds:
+            errs.append(f"{where}: seed {row['seed']} also used by {seeds[row['seed']]} "
+                        "(distinct seeds widen coverage)")
+        seeds[row["seed"]] = fid
+
+        if row["requirements"].strip() != "-":
+            for req in row["requirements"].split():
+                if f"REQ: {req}" not in text:
+                    errs.append(f"{where}: fixture has no `REQ: {req}` tag")
+
+    on_disk = {str(p.relative_to(HERE)) for p in PROPERTY_DIR.glob("*.sv0")}
+    for miss in sorted(on_disk - catalog):
+        errs.append(f"property fixture has no fuzz.tsv row: {miss}")
+    for extra in sorted(catalog - on_disk):
+        errs.append(f"fuzz.tsv row for a missing fixture: {extra}")
+    return errs
+
+
+def render_md(rows: list[dict[str, str]]) -> str:
+    out = ["# Fuzz evidence and recorded budget", "",
+           "Generated by `scripts/check_fuzz_budget.py --write-md` from",
+           "[`fuzz.tsv`](fuzz.tsv) — do not hand-edit. Each seeded property lives in its own",
+           "`test/property/*.sv0` file with a pinned seed and a `ROUNDS` budget; the checker",
+           "fails CI if a fixture and this manifest disagree, if `ROUNDS` drops under its",
+           "floor, or if a fixture is missing from (or extra to) the manifest.", "",
+           "| ID | Fixture | Requirements | Seed | Rounds | Floor | Backends |",
+           "|---|---|---|---:|---:|---:|---|"]
+    for r in rows:
+        out.append(f"| {r['id']} | `{r['fixture']}` | {r['requirements']} | {r['seed']} "
+                   f"| {r['rounds']} | {r['min_rounds']} | {r['backends']} |")
+    out += ["", "## Invariants", ""]
+    for r in rows:
+        out.append(f"- **{r['id']}**: {r['invariants']} (oracle: {r['oracle']})")
+    out += ["", "## Adding or changing a property", "",
+            "1. Put the property in its own `test/property/<name>_property.sv0` with",
+            "   `let ROUNDS: i32 = N;` and `let mut state: u64 = SEED;` (a seed no other fixture uses)",
+            "   and a `while ... < ROUNDS` loop.",
+            "2. Add a row to `docs/fuzz.tsv` with the same seed and rounds and a floor.",
+            "3. Run `python3 scripts/check_fuzz_budget.py --write-md`.",
+            "",
+            "To raise the budget, change `ROUNDS`, `rounds` and (to ratchet) `min_rounds`",
+            "together. Lowering `min_rounds` is a deliberate, reviewable edit to this manifest."]
+    return "\n".join(out) + "\n"
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--write-md", action="store_true", help="regenerate docs/fuzz-evidence.md")
+    args = ap.parse_args()
+    header, rows = load()
+    if header != COLUMNS:
+        print(f"check_fuzz_budget: header {header} != {COLUMNS}", file=sys.stderr)
+        return 1
+    errs = check(rows)
+    if errs:
+        for e in errs:
+            print(f"check_fuzz_budget: {e}", file=sys.stderr)
+        print(f"check_fuzz_budget: {len(errs)} error(s)", file=sys.stderr)
+        return 1
+    if args.write_md:
+        MD.write_text(render_md(rows), encoding="utf-8")
+    total = sum(int(r["rounds"]) for r in rows)
+    print(f"check_fuzz_budget: OK — {len(rows)} property fixture(s), {total} recorded rounds, "
+          "seeds/budgets pinned to the fixtures")
+    for r in rows:
+        print(f"  {r['id']:<26} {r['rounds']:>3} rounds (floor {r['min_rounds']})  {r['fixture']}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

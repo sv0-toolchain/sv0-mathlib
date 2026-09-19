@@ -69,7 +69,7 @@ struct Complex { re: f64, im: f64 }
  * `ensures` clause that is itself a binop combining struct-field
  * accesses (`Complex { re: a.re + b.re, ... }`, or
  * `ensures(result.re == a.re + b.re ...)`) mistypes as `int` — found
- * via `test/property/property_test.sv0`'s associativity check
+ * via `test/property/complex_algebra_property.sv0`'s (formerly `property_test.sv0`) associativity check
  * intermittently panicking under the newer `sv0c` `53de895` revision
  * (`scripts/ci`'s own toolchain, unpinned; "intermittently" because the
  * bug truncates the ensures' OWN comparison value to `int`, so it only
