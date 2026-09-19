@@ -18,6 +18,11 @@ strengthened or weakened. Versions follow [Semantic Versioning](https://semver.o
   `random::uniform_f64` (uniform f64 in `[lo, hi]`), with
   `test/unit/random_test.sv0` covering range, determinism, the rejection
   path, and rough uniformity.
+- `test/fixtures/random.csv` (37 golden rows for `next_u64`, `unit_f64`,
+  `below_u64`, including rejection-path states) printed by the independent
+  C oracle `docs/random_oracle.c`. `run_fixture_parity.py` checks every row
+  on both backends (both match today); `check_random_oracle.py` gates the
+  CSV against the oracle so it cannot silently drift.
 
 ### Changed
 

@@ -117,10 +117,11 @@ sv0-mathlib/
 │   ├── check_doc_comments.py # doc-comment coverage lint
 │   ├── gen_api_docs.py       # generates docs/api.md
 │   ├── run_fixture_parity.py # drives every fixture row through a live build, checks vs. expected
+│   ├── check_random_oracle.py # random.csv still matches its independent C oracle
 │   ├── run_ulp_audit.py      # accuracy-regression gate against docs/accuracy.md's pinned budgets
 │   ├── check_vm_emitter_determinism.py # diagnostic: is the native VM emitter's .sv0b output stable?
 │   └── check_vm_interpreter_determinism.py # diagnostic: is sv0vm's execution of a fixed .sv0b stable?
-├── lib/               # arith, modular, trig, polar, complex, prelude
+├── lib/               # arith, modular, trig, polar, complex, random, prelude
 ├── test/
 │   ├── unit/           # one standalone fn main()->i32 binary per module
 │   ├── property/       # seeded-PRNG algebraic-invariant checks
@@ -131,6 +132,7 @@ sv0-mathlib/
     ├── accuracy.md                 # measured ULP error per non-exact function
     ├── deviations.md               # where this library departs from SPEC.md, and why
     ├── ulp_audit_harness.c         # the C harness used to produce accuracy.md's numbers
+    ├── random_oracle.c             # independent C oracle that prints test/fixtures/random.csv
     └── requirement_test_matrix.md  # generated: requirement ID -> test mapping
 ```
 

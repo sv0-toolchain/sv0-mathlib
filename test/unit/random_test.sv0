@@ -16,6 +16,17 @@ fn main() -> i32 {
     if next_u64(s0) == s0 { return 2; }
     if next_u64(next_u64(s0)) == next_u64(s0) { return 3; }
 
+    /* Golden chain from the property-test seed. Expected values come from
+     * the independent C oracle (docs/random_oracle.c); test/fixtures/
+     * random.csv holds the full set and runs on both backends. */
+    let g1: u64 = next_u64(s0);
+    if g1 != 13679095844690443075 { return 4; }
+    let g2: u64 = next_u64(g1);
+    if g2 != 2577413894076934422 { return 5; }
+    let g3: u64 = next_u64(g2);
+    if g3 != 6947113883557504045 { return 6; }
+    if next_u64(0) != 1442695040888963407 { return 7; }
+
     /* unit_f64: strictly below 1.0 even at the maximum state, and 0.0 at
      * state 0. */
     if unit_f64(u64_max_val()) >= 1.0 { return 10; }
@@ -56,6 +67,16 @@ fn main() -> i32 {
         s = rmax.state;
         j = j + 1;
     }
+
+    /* Golden below_u64 values, including a rejection: from the seed with
+     * n = 2^63 + 1 the first raw draw is rejected, so the returned state is
+     * the SECOND successor (oracle-derived). */
+    let gb: BelowU64 = below_u64(s0, 10);
+    if gb.value != 7 { return 45; }
+    if gb.state != g1 { return 46; }
+    let gr: BelowU64 = below_u64(s0, 9223372036854775809);
+    if gr.value != 2577413894076934422 { return 47; }
+    if gr.state != g2 { return 48; }
 
     /* Deterministic: same (state, n) -> same result and next state. */
     let d1: BelowU64 = below_u64(s0, 97);
