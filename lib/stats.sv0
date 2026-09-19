@@ -8,9 +8,13 @@
  * needs only running state, so nothing is lost. Order statistics (median,
  * percentile) need the whole sample and are not provided.
  *
- * Numerics: the mean and variance use Welford's update (stable, no
- * catastrophic cancellation, no overflow of a running sum); the sum uses
- * Neumaier compensated summation.
+ * Numerics: the mean and variance use Welford's update, with the running
+ * mean carried as a double-double (`mean` + `mean_lo`, updated by an exact
+ * two-sum). A plain-double running mean loses accuracy in proportion to
+ * mean/stddev (about 1e-7 relative error in the variance of data like
+ * 1e9 + noise); the double-double mean removes that dependence, so the mean
+ * is within about 1 ULP and the variance within a few ULPs. There is no
+ * running sum to overflow. The sum uses Neumaier compensated summation.
  *
  * Total functions, no panics: an undefined result is NaN (empty input for
  * mean/min/max/population variance; fewer than two observations for
@@ -30,12 +34,14 @@ use arith::abs_f64;
 use trig::sqrt_f64;
 
 /* Accumulator state. Treat as opaque and use the functions below: `nf`
- * counts only the finite observations (the Welford state's count), `comp`
+ * counts only the finite observations (the Welford state's count),
+ * `mean` + `mean_lo` is the running mean as an unevaluated sum, and `comp`
  * is the Neumaier running compensation for `sum`. */
 struct Stats {
     n: i64,
     nf: i64,
     mean: f64,
+    mean_lo: f64,
     m2: f64,
     sum: f64,
     comp: f64,
@@ -52,7 +58,7 @@ fn stats_nan() -> f64 { return 0.0 / 0.0; }
 /* An empty accumulator (no observations). */
 fn stats_new() -> Stats {
     return Stats {
-        n: 0, nf: 0, mean: 0.0, m2: 0.0, sum: 0.0, comp: 0.0,
+        n: 0, nf: 0, mean: 0.0, mean_lo: 0.0, m2: 0.0, sum: 0.0, comp: 0.0,
         lo: 0.0, hi: 0.0, nan_seen: false, pinf: false, ninf: false
     };
 }
@@ -62,6 +68,7 @@ fn stats_push(s: Stats, x: f64) -> Stats {
     let n0: i64 = s.n;
     let nf0: i64 = s.nf;
     let mean0: f64 = s.mean;
+    let mlo0: f64 = s.mean_lo;
     let m20: f64 = s.m2;
     let sum0: f64 = s.sum;
     let comp0: f64 = s.comp;
@@ -74,6 +81,7 @@ fn stats_push(s: Stats, x: f64) -> Stats {
     let n1: i64 = n0 + 1;
     let mut nf1: i64 = nf0;
     let mut mean1: f64 = mean0;
+    let mut mlo1: f64 = mlo0;
     let mut m21: f64 = m20;
     let mut sum1: f64 = sum0;
     let mut comp1: f64 = comp0;
@@ -93,9 +101,18 @@ fn stats_push(s: Stats, x: f64) -> Stats {
     if fin {
         nf1 = nf0 + 1;
         let nfd: f64 = nf1;
-        let d: f64 = x - mean0;
-        mean1 = mean0 + d / nfd;
-        m21 = m20 + d * (x - mean1);
+        /* d = x - (mean0 + mlo0); delta is the step to the new mean. */
+        let d: f64 = (x - mean0) - mlo0;
+        let delta: f64 = d / nfd;
+        /* Exact two-sum of mean0 + delta into (sm, err), fold the error
+         * into the low part, then renormalize to (mean1, mlo1). */
+        let sm: f64 = mean0 + delta;
+        let bb: f64 = sm - mean0;
+        let err: f64 = (mean0 - (sm - bb)) + (delta - bb);
+        let lo: f64 = mlo0 + err;
+        mean1 = sm + lo;
+        mlo1 = lo - (mean1 - sm);
+        m21 = m20 + d * ((x - mean1) - mlo1);
 
         let t: f64 = sum0 + x;
         if (t - t) == 0.0 {
@@ -116,7 +133,7 @@ fn stats_push(s: Stats, x: f64) -> Stats {
     }
 
     return Stats {
-        n: n1, nf: nf1, mean: mean1, m2: m21, sum: sum1, comp: comp1,
+        n: n1, nf: nf1, mean: mean1, mean_lo: mlo1, m2: m21, sum: sum1, comp: comp1,
         lo: lo1, hi: hi1, nan_seen: nan1, pinf: pinf1, ninf: ninf1
     };
 }
