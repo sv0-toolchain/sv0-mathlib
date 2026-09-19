@@ -56,6 +56,20 @@ strengthened or weakened. Versions follow [Semantic Versioning](https://semver.o
   functions (median, percentile) are blocked until upstream adds typed
   element slots, while streaming reductions work via an accumulator struct.
 
+### Governance
+
+- `docs/exceptions.tsv` (25 rows, `docs/exceptions.md` generated from it) is
+  now the single register of everything the library ships that falls short
+  of SPEC.md or its own gates: every numbered deviation, the beyond-spec
+  modules, the deferred CONV-010, the advisory VM legs, the informational
+  ULP budgets, and the open toolchain gaps with workarounds. Each row has an
+  approver, a rationale and an expiration trigger, or is `permanent`.
+  `scripts/check_exceptions.py` (in `scripts/ci`) validates the schema,
+  resolves every reference into deviations.md / BUGS.md / the repo, refuses
+  the non-waivable requirements (`PERF-002`, `COMPAT-001`, `TEST-004`), and
+  fails if a deviation or a non-covered requirement has no row. Ported from
+  sv0-strings' `check_exceptions.py`.
+
 ### Fixed
 
 - `stats`: the running mean is now a double-double (`mean` + `mean_lo`).

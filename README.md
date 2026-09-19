@@ -120,6 +120,7 @@ sv0-mathlib/
 │   ├── check_doc_comments.py # doc-comment coverage lint
 │   ├── gen_api_docs.py       # generates docs/api.md
 │   ├── run_fixture_parity.py # drives every fixture row through a live build, checks vs. expected
+│   ├── check_exceptions.py   # exceptions registry: schema, references, completeness (docs/exceptions.tsv)
 │   ├── check_fixture_oracles.py # random.csv / stats.csv still match their independent oracles
 │   ├── gen_stats_fixtures.py # exact-rational oracle that prints test/fixtures/stats.csv
 │   ├── run_unit_tests_vm.py  # unit + property tests on C and the VM, exit codes compared
@@ -137,6 +138,7 @@ sv0-mathlib/
     ├── api.md                      # generated: full function reference
     ├── accuracy.md                 # measured ULP error per non-exact function
     ├── deviations.md               # where this library departs from SPEC.md, and why
+    ├── exceptions.tsv / .md        # the approved-exceptions registry (deviations, deferrals, advisory gates, open toolchain gaps)
     ├── ulp_audit_harness.c         # the C harness used to produce accuracy.md's numbers
     ├── random_oracle.c             # independent C oracle that prints test/fixtures/random.csv
     ├── stats_accuracy_harness.c    # C harness run by scripts/run_stats_accuracy.py

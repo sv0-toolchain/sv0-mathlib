@@ -128,6 +128,10 @@ if [[ "$SKIP_FIXTURES" -eq 0 ]]; then
   echo "== sv0-mathlib ci: fixture manifest + boundary-coverage lint (TEST-002/TEST-003) =="
   python3 "$HERE/scripts/check_fixtures.py"
   python3 "$HERE/scripts/check_fixture_oracles.py"
+  # The exceptions registry (docs/exceptions.tsv) is validated here, and its
+  # markdown view regenerated, like docs/api.md. It reads the requirement
+  # matrix the unit stage writes, so it stays after that stage.
+  python3 "$HERE/scripts/check_exceptions.py" --write-md
   echo "sv0-mathlib ci: fixtures OK"
 fi
 
