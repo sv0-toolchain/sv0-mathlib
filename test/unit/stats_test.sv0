@@ -1,0 +1,156 @@
+/* TEST-001 unit test for module::stats — the streaming accumulator.
+ * Not tied to a SPEC.md requirement ID (beyond-spec; docs/deviations.md). */
+use stats::Stats;
+use stats::stats_new;
+use stats::stats_push;
+use stats::stats_count;
+use stats::stats_sum_f64;
+use stats::stats_mean_f64;
+use stats::stats_variance_pop_f64;
+use stats::stats_variance_sample_f64;
+use stats::stats_stddev_pop_f64;
+use stats::stats_stddev_sample_f64;
+use stats::stats_min_f64;
+use stats::stats_max_f64;
+use stats::stats_range_f64;
+use arith::abs_f64;
+
+fn near(a: f64, b: f64, tol: f64) -> bool {
+    return abs_f64(a - b) <= tol;
+}
+
+fn is_nan(x: f64) -> bool { return x != x; }
+
+fn main() -> i32 {
+    /* Empty: count 0, sum 0.0, everything else undefined (NaN). */
+    let e: Stats = stats_new();
+    if stats_count(e) != 0 { return 1; }
+    if stats_sum_f64(e) != 0.0 { return 2; }
+    if !is_nan(stats_mean_f64(e)) { return 3; }
+    if !is_nan(stats_min_f64(e)) { return 4; }
+    if !is_nan(stats_max_f64(e)) { return 5; }
+    if !is_nan(stats_variance_pop_f64(e)) { return 6; }
+    if !is_nan(stats_variance_sample_f64(e)) { return 7; }
+    if !is_nan(stats_stddev_pop_f64(e)) { return 8; }
+    if !is_nan(stats_range_f64(e)) { return 9; }
+
+    /* One observation: variance is 0 (population) / undefined (sample). */
+    let one: Stats = stats_push(stats_new(), 5.0);
+    if stats_count(one) != 1 { return 10; }
+    if stats_mean_f64(one) != 5.0 { return 11; }
+    if stats_min_f64(one) != 5.0 { return 12; }
+    if stats_max_f64(one) != 5.0 { return 13; }
+    if stats_range_f64(one) != 0.0 { return 14; }
+    if stats_variance_pop_f64(one) != 0.0 { return 15; }
+    if !is_nan(stats_variance_sample_f64(one)) { return 16; }
+    if stats_sum_f64(one) != 5.0 { return 17; }
+
+    /* {2, 4, 9}: mean 5, sum of squared deviations 26. */
+    let a1: Stats = stats_push(stats_new(), 2.0);
+    let a2: Stats = stats_push(a1, 4.0);
+    let a3: Stats = stats_push(a2, 9.0);
+    if stats_count(a3) != 3 { return 20; }
+    if stats_sum_f64(a3) != 15.0 { return 21; }
+    if stats_mean_f64(a3) != 5.0 { return 22; }
+    if stats_min_f64(a3) != 2.0 { return 23; }
+    if stats_max_f64(a3) != 9.0 { return 24; }
+    if stats_range_f64(a3) != 7.0 { return 25; }
+    if !near(stats_variance_pop_f64(a3), 26.0 / 3.0, 0.000000000001) { return 26; }
+    if stats_variance_sample_f64(a3) != 13.0 { return 27; }
+    if !near(stats_stddev_sample_f64(a3), 3.605551275463989, 0.000000000001) { return 28; }
+
+    /* Classic data set {2,4,4,4,5,5,7,9}: mean 5, population variance 4,
+     * population stddev exactly 2. */
+    let mut c: Stats = stats_new();
+    c = stats_push(c, 2.0);
+    c = stats_push(c, 4.0);
+    c = stats_push(c, 4.0);
+    c = stats_push(c, 4.0);
+    c = stats_push(c, 5.0);
+    c = stats_push(c, 5.0);
+    c = stats_push(c, 7.0);
+    c = stats_push(c, 9.0);
+    if stats_mean_f64(c) != 5.0 { return 30; }
+    if stats_variance_pop_f64(c) != 4.0 { return 31; }
+    if stats_stddev_pop_f64(c) != 2.0 { return 32; }
+    if !near(stats_variance_sample_f64(c), 32.0 / 7.0, 0.000000000001) { return 33; }
+
+    /* Neumaier compensated sum: 1e16 + 1 + -1e16. Naive left-to-right
+     * summation loses the 1.0. */
+    let big: f64 = 10000000000000000.0;
+    let mut cs: Stats = stats_new();
+    cs = stats_push(cs, big);
+    cs = stats_push(cs, 1.0);
+    cs = stats_push(cs, 0.0 - big);
+    if stats_sum_f64(cs) != 1.0 { return 40; }
+
+    /* Welford stability: a large common offset must not destroy the
+     * variance. Deviations are -6, -3, 3, 6, so population variance 22.5
+     * and sample variance 30. */
+    let off: f64 = 1000000000.0;
+    let mut w: Stats = stats_new();
+    w = stats_push(w, off + 4.0);
+    w = stats_push(w, off + 7.0);
+    w = stats_push(w, off + 13.0);
+    w = stats_push(w, off + 16.0);
+    if stats_mean_f64(w) != off + 10.0 { return 41; }
+    if !near(stats_variance_pop_f64(w), 22.5, 0.000001) { return 42; }
+    if !near(stats_variance_sample_f64(w), 30.0, 0.000001) { return 43; }
+
+    /* Streaming a counter 1..=100: sum 5050, mean 50.5, population
+     * variance (100^2 - 1) / 12 = 833.25. */
+    let mut r: Stats = stats_new();
+    let mut i: i32 = 1;
+    while i <= 100 loop_invariant(i >= 1) {
+        let x: f64 = i;
+        r = stats_push(r, x);
+        i = i + 1;
+    }
+    if stats_count(r) != 100 { return 50; }
+    if stats_sum_f64(r) != 5050.0 { return 51; }
+    if stats_mean_f64(r) != 50.5 { return 52; }
+    if !near(stats_variance_pop_f64(r), 833.25, 0.000000001) { return 53; }
+    if stats_min_f64(r) != 1.0 { return 54; }
+    if stats_max_f64(r) != 100.0 { return 55; }
+
+    /* NaN poisons every result but still counts. */
+    let nan: f64 = 0.0 / 0.0;
+    let n1: Stats = stats_push(stats_push(stats_new(), 1.0), nan);
+    if stats_count(n1) != 2 { return 60; }
+    if !is_nan(stats_mean_f64(n1)) { return 61; }
+    if !is_nan(stats_min_f64(n1)) { return 62; }
+    if !is_nan(stats_max_f64(n1)) { return 63; }
+    if !is_nan(stats_variance_pop_f64(n1)) { return 64; }
+    if !is_nan(stats_stddev_sample_f64(n1)) { return 65; }
+    if !is_nan(stats_sum_f64(n1)) { return 66; }
+    /* ...even when the NaN comes first. */
+    let n2: Stats = stats_push(stats_push(stats_new(), nan), 1.0);
+    if !is_nan(stats_min_f64(n2)) { return 67; }
+    if !is_nan(stats_mean_f64(n2)) { return 68; }
+
+    /* +Infinity: sum/mean/max are +Infinity, min is finite, variance NaN. */
+    let inf: f64 = 1.0 / 0.0;
+    let p: Stats = stats_push(stats_push(stats_new(), 1.0), inf);
+    if stats_sum_f64(p) != inf { return 70; }
+    if stats_mean_f64(p) != inf { return 71; }
+    if stats_max_f64(p) != inf { return 72; }
+    if stats_min_f64(p) != 1.0 { return 73; }
+    if !is_nan(stats_variance_pop_f64(p)) { return 74; }
+    /* An infinity first, then a finite value, gives the same answers. */
+    let p2: Stats = stats_push(stats_push(stats_new(), inf), 1.0);
+    if stats_sum_f64(p2) != inf { return 75; }
+    if stats_mean_f64(p2) != inf { return 76; }
+    if stats_min_f64(p2) != 1.0 { return 77; }
+    /* -Infinity mirrors it. */
+    let q: Stats = stats_push(stats_push(stats_new(), 1.0), 0.0 - inf);
+    if stats_mean_f64(q) != 0.0 - inf { return 78; }
+    if stats_min_f64(q) != 0.0 - inf { return 79; }
+    /* Both infinities: sum and mean are NaN. */
+    let pq: Stats = stats_push(stats_push(stats_new(), inf), 0.0 - inf);
+    if !is_nan(stats_sum_f64(pq)) { return 80; }
+    if !is_nan(stats_mean_f64(pq)) { return 81; }
+    if stats_max_f64(pq) != inf { return 82; }
+    if stats_min_f64(pq) != 0.0 - inf { return 83; }
+
+    return 0;
+}

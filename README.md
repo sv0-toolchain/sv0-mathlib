@@ -2,8 +2,8 @@
 
 A numeric library for the [sv0](https://github.com/sv4u/sv0-toolchain)
 programming language: arithmetic, modular arithmetic, trigonometry, polar
-coordinates, complex numbers, and a small seedable test PRNG, built
-contract-first per
+coordinates, complex numbers, streaming descriptive statistics, and a
+small seedable test PRNG, built contract-first per
 [SPEC.md](https://github.com/sv4u/project-specs/blob/main/sv0-mathlib/SPEC.md).
 
 **Status: `v0.1.0`, released 2026-08-30.** The full SPEC.md ladder (F0
@@ -23,9 +23,10 @@ and the spec disagree, and why.
 | [`polar`](lib/polar.sv0) | Cartesian/polar conversion, polar-form scale and rotate | §17 |
 | [`complex`](lib/complex.sv0) | `Complex` arithmetic, modulus/argument/conjugate, polar interop, `exp`/`ln`/`pow` | §18 |
 | [`random`](lib/random.sv0) | deterministic seedable PRNG (`next_u64`, `unit_f64`, unbiased `below_u64`, `uniform_f64`) — **not cryptographic**, beyond-spec (deviation 11) | — |
+| [`stats`](lib/stats.sv0) | streaming `Stats` accumulator: count, sum, mean, variance, stddev, min, max, range (no median/percentile yet, deviation 12) | — |
 | `prelude` | shared `Option`/`Result`-shaped types used across the above | — |
 
-115 public functions total — see [docs/api.md](docs/api.md) for the full
+129 public functions total — see [docs/api.md](docs/api.md) for the full
 generated reference (signature, contract, and doc comment per function).
 
 ## Quick example
@@ -120,10 +121,11 @@ sv0-mathlib/
 │   ├── gen_api_docs.py       # generates docs/api.md
 │   ├── run_fixture_parity.py # drives every fixture row through a live build, checks vs. expected
 │   ├── check_random_oracle.py # random.csv still matches its independent C oracle
+│   ├── run_unit_tests_vm.py  # unit + property tests on C and the VM, exit codes compared
 │   ├── run_ulp_audit.py      # accuracy-regression gate against docs/accuracy.md's pinned budgets
 │   ├── check_vm_emitter_determinism.py # diagnostic: is the native VM emitter's .sv0b output stable?
 │   └── check_vm_interpreter_determinism.py # diagnostic: is sv0vm's execution of a fixed .sv0b stable?
-├── lib/               # arith, modular, trig, polar, complex, random, prelude
+├── lib/               # arith, modular, trig, polar, complex, random, stats, prelude
 ├── test/
 │   ├── unit/           # one standalone fn main()->i32 binary per module
 │   ├── property/       # seeded-PRNG algebraic-invariant checks

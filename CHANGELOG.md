@@ -26,7 +26,22 @@ strengthened or weakened. Versions follow [Semantic Versioning](https://semver.o
 - `docs/deviations.md` #11 records that `random` is beyond-spec and not
   cryptographic; README lists the module and its corrected function count.
 
+- `lib/stats.sv0`: a streaming `Stats` accumulator (`stats_new`,
+  `stats_push`, then count, sum, mean, population/sample variance and
+  standard deviation, min, max, range). Welford mean/variance, Neumaier
+  compensated sum, total functions returning NaN when undefined, defined
+  NaN/infinity behavior. No median/percentile: the toolchain cannot store
+  `f64` in a `Vec` (BUGS.md #20). See `docs/deviations.md` #12.
+- `scripts/run_unit_tests_vm.py` (in `scripts/ci`, `--skip-unit-vm`): runs
+  every unit and property test on both backends and compares exit codes,
+  so `random` and `stats` are cross-checked on the VM. C failures gate;
+  the VM leg is advisory like the fixture-parity one.
+
 ### Toolchain gaps found
+
+- BUGS.md #21: the VM emitter mis-evaluates `struct.u64_field >= call()`
+  (C is correct). Found by the new VM unit-test runner; worked around in
+  `random_test.sv0` by comparing against a local.
 
 - BUGS.md #20: `Vec<f64>` and `[f64; N]` silently truncate elements on the
   C backend and hard-fail on the VM (element slots are `intptr_t`). Found

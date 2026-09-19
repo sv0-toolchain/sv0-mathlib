@@ -1,0 +1,228 @@
+/* module::stats — streaming descriptive statistics: count, sum, mean,
+ * variance, standard deviation, min, max, range.
+ *
+ * DESIGN (BUGS.md #20): sv0 cannot store f64 values in a Vec, array or
+ * slice (elements are `intptr_t` slots), so there is no "sample" type to
+ * pass around. Instead a `Stats` accumulator is threaded by value, one
+ * observation at a time: `s = stats_push(s, x);`. Every reduction here
+ * needs only running state, so nothing is lost. Order statistics (median,
+ * percentile) need the whole sample and are not provided.
+ *
+ * Numerics: the mean and variance use Welford's update (stable, no
+ * catastrophic cancellation, no overflow of a running sum); the sum uses
+ * Neumaier compensated summation.
+ *
+ * Total functions, no panics: an undefined result is NaN (empty input for
+ * mean/min/max/population variance; fewer than two observations for
+ * sample variance). Callers can test `stats_count` first.
+ *
+ * Non-finite input: a NaN observation makes every result NaN. Infinite
+ * observations are counted, excluded from the Welford state, and reflected
+ * in the results: the sum is +/-infinity (NaN if both signs appear), the
+ * mean is +/-infinity (NaN if both signs appear), min/max see them, and
+ * variance/stddev are NaN.
+ *
+ * Not tied to a SPEC.md requirement ID (beyond-spec, docs/deviations.md).
+ */
+module stats;
+
+use arith::abs_f64;
+use trig::sqrt_f64;
+
+/* Accumulator state. Treat as opaque and use the functions below: `nf`
+ * counts only the finite observations (the Welford state's count), `comp`
+ * is the Neumaier running compensation for `sum`. */
+struct Stats {
+    n: i64,
+    nf: i64,
+    mean: f64,
+    m2: f64,
+    sum: f64,
+    comp: f64,
+    lo: f64,
+    hi: f64,
+    nan_seen: bool,
+    pinf: bool,
+    ninf: bool
+}
+
+/* A quiet NaN, the "undefined result" value returned by the reductions. */
+fn stats_nan() -> f64 { return 0.0 / 0.0; }
+
+/* An empty accumulator (no observations). */
+fn stats_new() -> Stats {
+    return Stats {
+        n: 0, nf: 0, mean: 0.0, m2: 0.0, sum: 0.0, comp: 0.0,
+        lo: 0.0, hi: 0.0, nan_seen: false, pinf: false, ninf: false
+    };
+}
+
+/* Adds one observation and returns the updated accumulator. */
+fn stats_push(s: Stats, x: f64) -> Stats {
+    let n0: i64 = s.n;
+    let nf0: i64 = s.nf;
+    let mean0: f64 = s.mean;
+    let m20: f64 = s.m2;
+    let sum0: f64 = s.sum;
+    let comp0: f64 = s.comp;
+    let lo0: f64 = s.lo;
+    let hi0: f64 = s.hi;
+    let mut nan1: bool = s.nan_seen;
+    let mut pinf1: bool = s.pinf;
+    let mut ninf1: bool = s.ninf;
+
+    let n1: i64 = n0 + 1;
+    let mut nf1: i64 = nf0;
+    let mut mean1: f64 = mean0;
+    let mut m21: f64 = m20;
+    let mut sum1: f64 = sum0;
+    let mut comp1: f64 = comp0;
+    let mut lo1: f64 = lo0;
+    let mut hi1: f64 = hi0;
+
+    if n0 == 0 {
+        lo1 = x;
+        hi1 = x;
+    } else {
+        if x < lo0 { lo1 = x; }
+        if x > hi0 { hi1 = x; }
+    }
+
+    /* x - x is 0.0 for every finite x, NaN for infinities and NaN. */
+    let fin: bool = (x - x) == 0.0;
+    if fin {
+        nf1 = nf0 + 1;
+        let nfd: f64 = nf1;
+        let d: f64 = x - mean0;
+        mean1 = mean0 + d / nfd;
+        m21 = m20 + d * (x - mean1);
+
+        let t: f64 = sum0 + x;
+        if (t - t) == 0.0 {
+            if abs_f64(sum0) >= abs_f64(x) {
+                comp1 = comp0 + ((sum0 - t) + x);
+            } else {
+                comp1 = comp0 + ((x - t) + sum0);
+            }
+        }
+        sum1 = t;
+    } else {
+        sum1 = sum0 + x;
+        if x != x {
+            nan1 = true;
+        } else {
+            if x > 0.0 { pinf1 = true; } else { ninf1 = true; }
+        }
+    }
+
+    return Stats {
+        n: n1, nf: nf1, mean: mean1, m2: m21, sum: sum1, comp: comp1,
+        lo: lo1, hi: hi1, nan_seen: nan1, pinf: pinf1, ninf: ninf1
+    };
+}
+
+/* Number of observations pushed (finite or not). */
+fn stats_count(s: Stats) -> i64 { return s.n; }
+
+/* Sum of all observations; 0.0 when empty. */
+fn stats_sum_f64(s: Stats) -> f64 {
+    let sum: f64 = s.sum;
+    let comp: f64 = s.comp;
+    return sum + comp;
+}
+
+/* Arithmetic mean of all observations; NaN when empty (see the module
+ * header for how NaN and infinite observations propagate). */
+fn stats_mean_f64(s: Stats) -> f64 {
+    let n: i64 = s.n;
+    let nan_seen: bool = s.nan_seen;
+    let pinf: bool = s.pinf;
+    let ninf: bool = s.ninf;
+    let mean: f64 = s.mean;
+    if n == 0 { return stats_nan(); }
+    if nan_seen { return stats_nan(); }
+    if pinf && ninf { return stats_nan(); }
+    if pinf { return 1.0 / 0.0; }
+    if ninf { return 0.0 - (1.0 / 0.0); }
+    return mean;
+}
+
+/* Population variance (divides by n); NaN when empty or non-finite input
+ * was seen. */
+fn stats_variance_pop_f64(s: Stats) -> f64
+    ensures(result >= 0.0 || result != result)
+{
+    let n: i64 = s.n;
+    let nf: i64 = s.nf;
+    let m2: f64 = s.m2;
+    if n == 0 { return stats_nan(); }
+    if nf != n { return stats_nan(); }
+    let nd: f64 = n;
+    return m2 / nd;
+}
+
+/* Sample variance (divides by n - 1); NaN with fewer than two
+ * observations or when non-finite input was seen. */
+fn stats_variance_sample_f64(s: Stats) -> f64
+    ensures(result >= 0.0 || result != result)
+{
+    let n: i64 = s.n;
+    let nf: i64 = s.nf;
+    let m2: f64 = s.m2;
+    if n < 2 { return stats_nan(); }
+    if nf != n { return stats_nan(); }
+    let dof: i64 = n - 1;
+    let dd: f64 = dof;
+    return m2 / dd;
+}
+
+/* Square root of a variance value, propagating NaN instead of tripping
+ * sqrt_f64's `requires`. */
+fn stats_sqrt_nonneg(v: f64) -> f64 {
+    if v != v { return v; }
+    if v < 0.0 { return 0.0; }
+    return sqrt_f64(v);
+}
+
+/* Population standard deviation; NaN whenever the population variance is. */
+fn stats_stddev_pop_f64(s: Stats) -> f64
+    ensures(result >= 0.0 || result != result)
+{
+    return stats_sqrt_nonneg(stats_variance_pop_f64(s));
+}
+
+/* Sample standard deviation; NaN whenever the sample variance is. */
+fn stats_stddev_sample_f64(s: Stats) -> f64
+    ensures(result >= 0.0 || result != result)
+{
+    return stats_sqrt_nonneg(stats_variance_sample_f64(s));
+}
+
+/* Smallest observation; NaN when empty or if a NaN was seen. */
+fn stats_min_f64(s: Stats) -> f64 {
+    let n: i64 = s.n;
+    let nan_seen: bool = s.nan_seen;
+    let lo: f64 = s.lo;
+    if n == 0 { return stats_nan(); }
+    if nan_seen { return stats_nan(); }
+    return lo;
+}
+
+/* Largest observation; NaN when empty or if a NaN was seen. */
+fn stats_max_f64(s: Stats) -> f64 {
+    let n: i64 = s.n;
+    let nan_seen: bool = s.nan_seen;
+    let hi: f64 = s.hi;
+    if n == 0 { return stats_nan(); }
+    if nan_seen { return stats_nan(); }
+    return hi;
+}
+
+/* `max - min`; NaN when empty or if a NaN was seen. */
+fn stats_range_f64(s: Stats) -> f64
+    ensures(result >= 0.0 || result != result)
+{
+    let lo: f64 = stats_min_f64(s);
+    let hi: f64 = stats_max_f64(s);
+    return hi - lo;
+}

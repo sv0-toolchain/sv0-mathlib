@@ -7,7 +7,7 @@ would name it. Non-exact (ULP-budgeted) functions link their own doc
 comment's `docs/accuracy.md` cross-reference inline; see that file for
 the measured error tables themselves.
 
-**115 public functions across 7 modules.**
+**129 public functions across 8 modules.**
 
 ---
 
@@ -1105,6 +1105,133 @@ Maps a raw u64 state to an f64 in [0.0, 1.0). Uses the top 53 bits
 then scales by 2^-53 (a power of two, so exact). The result is always
 strictly below 1.0; the largest value is 1.0 - 2^-53. Dividing the full
 u64 by 2^64 - 1 instead would round the highest states to exactly 1.0.
+
+---
+
+## `stats`
+
+streaming descriptive statistics: count, sum, mean, variance, standard deviation, min, max, range.
+
+### `stats_count`
+
+```sv0
+fn stats_count(s: Stats) -> i64 { return s.n; }
+```
+
+Number of observations pushed (finite or not).
+
+### `stats_max_f64`
+
+```sv0
+fn stats_max_f64(s: Stats) -> f64
+```
+
+Largest observation; NaN when empty or if a NaN was seen.
+
+### `stats_mean_f64`
+
+```sv0
+fn stats_mean_f64(s: Stats) -> f64
+```
+
+Arithmetic mean of all observations; NaN when empty (see the module
+header for how NaN and infinite observations propagate).
+
+### `stats_min_f64`
+
+```sv0
+fn stats_min_f64(s: Stats) -> f64
+```
+
+Smallest observation; NaN when empty or if a NaN was seen.
+
+### `stats_nan`
+
+```sv0
+fn stats_nan() -> f64 { return 0.0 / 0.0; }
+```
+
+A quiet NaN, the "undefined result" value returned by the reductions.
+
+### `stats_new`
+
+```sv0
+fn stats_new() -> Stats
+```
+
+An empty accumulator (no observations).
+
+### `stats_push`
+
+```sv0
+fn stats_push(s: Stats, x: f64) -> Stats
+```
+
+Adds one observation and returns the updated accumulator.
+
+### `stats_range_f64`
+
+```sv0
+fn stats_range_f64(s: Stats) -> f64
+    ensures(result >= 0.0 || result != result)
+```
+
+`max - min`; NaN when empty or if a NaN was seen.
+
+### `stats_sqrt_nonneg`
+
+```sv0
+fn stats_sqrt_nonneg(v: f64) -> f64
+```
+
+Square root of a variance value, propagating NaN instead of tripping
+sqrt_f64's `requires`.
+
+### `stats_stddev_pop_f64`
+
+```sv0
+fn stats_stddev_pop_f64(s: Stats) -> f64
+    ensures(result >= 0.0 || result != result)
+```
+
+Population standard deviation; NaN whenever the population variance is.
+
+### `stats_stddev_sample_f64`
+
+```sv0
+fn stats_stddev_sample_f64(s: Stats) -> f64
+    ensures(result >= 0.0 || result != result)
+```
+
+Sample standard deviation; NaN whenever the sample variance is.
+
+### `stats_sum_f64`
+
+```sv0
+fn stats_sum_f64(s: Stats) -> f64
+```
+
+Sum of all observations; 0.0 when empty.
+
+### `stats_variance_pop_f64`
+
+```sv0
+fn stats_variance_pop_f64(s: Stats) -> f64
+    ensures(result >= 0.0 || result != result)
+```
+
+Population variance (divides by n); NaN when empty or non-finite input
+was seen.
+
+### `stats_variance_sample_f64`
+
+```sv0
+fn stats_variance_sample_f64(s: Stats) -> f64
+    ensures(result >= 0.0 || result != result)
+```
+
+Sample variance (divides by n - 1); NaN with fewer than two
+observations or when non-finite input was seen.
 
 ---
 
