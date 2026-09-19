@@ -33,6 +33,12 @@ on:
     branches: [main]
   pull_request:
   workflow_dispatch:
+  # Sampling, not regression-catching: GitHub's runner fleet is mixed
+  # hardware (BUGS.md, "Per-fixture value check"), and the intermittent VM
+  # interpreter divergence only shows on some hosts. Idle repos otherwise
+  # never draw new hosts, so the traced-run artifact never gets captured.
+  schedule:
+    - cron: "17 */6 * * *"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
