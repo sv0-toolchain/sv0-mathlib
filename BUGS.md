@@ -1387,8 +1387,8 @@ because they would store a truncated value. Regression:
 `sv0c/test/behavior/cases/vec_f64_generic.sv0` and four diagnostics cases.
 Remaining limit: the vec must be named directly (`v` or `s.field`); an
 unannotated `let v = vec_new()` or a vec taken from an arbitrary expression
-has no visible element type, and a float `let` still needs an annotation
-(`let x: f64 = vec_get(v, i);`, as for every f64 `let`). Still unsupported: an f64 form of arrays
+has no visible element type, and the annotation on a float `let` is no longer
+required (BUGS.md #23). Still unsupported: an f64 form of arrays
 and slices (`a[i]` and `&v[..]` over an f64 Vec read raw storage, not
 values). `stats` uses the generic accessors on its declared `Vec<f64>` values for
 `stats_median_f64` and `stats_percentile_f64`.
@@ -1570,6 +1570,21 @@ parity steps still exercise a test `main`. From the fix on they run
   test case, previously worked around, now uses the natural pattern
   directly and compiles to `double nan;`, verified by running the full
   suite (exit 0).
+
+## 23. An unannotated `let` declared C `int` whatever its initializer was
+
+**STATUS (2026-09-20): FIXED on the C backend** (`sv0c` `bb502f1c`, `sv0-toolchain`
+`4903456`). `let a = 2.5;`, `let b = f();` (with `f -> f64`),
+`let d = big_i64 + big_i64;` and `let g = s.x;` all emitted `int` and silently
+truncated (a NaN or a value past `i32` became garbage). The VM already typed
+these correctly, so the two backends disagreed. Every float or wide-integer
+`let` in this library was annotated, which is why nothing here broke. The C
+emitter now types a `let` from its initializer (double, `int64_t`,
+`uint64_t`, `uint32_t`) when the initializing store follows the declaration,
+using the inference it already had for expression temps. Regression:
+`sv0c/test/behavior/cases/let_infer_wide.sv0` (native + VM parity).
+Annotations are still accepted and still win; plain `i32` / `bool` lets are
+unchanged.
 
 ## Not yet working
 

@@ -9,6 +9,10 @@ strengthened or weakened. Versions follow [Semantic Versioning](https://semver.o
 
 ### Added
 
+- Toolchain: an unannotated `let x = 2.5;` (or any wide-integer / f64
+  initializer) is typed from its initializer on the C backend instead of
+  declaring `int` (BUGS.md #23). This library annotated every such `let`, so
+  its behavior is unchanged.
 - `stats` order statistics now use the generic `vec_push` / `vec_get` /
   `vec_set` on a declared `Vec<f64>`; the toolchain infers the f64 element
   accessors (BUGS.md #20 follow-up). The typed `_f64` forms still work.
