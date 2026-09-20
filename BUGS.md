@@ -1510,8 +1510,14 @@ takes its left operand's type, bitwise ops the usual arithmetic conversions,
 and u32 has its own temp category (`uint32_t`). On the VM, u32 bitwise with a
 wide literal stays u32 (there are no wide bitwise opcodes; the values are the
 same as the 32-bit operation). Regressions: `u32_wrap.sv0`,
-`wide_shift_temps.sv0`. Still open and unrelated: `i64`/`u64` `&` `|` `^` above
-32 bits have no wide VM opcode (VMF-011/012).
+`wide_shift_temps.sv0`.
+
+**`i64`/`u64` `&` `|` `^` above 32 bits, also fixed** (`sv0vm` wide AND/OR/XOR
+opcodes 43-45, `sv0c` emitter mapping): the polymorphic 32-bit bitwise opcodes
+dropped the high half of a 64-bit operand on the VM, so masking a byte out of
+a `u64` word gave the wrong answer (the C backend was right). Regression:
+`sv0c/test/behavior/cases/wide_bitwise.sv0` (native + VM parity). No known
+open items remain from this entry.
 
 Consequence for this repo: the pinned CI leg predates the fix, so until
 `.github/sv0-toolchain-pin.txt` moves past `1e3cabb` its "compile + run" and
