@@ -1396,9 +1396,11 @@ arrays and slices work**: `[f64; N]` locals, float array literals, `a[i]` and
 index per element, as for Vec). Regression:
 `sv0c/test/behavior/cases/vec_f64_infer.sv0` and `array_f64.sv0` (native + VM
 parity). Still not visible to the checker: a vec that is not a declared name
-(the result of a call used directly, `vec_get(make(), 0)`), and an f64 array
-*parameter* `[f64; N]` (array parameters of any element type do not compile
-at all, a separate pre-existing gap). A float `let` no longer needs an
+(the result of a call used directly, `vec_get(make(), 0)`), and nothing
+else in this family. Array *parameters*, returns and struct fields
+(`[T; N]`, any element type) used to fail with no message (exit 4) or crash
+the compiler; they now compile (`sv0c` `array_param.sv0`), an array being an
+int handle so a callee mutates the caller's array through it. A float `let` no longer needs an
 annotation (BUGS.md #23). `stats` uses the generic accessors on its declared
 `Vec<f64>` values for `stats_median_f64` and `stats_percentile_f64`.
 

@@ -9,6 +9,9 @@ strengthened or weakened. Versions follow [Semantic Versioning](https://semver.o
 
 ### Added
 
+- Toolchain: array parameters, returns and struct fields (`[T; N]`) now
+  compile; before, indexing an array parameter failed silently. Not used by
+  this library.
 - Toolchain: f64 arrays and slices (`[f64; N]`, float array literals, `a[i]`,
   `&[f64]`), and element-type inference for an unannotated `vec_new()` local
   (BUGS.md #20). This library does not use them; its behavior is unchanged.
