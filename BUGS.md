@@ -1494,8 +1494,8 @@ mostly about THIS repo's gates:
    `i32` bit pattern for add/sub/mul/shl/bitwise (so the i32 round-trip trick
    in `arith.sv0` works), zero-extended where the unsigned value matters
    (compare, div, rem, `>>`, widening). Regression:
-   `sv0c/test/behavior/cases/u32_wrap.sv0`. (The C backend types u32 bitwise
-   temps as `int`, so u32 `&`/`|`/`^` with the high bit set is not covered.)
+   `sv0c/test/behavior/cases/u32_wrap.sv0`. u32 `&` / `|` / `^` with the high
+   bit set is covered too (see the last paragraph).
 3. **`ln_complex` aborted the VM in small programs** (`Fail: interpreter:
    arithmetic on non-int`): `ln_complex` adds two struct-field operands
    directly (`combined.lo + a.lo`) and the VM emitter typed a field operand
@@ -1503,8 +1503,15 @@ mostly about THIS repo's gates:
    f64 / i64 / u64 fields pick the right opcode. Regression:
    `struct_field_operands.sv0`.
 
-The C backend also mistypes `(one << 63) + one` for a `u64` (temp typed
-`int`); noted while writing the regression, not fixed.
+**Follow-up, also fixed** (`sv0c` `66846621`): the C backend typed every
+shift and bitwise temp `int`, so an inline `(one << 63) + one` on a `u64`
+lost its high bits and a u32 `&` / `|` / `^` result went negative. A shift now
+takes its left operand's type, bitwise ops the usual arithmetic conversions,
+and u32 has its own temp category (`uint32_t`). On the VM, u32 bitwise with a
+wide literal stays u32 (there are no wide bitwise opcodes; the values are the
+same as the 32-bit operation). Regressions: `u32_wrap.sv0`,
+`wide_shift_temps.sv0`. Still open and unrelated: `i64`/`u64` `&` `|` `^` above
+32 bits have no wide VM opcode (VMF-011/012).
 
 Consequence for this repo: the pinned CI leg predates the fix, so until
 `.github/sv0-toolchain-pin.txt` moves past `1e3cabb` its "compile + run" and

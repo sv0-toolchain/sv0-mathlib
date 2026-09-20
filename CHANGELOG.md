@@ -59,7 +59,7 @@ strengthened or weakened. Versions follow [Semantic Versioning](https://semver.o
   functions (median, percentile) are blocked until upstream adds typed
   element slots, while streaming reductions work via an accumulator struct.
 
-### Toolchain fixes picked up (pin moved to `1e3cabb`)
+### Toolchain fixes picked up (pin moved to `a5acaf7`)
 
 - **CI was not running `main.sv0`.** `--project` concatenated the nested
   `test/**/*.sv0` entry points into the program and the compiler kept one of
@@ -74,6 +74,9 @@ strengthened or weakened. Versions follow [Semantic Versioning](https://semver.o
   BUGS.md #21, #22. `unit/complex_test.sv0` is no longer a known VM
   divergence, and `random_test.sv0` compares a struct field to a call
   directly again.
+- The C backend no longer types shift/bitwise temps `int` (`(one << 63) + one`
+  on a u64, u32 `&`/`|`/`^` with the high bit set); u32 has its own temp
+  category. BUGS.md #22 follow-up.
 - The checker rejects f64/f32 elements in a `Vec`, array or slice (E0447)
   instead of compiling them to truncated values. BUGS.md #20 (mitigated;
   typed element slots are still missing, so no median/percentile).
