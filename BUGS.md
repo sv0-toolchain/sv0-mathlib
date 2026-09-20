@@ -1368,21 +1368,19 @@ test layer (Section 16.2) exists to catch.
 
 ## 20. `Vec<f64>` (and `[f64; N]`) silently truncate on the C backend and hard-fail on the VM
 
-**STATUS (2026-09-19): MITIGATED in `sv0c` `e3a2ec32`; real `f64` element
-support is still missing.** The checker now refuses the ways a float can
-enter a collection instead of compiling wrong code: `vec_push` / `vec_set`
-with a float element, an array literal of float literals, and a `Vec<f64>` /
-`[f64; N]` `let` annotation all fail with `E0447`. (Not covered: a `Vec<f64>`
-in a function signature or struct field, and arrays whose elements are not
-all literals; none of those can be populated without one of the covered
-operations.) Median and percentile still need typed element slots.
-
-Found 2026-09-19 by the B0 feasibility spike for a statistics module,
-against `sv0-toolchain` `cd7b355`. Every collection element slot is an
-`intptr_t` (`sv0c/runtime/sv0_runtime.h`: `sv0_vec_push(int32_t h,
-intptr_t elem)`, `intptr_t sv0_vec_get(...)`), and slices share that ABI
-(`sv0_slice.data` is an `intptr_t *`). Nothing in the checker rejects a
-`Vec<f64>`, so it compiles.
+**STATUS (2026-09-19): FIXED for `Vec` (`sv0c` `b699dbdb`, `sv0vm` `e7600fd`).**
+f64 elements have typed accessors on an ordinary Vec handle: `vec_push_f64(v,
+x)`, `vec_get_f64(v, i)` (returns `f64`) and `vec_set_f64(v, i, x)`;
+`vec_new` / `vec_len` are shared. The C runtime stores the double's bits
+exactly in the word slot, and the VM keeps each f64 element in a real pool
+(NaN and `-0.0` survive). Regression: `sv0c/test/behavior/cases/vec_f64.sv0`
+(native + VM parity). The generic `vec_push` / `vec_set` given a float, an
+array literal of float literals, and a `[f64; N]` annotation are still
+refused (`E0447`, with a message pointing at the `_f64` accessors), because
+they would store a truncated value. Still unsupported: an f64 form of arrays
+and slices (`a[i]` and `&v[..]` over an f64 Vec read raw storage, not
+values). `stats` uses the typed accessors for `stats_median_f64` and
+`stats_percentile_f64`.
 
 ```sv0
 fn main() -> i32 {

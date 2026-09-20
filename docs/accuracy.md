@@ -101,6 +101,11 @@ Notes:
   compensated sum measures 0.
 - The `uniform` mean's 5 ULPs is the same effect: those means sit near
   zero, so a ~1e-17 absolute error is several ULPs of the result.
+- The order statistics (`stats_median_f64`, `stats_percentile_f64`) are graded
+  by the fixture rows in `test/fixtures/stats.csv` against an exact reference
+  (sorted rational values interpolated exactly, rounded once) at 8 * eps
+  relative to the larger of the two values interpolated: a median is exact up
+  to the rounding of `a/2 + b/2`, and a percentile to two roundings.
 - The `stream` variance's 44 ULPs is the plain-`f64` accumulation of `m2`
   over 20000 terms; it is well inside the budget and not compensated.
 

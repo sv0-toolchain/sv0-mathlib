@@ -281,6 +281,8 @@ use stats::stats_stddev_sample_f64;
 use stats::stats_min_f64;
 use stats::stats_max_f64;
 use stats::stats_range_f64;
+use stats::stats_median_f64;
+use stats::stats_percentile_f64;
 
 """ + HELPERS + """fn main() -> i32 {
 """
@@ -293,6 +295,7 @@ def generate_stats(stats_rows):
     lines = [STATS_PRELUDE]
     checks: list[str] = []
     local_of: dict[str, str] = {}
+    vec_of: dict[str, str] = {}
     for r in stats_rows:
         data = r["data"].strip()
         if data not in local_of:
@@ -305,13 +308,27 @@ def generate_stats(stats_rows):
         acc = local_of[data]
         fn = r["function"].strip()
         want = r["expected"].strip()
-        if fn == "stats_count":
+        if fn in ("stats_median_f64", "stats_percentile_f64"):
+            # order statistics take a Vec<f64> sample, built once per data set
+            if data not in vec_of:
+                vname = f"v{len(vec_of)}"
+                vec_of[data] = vname
+                lines.append(f"    let {vname}: Vec<f64> = vec_new();")
+                for tok in data.split():
+                    lines.append(f"    vec_push_f64({vname}, {num_to_sv0(tok)});")
+            call_args = vec_of[data]
+            if fn == "stats_percentile_f64":
+                call_args += f", {num_to_sv0(r['param'].strip())}"
+            expr = check_expr(f"{fn}({call_args})", want, r["tolerance"])
+        elif fn == "stats_count":
             expr = f"stats_count({acc}) == {want}"
         else:
             expr = check_expr(f"{fn}({acc})", want, r["tolerance"])
         ordv = len(checks) + 1
         lines.append(f"    if !({expr}) {{ return {ordv}; }}")
-        checks.append(f"stats.csv     {fn}([{data}])  want={want!r} tol={r['tolerance'].strip()!r}")
+        checks.append(f"stats.csv     {fn}([{data}]"
+                      f"{', p=' + r['param'].strip() if r['param'].strip() else ''})  "
+                      f"want={want!r} tol={r['tolerance'].strip()!r}")
     if len(checks) > 255:
         raise SystemExit(f"run_fixture_parity: {len(checks)} stats checks exceed 255 exit codes")
     lines.append("    return 0;")

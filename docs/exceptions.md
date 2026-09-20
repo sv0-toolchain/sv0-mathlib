@@ -20,7 +20,6 @@ Non-waivable requirements (never registrable): COMPAT-001, PERF-002, TEST-004.
 | MX-009 | OQ-002 | deviation | deviations.md#10 | permanent | N/A -- permanent registered resolution of an open question |
 | MX-010 | EXT-random | beyond-spec | deviations.md#11 | permanent | N/A -- permanent registered beyond-spec module |
 | MX-011 | EXT-stats | beyond-spec | deviations.md#12 | permanent | N/A -- permanent registered beyond-spec module |
-| MX-012 | EXT-stats-order | deferred | BUGS.md#20 | open | typed f64 element slots land in sv0c/sv0vm (no fixed date) |
 | MX-013 | CONV-010 | deferred | test/unit/conv_review.md | open | the native `--project` path gains contract-mode support (no fixed date) |
 | MX-014 | COMPAT-002 TEST-005 | advisory-gate | BUGS.md#2 | open | the sv0vm divergence is root-caused and `--strict-vm` can gate again (evidence is collected by the 6-hourly CI schedule) |
 | MX-015 | CPLX-007 | informational-budget | docs/accuracy.md | open | `ln_complex`'s residual is reduced or SPEC.md pins a budget (no fixed date) |
@@ -31,7 +30,7 @@ Non-waivable requirements (never registrable): COMPAT-001, PERF-002, TEST-004.
 | MX-020 | - | toolchain-gap | BUGS.md#17 | open | fixed upstream (no fixed date) |
 | MX-021 | - | toolchain-gap | BUGS.md#18 | open | fixed upstream (no fixed date) |
 | MX-022 | - | toolchain-gap | BUGS.md#19 | open | fixed upstream (no fixed date) |
-| MX-023 | - | toolchain-gap | BUGS.md#20 | open | typed f64 element slots land in sv0c/sv0vm (a rejection diagnostic is in place; no fixed date for real support) |
+| MX-023 | - | toolchain-gap | BUGS.md#20 | open | arrays / slices gain an f64 form (no fixed date) |
 | MX-025 | - | deviation | deviations.md#2 | open | the toolchain defines an `sv0.toml` project root this library can adopt (no fixed date) |
 
 ## Rationale
@@ -46,8 +45,7 @@ Non-waivable requirements (never registrable): COMPAT-001, PERF-002, TEST-004.
 - **MX-008** (deviation, permanent): The authoritative reference for the ULP audit is the system libm compared live over the full swept domain, not a checked-in arbitrary-precision table. Resolves SPEC.md Open Question 5; libm's own inaccuracy in `cpow`/`cexp` is documented in accuracy.md.
 - **MX-009** (deviation, permanent): The library ships as a git submodule of sv0-toolchain driven by `--project`, with its own history and tags, resolving SPEC.md Open Question 2. No `sv0.toml`-rooted convention exists in the toolchain to do otherwise.
 - **MX-010** (beyond-spec, permanent): `module::random` is not in SPEC.md. It is a deterministic 64-bit LCG for tests and simulation, explicitly not cryptographic, and has no requirement IDs; it is covered by unit tests, oracle-checked golden fixtures on both backends, and the seeded property tests.
-- **MX-011** (beyond-spec, permanent): `module::stats` is not in SPEC.md. It is a streaming accumulator (count, sum, mean, variance, stddev, min, max, range) with defined NaN/infinity behavior, oracle-checked fixtures on both backends and an exact-reference accuracy gate. No requirement IDs.
-- **MX-012** (deferred, open): Median and percentile are not provided: they need the whole sample, and collection element slots are integer-sized, so an f64 element cannot be stored faithfully. The checker now refuses to build such a collection (E0447, sv0c e3a2ec32) instead of miscompiling; typed element slots are the real fix.
+- **MX-011** (beyond-spec, permanent): `module::stats` is not in SPEC.md. It is a streaming accumulator (count, sum, mean, variance, stddev, min, max, range) plus median and percentile over a `Vec<f64>`, with defined NaN/infinity behavior, oracle-checked fixtures on both backends and an exact-reference accuracy gate. No requirement IDs.
 - **MX-013** (deferred, open): CONV-010 (buildable under both contract modes) is not tested: the native `--project` compile path exposes no `--contract-mode` flag, so only the default runtime mode is exercised. Recorded as deferred in the requirement matrix, not silently skipped.
 - **MX-014** (advisory-gate, open): The VM leg of the per-fixture check (`run_fixture_parity.py`) and of the unit/property runner (`run_unit_tests_vm.py`) is advisory: sv0vm gives a different answer on some CI hosts for identical bytecode, intermittently and not yet root-caused. The C leg and the whole-library COMPAT-001 exit-code parity still gate.
 - **MX-015** (informational-budget, open): `ln_complex` (14 ULP) and `pow_complex` (38329 ULP) exceed their informational budgets; both have recorded ceilings that CI enforces. `ln_complex` is a real, understood residual; `pow_complex`'s libm reference is itself inaccurate. SPEC.md pins no budget for either.
@@ -58,5 +56,5 @@ Non-waivable requirements (never registrable): COMPAT-001, PERF-002, TEST-004.
 - **MX-020** (toolchain-gap, open): `--project` discovery silently fails (exit 2, no diagnostics) when a top-level entry sorts before `lib`. Worked around in the test runners by naming entries `zzz_*` or `under_test`.
 - **MX-021** (toolchain-gap, open): `let x: Struct = <plain variable of that struct type>;` mistypes the new local as int. Worked around by routing the copy through an identity call.
 - **MX-022** (toolchain-gap, open): A struct-literal field initializer or a `requires`/`ensures` clause that is a binop over a struct-field access mistypes as int. Worked around by using locals, and by keeping such contracts off struct fields (so `stats` returns NaN instead of using `requires`).
-- **MX-023** (toolchain-gap, open): `Vec<f64>` and `[f64; N]` silently truncated on the C backend and failed on the VM. The checker now rejects them (E0447) rather than compiling wrong code; `stats` is a streaming accumulator for this reason; see MX-012.
+- **MX-023** (toolchain-gap, open): The generic `vec_push` / `vec_get` / `vec_set` and array literals store integer-sized words, so an f64 element was silently truncated by the C backend and rejected by the VM. f64 elements now have typed accessors (`vec_push_f64` etc.) on an ordinary Vec handle, and the generic accessors given a float are refused (E0447). `[f64; N]` arrays and slices of f64 remain unsupported.
 - **MX-025** (deviation, open): The project is driven by `--project <dir>` paths from an sv0-toolchain checkout rather than an `sv0.toml` root, because deviation 2 records that no such project convention existed to root it a different way. It stays its own repository with its own history, tags and releases.

@@ -23,7 +23,7 @@ and the spec disagree, and why.
 | [`polar`](lib/polar.sv0) | Cartesian/polar conversion, polar-form scale and rotate | §17 |
 | [`complex`](lib/complex.sv0) | `Complex` arithmetic, modulus/argument/conjugate, polar interop, `exp`/`ln`/`pow` | §18 |
 | [`random`](lib/random.sv0) | deterministic seedable PRNG (`next_u64`, `unit_f64`, unbiased `below_u64`, `uniform_f64`) — **not cryptographic**, beyond-spec (deviation 11) | — |
-| [`stats`](lib/stats.sv0) | streaming `Stats` accumulator: count, sum, mean, variance, stddev, min, max, range (no median/percentile yet, deviation 12) | — |
+| [`stats`](lib/stats.sv0) | streaming `Stats` accumulator (count, sum, mean, variance, stddev, min, max, range) plus median / percentile over a `Vec<f64>` (deviation 12) | — |
 | `prelude` | shared `Option`/`Result`-shaped types used across the above | — |
 
 129 public functions total — see [docs/api.md](docs/api.md) for the full

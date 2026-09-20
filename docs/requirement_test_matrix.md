@@ -67,6 +67,7 @@ requirements this matrix does not cover, is in docs/traceability.md.
 | `property/complex_algebra_property.sv0` | PASS |
 | `property/modular_inverse_property.sv0` | PASS |
 | `property/polar_roundtrip_property.sv0` | PASS |
+| `property/stats_order_property.sv0` | PASS |
 | `property/stats_property.sv0` | PASS |
 | `property/trig_identity_property.sv0` | PASS |
 | `unit/arith_test.sv0` | PASS |
@@ -74,6 +75,7 @@ requirements this matrix does not cover, is in docs/traceability.md.
 | `unit/modular_test.sv0` | PASS |
 | `unit/polar_test.sv0` | PASS |
 | `unit/random_test.sv0` | PASS |
+| `unit/stats_order_test.sv0` | PASS |
 | `unit/stats_test.sv0` | PASS |
 | `unit/trig_test.sv0` | PASS |
 

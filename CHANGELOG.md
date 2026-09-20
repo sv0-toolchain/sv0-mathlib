@@ -59,7 +59,19 @@ strengthened or weakened. Versions follow [Semantic Versioning](https://semver.o
   functions (median, percentile) are blocked until upstream adds typed
   element slots, while streaming reductions work via an accumulator struct.
 
-### Toolchain fixes picked up (pin moved to `ed5862a`)
+### Added (order statistics)
+
+- `stats_median_f64`, `stats_percentile_f64` (linear interpolation between
+  closest ranks), `stats_sorted_f64` and `stats_from_vec` over a `Vec<f64>`,
+  built on the new typed f64 vec accessors (`vec_push_f64` etc., BUGS.md #20).
+  They sort a private heapsort copy, so the caller's vector is untouched; an
+  empty sample, a NaN, or a percentile outside `[0, 100]` gives NaN. Checked
+  by `test/unit/stats_order_test.sv0`, 80 more rows in `test/fixtures/stats.csv`
+  (the oracle sorts and interpolates in exact rationals; a `param` column holds
+  the percentile), and `test/property/stats_order_property.sv0`
+  (`docs/fuzz.tsv`). Both backends agree.
+
+### Toolchain fixes picked up (pin moved to `e0a8184`)
 
 - **CI was not running `main.sv0`.** `--project` concatenated the nested
   `test/**/*.sv0` entry points into the program and the compiler kept one of
@@ -79,9 +91,9 @@ strengthened or weakened. Versions follow [Semantic Versioning](https://semver.o
 - The C backend no longer types shift/bitwise temps `int` (`(one << 63) + one`
   on a u64, u32 `&`/`|`/`^` with the high bit set); u32 has its own temp
   category. BUGS.md #22 follow-up.
-- The checker rejects f64/f32 elements in a `Vec`, array or slice (E0447)
-  instead of compiling them to truncated values. BUGS.md #20 (mitigated;
-  typed element slots are still missing, so no median/percentile).
+- `Vec<f64>` works: `vec_push_f64` / `vec_get_f64` / `vec_set_f64` store the
+  bits exactly on both backends, and the generic accessors given a float are
+  refused (E0447) instead of truncating. BUGS.md #20.
 
 ### Governance
 

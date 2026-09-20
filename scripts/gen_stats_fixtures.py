@@ -9,9 +9,11 @@ last bit and identical on every platform (a C `long double` oracle is not:
 it is plain `double` on arm64 macOS). Two-pass variance (exact mean, then
 exact squared deviations).
 
-Non-finite data follows the module's documented policy rather than an
-independent algorithm: a NaN makes everything NaN; infinities give
-IEEE-style sum/mean/min/max, and variance NaN.
+The order statistics (median, percentile) sort the exact values and
+interpolate exactly. Non-finite data follows the module's documented policy
+rather than an independent algorithm: a NaN makes everything NaN;
+infinities give IEEE-style sum/mean/min/max, variance NaN, and the same
+`lo*(1-f) + hi*f` interpolation the module uses for the order statistics.
 
 `scripts/check_fixture_oracles.py` fails CI if the checked-in CSV drifts
 from this script's output. To refresh after an intentional change:
@@ -26,8 +28,9 @@ from fractions import Fraction
 
 EPS = 2.0 ** -52
 
-COUNT, SUM, MEAN, VARP, VARS, SDP, SDS, MIN, MAX, RANGE = (1 << i for i in range(10))
-ALL = (1 << 10) - 1
+COUNT, SUM, MEAN, VARP, VARS, SDP, SDS, MIN, MAX, RANGE, ORDER = (1 << i for i in range(11))
+ALL = (1 << 11) - 1
+PERCENTILES = (0, 25, 90, 100)
 
 # (data tokens, function mask, category, notes) -- notes must not contain commas
 SETS = [
@@ -74,6 +77,39 @@ def fmt(v: float) -> str:
     return text
 
 
+def order_stat(xs: list[float], p: float | None) -> tuple[float, float]:
+    """(value, scale): the median (p is None) or the p-th percentile of xs,
+    and the magnitude the tolerance is relative to (max(|lo|, |hi|) of the two
+    values it interpolates)."""
+    n = len(xs)
+    if n == 0 or any(math.isnan(x) for x in xs) or (p is not None and math.isnan(p)):
+        return NAN, 0.0
+    finite = all(math.isfinite(x) for x in xs)
+    fx = sorted(xs)
+    if p is None:
+        mid = n // 2
+        if n % 2 == 1:
+            return fx[mid], abs(fx[mid])
+        lo, hi = fx[mid - 1], fx[mid]
+        scale = max(abs(lo), abs(hi))
+        if finite:
+            return float((Fraction(lo) + Fraction(hi)) / 2), scale
+        return lo * 0.5 + hi * 0.5, scale
+    pos = Fraction(p) * (n - 1) / 100
+    k = pos.numerator // pos.denominator
+    if k >= n - 1:
+        return fx[n - 1], abs(fx[n - 1])
+    frac = pos - k
+    lo, hi = fx[k], fx[k + 1]
+    scale = max(abs(lo), abs(hi))
+    if frac == 0:
+        return lo, abs(lo)
+    if finite:
+        return float(Fraction(lo) + frac * (Fraction(hi) - Fraction(lo))), scale
+    f = float(frac)
+    return lo * (1.0 - f) + hi * f, scale
+
+
 def results(xs: list[float]) -> dict[str, float]:
     n = len(xs)
     out: dict[str, float] = {}
@@ -102,7 +138,7 @@ def results(xs: list[float]) -> dict[str, float]:
 
 def main() -> int:
     w = sys.stdout.write
-    w("function,data,expected,tolerance,category,notes\n")
+    w("function,data,param,expected,tolerance,category,notes\n")
     for data, mask, category, notes in SETS:
         xs = [parse(t) for t in data.split()]
         r = results(xs)
@@ -122,11 +158,20 @@ def main() -> int:
             if not mask & bit:
                 continue
             if fn == "stats_count":
-                w(f"{fn},{data},{len(xs)},0.0,{category},{notes}\n")
+                w(f"{fn},{data},,{len(xs)},0.0,{category},{notes}\n")
                 continue
             tol = 0.0 if exact else 8.0 * EPS * abs(expected)
             tol_s = "0.0" if (math.isnan(expected) or math.isinf(expected) or tol == 0.0) else "%.30f" % tol
-            w(f"{fn},{data},{fmt(expected)},{tol_s},{category},{notes}\n")
+            w(f"{fn},{data},,{fmt(expected)},{tol_s},{category},{notes}\n")
+        if mask & ORDER:
+            cases = [("stats_median_f64", None)] + [("stats_percentile_f64", float(p)) for p in PERCENTILES]
+            for fn, p in cases:
+                expected, scale = order_stat(xs, p)
+                tol = 8.0 * EPS * scale
+                exact = math.isnan(expected) or math.isinf(expected) or not math.isfinite(tol) or tol == 0.0
+                tol_s = "0.0" if exact else "%.30f" % tol
+                param = "" if p is None else fmt(p)
+                w(f"{fn},{data},{param},{fmt(expected)},{tol_s},{category},{notes}\n")
     return 0
 
 

@@ -1,0 +1,72 @@
+/* TEST-001 property layer and TEST-004 (fixed seed). One property per file;
+ * `ROUNDS` and the seed are pinned by docs/fuzz.tsv (see
+ * trig_identity_property.sv0 for the convention). Beyond-spec module, so no
+ * REQ tag (docs/deviations.md #12). */
+use random::next_u64;
+use random::unit_f64;
+use stats::stats_sorted_f64;
+use stats::stats_median_f64;
+use stats::stats_percentile_f64;
+use arith::abs_f64;
+
+fn main() -> i32 {
+    let ROUNDS: i32 = 12;
+    let mut state: u64 = 7301642928516474937;
+
+    /* For ROUNDS seeded samples of 33 values in [-500, 500):
+     *   the sorted copy is ascending and the input is untouched;
+     *   percentile(0) is the minimum and percentile(100) the maximum;
+     *   the median lies between them, and percentiles never decrease in p;
+     *   reversing the sample changes nothing (order statistics ignore order). */
+    let mut rnd: i32 = 0;
+    while rnd < ROUNDS loop_invariant(rnd >= 0) {
+        let xs: Vec<f64> = vec_new();
+        let rev: Vec<f64> = vec_new();
+        let mut i: i32 = 0;
+        while i < 33 loop_invariant(i >= 0) {
+            state = next_u64(state);
+            let x: f64 = (unit_f64(state) - 0.5) * 1000.0;
+            vec_push_f64(xs, x);
+            i = i + 1;
+        }
+        let mut r: i32 = 32;
+        while r >= 0 loop_invariant(r >= 0 - 1) {
+            let y: f64 = vec_get_f64(xs, r);
+            vec_push_f64(rev, y);
+            r = r - 1;
+        }
+        let first: f64 = vec_get_f64(xs, 0);
+        let s: Vec<f64> = stats_sorted_f64(xs);
+        if vec_len(s) != 33 { return 10; }
+        if vec_get_f64(xs, 0) != first { return 11; }
+        let mut k: i32 = 1;
+        while k < 33 loop_invariant(k >= 1) {
+            let a: f64 = vec_get_f64(s, k - 1);
+            let b: f64 = vec_get_f64(s, k);
+            if a > b { return 12; }
+            k = k + 1;
+        }
+        let lo: f64 = vec_get_f64(s, 0);
+        let hi: f64 = vec_get_f64(s, 32);
+        if stats_percentile_f64(xs, 0.0) != lo { return 13; }
+        if stats_percentile_f64(xs, 100.0) != hi { return 14; }
+        let med: f64 = stats_median_f64(xs);
+        if med < lo { return 15; }
+        if med > hi { return 16; }
+        let p10: f64 = stats_percentile_f64(xs, 10.0);
+        let p25: f64 = stats_percentile_f64(xs, 25.0);
+        let p50: f64 = stats_percentile_f64(xs, 50.0);
+        let p75: f64 = stats_percentile_f64(xs, 75.0);
+        let p90: f64 = stats_percentile_f64(xs, 90.0);
+        if p10 > p25 { return 17; }
+        if p25 > p50 { return 18; }
+        if p50 > p75 { return 19; }
+        if p75 > p90 { return 20; }
+        /* n = 33 is odd, so the median is exactly the 50th percentile. */
+        if med != p50 { return 21; }
+        if stats_median_f64(rev) != med { return 22; }
+        if stats_percentile_f64(rev, 90.0) != p90 { return 23; }
+        rnd = rnd + 1;
+    }
+    return 0;
+}

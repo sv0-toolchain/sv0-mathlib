@@ -1,156 +1,231 @@
-function,data,expected,tolerance,category,notes
-stats_count,,0,0.0,boundary,empty: count 0; sum 0.0; everything else NaN
-stats_sum_f64,,0.0,0.0,boundary,empty: count 0; sum 0.0; everything else NaN
-stats_mean_f64,,nan,0.0,boundary,empty: count 0; sum 0.0; everything else NaN
-stats_variance_pop_f64,,nan,0.0,boundary,empty: count 0; sum 0.0; everything else NaN
-stats_variance_sample_f64,,nan,0.0,boundary,empty: count 0; sum 0.0; everything else NaN
-stats_stddev_pop_f64,,nan,0.0,boundary,empty: count 0; sum 0.0; everything else NaN
-stats_stddev_sample_f64,,nan,0.0,boundary,empty: count 0; sum 0.0; everything else NaN
-stats_min_f64,,nan,0.0,boundary,empty: count 0; sum 0.0; everything else NaN
-stats_max_f64,,nan,0.0,boundary,empty: count 0; sum 0.0; everything else NaN
-stats_range_f64,,nan,0.0,boundary,empty: count 0; sum 0.0; everything else NaN
-stats_count,5.0,1,0.0,boundary,one observation: sample variance undefined
-stats_sum_f64,5.0,5.0,0.000000000000008881784197001252,boundary,one observation: sample variance undefined
-stats_mean_f64,5.0,5.0,0.000000000000008881784197001252,boundary,one observation: sample variance undefined
-stats_variance_pop_f64,5.0,0.0,0.0,boundary,one observation: sample variance undefined
-stats_variance_sample_f64,5.0,nan,0.0,boundary,one observation: sample variance undefined
-stats_stddev_pop_f64,5.0,0.0,0.0,boundary,one observation: sample variance undefined
-stats_stddev_sample_f64,5.0,nan,0.0,boundary,one observation: sample variance undefined
-stats_min_f64,5.0,5.0,0.0,boundary,one observation: sample variance undefined
-stats_max_f64,5.0,5.0,0.0,boundary,one observation: sample variance undefined
-stats_range_f64,5.0,0.0,0.0,boundary,one observation: sample variance undefined
-stats_count,2.0 4.0 9.0,3,0.0,typical,mean 5; squared deviations sum to 26
-stats_sum_f64,2.0 4.0 9.0,15.0,0.000000000000026645352591003757,typical,mean 5; squared deviations sum to 26
-stats_mean_f64,2.0 4.0 9.0,5.0,0.000000000000008881784197001252,typical,mean 5; squared deviations sum to 26
-stats_variance_pop_f64,2.0 4.0 9.0,8.666666666666666,0.000000000000015395092608135503,typical,mean 5; squared deviations sum to 26
-stats_variance_sample_f64,2.0 4.0 9.0,13.0,0.000000000000023092638912203256,typical,mean 5; squared deviations sum to 26
-stats_stddev_pop_f64,2.0 4.0 9.0,2.943920288775949,0.000000000000005229452939616317,typical,mean 5; squared deviations sum to 26
-stats_stddev_sample_f64,2.0 4.0 9.0,3.605551275463989,0.000000000000006404745667978754,typical,mean 5; squared deviations sum to 26
-stats_min_f64,2.0 4.0 9.0,2.0,0.0,typical,mean 5; squared deviations sum to 26
-stats_max_f64,2.0 4.0 9.0,9.0,0.0,typical,mean 5; squared deviations sum to 26
-stats_range_f64,2.0 4.0 9.0,7.0,0.0,typical,mean 5; squared deviations sum to 26
-stats_count,2.0 4.0 4.0 4.0 5.0 5.0 7.0 9.0,8,0.0,typical,classic set: population variance 4; stddev 2
-stats_sum_f64,2.0 4.0 4.0 4.0 5.0 5.0 7.0 9.0,40.0,0.000000000000071054273576010019,typical,classic set: population variance 4; stddev 2
-stats_mean_f64,2.0 4.0 4.0 4.0 5.0 5.0 7.0 9.0,5.0,0.000000000000008881784197001252,typical,classic set: population variance 4; stddev 2
-stats_variance_pop_f64,2.0 4.0 4.0 4.0 5.0 5.0 7.0 9.0,4.0,0.000000000000007105427357601002,typical,classic set: population variance 4; stddev 2
-stats_variance_sample_f64,2.0 4.0 4.0 4.0 5.0 5.0 7.0 9.0,4.571428571428571,0.000000000000008120488408686859,typical,classic set: population variance 4; stddev 2
-stats_stddev_pop_f64,2.0 4.0 4.0 4.0 5.0 5.0 7.0 9.0,2.0,0.000000000000003552713678800501,typical,classic set: population variance 4; stddev 2
-stats_stddev_sample_f64,2.0 4.0 4.0 4.0 5.0 5.0 7.0 9.0,2.138089935299395,0.000000000000003798010679821920,typical,classic set: population variance 4; stddev 2
-stats_min_f64,2.0 4.0 4.0 4.0 5.0 5.0 7.0 9.0,2.0,0.0,typical,classic set: population variance 4; stddev 2
-stats_max_f64,2.0 4.0 4.0 4.0 5.0 5.0 7.0 9.0,9.0,0.0,typical,classic set: population variance 4; stddev 2
-stats_range_f64,2.0 4.0 4.0 4.0 5.0 5.0 7.0 9.0,7.0,0.0,typical,classic set: population variance 4; stddev 2
-stats_count,10000000000000000.0 1.0 -10000000000000000.0,3,0.0,cancellation,naive summation loses the 1.0; Neumaier keeps it
-stats_sum_f64,10000000000000000.0 1.0 -10000000000000000.0,1.0,0.000000000000001776356839400250,cancellation,naive summation loses the 1.0; Neumaier keeps it
-stats_min_f64,10000000000000000.0 1.0 -10000000000000000.0,-10000000000000000.0,0.0,cancellation,naive summation loses the 1.0; Neumaier keeps it
-stats_max_f64,10000000000000000.0 1.0 -10000000000000000.0,10000000000000000.0,0.0,cancellation,naive summation loses the 1.0; Neumaier keeps it
-stats_range_f64,10000000000000000.0 1.0 -10000000000000000.0,20000000000000000.0,0.0,cancellation,naive summation loses the 1.0; Neumaier keeps it
-stats_count,1000000004.0 1000000007.0 1000000013.0 1000000016.0,4,0.0,stability,large common offset must not destroy the variance
-stats_sum_f64,1000000004.0 1000000007.0 1000000013.0 1000000016.0,4000000040.0,0.000007105427428655275434721261,stability,large common offset must not destroy the variance
-stats_mean_f64,1000000004.0 1000000007.0 1000000013.0 1000000016.0,1000000010.0,0.000001776356857163818858680315,stability,large common offset must not destroy the variance
-stats_variance_pop_f64,1000000004.0 1000000007.0 1000000013.0 1000000016.0,22.5,0.000000000000039968028886505635,stability,large common offset must not destroy the variance
-stats_variance_sample_f64,1000000004.0 1000000007.0 1000000013.0 1000000016.0,30.0,0.000000000000053290705182007514,stability,large common offset must not destroy the variance
-stats_stddev_pop_f64,1000000004.0 1000000007.0 1000000013.0 1000000016.0,4.743416490252569,0.000000000000008426000324584083,stability,large common offset must not destroy the variance
-stats_stddev_sample_f64,1000000004.0 1000000007.0 1000000013.0 1000000016.0,5.477225575051661,0.000000000000009729507111180988,stability,large common offset must not destroy the variance
-stats_min_f64,1000000004.0 1000000007.0 1000000013.0 1000000016.0,1000000004.0,0.0,stability,large common offset must not destroy the variance
-stats_max_f64,1000000004.0 1000000007.0 1000000013.0 1000000016.0,1000000016.0,0.0,stability,large common offset must not destroy the variance
-stats_range_f64,1000000004.0 1000000007.0 1000000013.0 1000000016.0,12.0,0.0,stability,large common offset must not destroy the variance
-stats_count,-3.5 -1.25 0.0 2.75 8.0 -0.5,6,0.0,typical,mixed signs
-stats_sum_f64,-3.5 -1.25 0.0 2.75 8.0 -0.5,5.5,0.000000000000009769962616701378,typical,mixed signs
-stats_mean_f64,-3.5 -1.25 0.0 2.75 8.0 -0.5,0.9166666666666666,0.000000000000001628327102783563,typical,mixed signs
-stats_variance_pop_f64,-3.5 -1.25 0.0 2.75 8.0 -0.5,13.430555555555555,0.000000000000023857459218056141,typical,mixed signs
-stats_variance_sample_f64,-3.5 -1.25 0.0 2.75 8.0 -0.5,16.116666666666667,0.000000000000028628951061667371,typical,mixed signs
-stats_stddev_pop_f64,-3.5 -1.25 0.0 2.75 8.0 -0.5,3.66477223788267,0.000000000000006509943229607043,typical,mixed signs
-stats_stddev_sample_f64,-3.5 -1.25 0.0 2.75 8.0 -0.5,4.014556845614054,0.000000000000007131285509867620,typical,mixed signs
-stats_min_f64,-3.5 -1.25 0.0 2.75 8.0 -0.5,-3.5,0.0,typical,mixed signs
-stats_max_f64,-3.5 -1.25 0.0 2.75 8.0 -0.5,8.0,0.0,typical,mixed signs
-stats_range_f64,-3.5 -1.25 0.0 2.75 8.0 -0.5,11.5,0.0,typical,mixed signs
-stats_count,0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 1.0,10,0.0,typical,decimal fractions; none exactly representable
-stats_sum_f64,0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 1.0,5.5,0.000000000000009769962616701378,typical,decimal fractions; none exactly representable
-stats_mean_f64,0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 1.0,0.55,0.000000000000000976996261670138,typical,decimal fractions; none exactly representable
-stats_variance_pop_f64,0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 1.0,0.0825,0.000000000000000146549439250521,typical,decimal fractions; none exactly representable
-stats_variance_sample_f64,0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 1.0,0.09166666666666667,0.000000000000000162832710278356,typical,decimal fractions; none exactly representable
-stats_stddev_pop_f64,0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 1.0,0.2872281323269014,0.000000000000000510219657327052,typical,decimal fractions; none exactly representable
-stats_stddev_sample_f64,0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 1.0,0.3027650354097492,0.000000000000000537818741381367,typical,decimal fractions; none exactly representable
-stats_min_f64,0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 1.0,0.1,0.0,typical,decimal fractions; none exactly representable
-stats_max_f64,0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 1.0,1.0,0.0,typical,decimal fractions; none exactly representable
-stats_range_f64,0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 1.0,0.9,0.0,typical,decimal fractions; none exactly representable
-stats_count,7.0 7.0 7.0 7.0,4,0.0,boundary,constant data: variance exactly 0
-stats_sum_f64,7.0 7.0 7.0 7.0,28.0,0.000000000000049737991503207013,boundary,constant data: variance exactly 0
-stats_mean_f64,7.0 7.0 7.0 7.0,7.0,0.000000000000012434497875801753,boundary,constant data: variance exactly 0
-stats_variance_pop_f64,7.0 7.0 7.0 7.0,0.0,0.0,boundary,constant data: variance exactly 0
-stats_variance_sample_f64,7.0 7.0 7.0 7.0,0.0,0.0,boundary,constant data: variance exactly 0
-stats_stddev_pop_f64,7.0 7.0 7.0 7.0,0.0,0.0,boundary,constant data: variance exactly 0
-stats_stddev_sample_f64,7.0 7.0 7.0 7.0,0.0,0.0,boundary,constant data: variance exactly 0
-stats_min_f64,7.0 7.0 7.0 7.0,7.0,0.0,boundary,constant data: variance exactly 0
-stats_max_f64,7.0 7.0 7.0 7.0,7.0,0.0,boundary,constant data: variance exactly 0
-stats_range_f64,7.0 7.0 7.0 7.0,0.0,0.0,boundary,constant data: variance exactly 0
-stats_count,1.0 2.0 3.0 4.0 5.0 6.0 7.0 8.0 9.0 10.0 11.0 12.0 13.0 14.0 15.0 16.0 17.0 18.0 19.0 20.0,20,0.0,typical,1 through 20
-stats_sum_f64,1.0 2.0 3.0 4.0 5.0 6.0 7.0 8.0 9.0 10.0 11.0 12.0 13.0 14.0 15.0 16.0 17.0 18.0 19.0 20.0,210.0,0.000000000000373034936274052598,typical,1 through 20
-stats_mean_f64,1.0 2.0 3.0 4.0 5.0 6.0 7.0 8.0 9.0 10.0 11.0 12.0 13.0 14.0 15.0 16.0 17.0 18.0 19.0 20.0,10.5,0.000000000000018651746813702630,typical,1 through 20
-stats_variance_pop_f64,1.0 2.0 3.0 4.0 5.0 6.0 7.0 8.0 9.0 10.0 11.0 12.0 13.0 14.0 15.0 16.0 17.0 18.0 19.0 20.0,33.25,0.000000000000059063864910058328,typical,1 through 20
-stats_variance_sample_f64,1.0 2.0 3.0 4.0 5.0 6.0 7.0 8.0 9.0 10.0 11.0 12.0 13.0 14.0 15.0 16.0 17.0 18.0 19.0 20.0,35.0,0.000000000000062172489379008766,typical,1 through 20
-stats_stddev_pop_f64,1.0 2.0 3.0 4.0 5.0 6.0 7.0 8.0 9.0 10.0 11.0 12.0 13.0 14.0 15.0 16.0 17.0 18.0 19.0 20.0,5.766281297335398,0.000000000000010242973220427484,typical,1 through 20
-stats_stddev_sample_f64,1.0 2.0 3.0 4.0 5.0 6.0 7.0 8.0 9.0 10.0 11.0 12.0 13.0 14.0 15.0 16.0 17.0 18.0 19.0 20.0,5.916079783099616,0.000000000000010509068785146553,typical,1 through 20
-stats_min_f64,1.0 2.0 3.0 4.0 5.0 6.0 7.0 8.0 9.0 10.0 11.0 12.0 13.0 14.0 15.0 16.0 17.0 18.0 19.0 20.0,1.0,0.0,typical,1 through 20
-stats_max_f64,1.0 2.0 3.0 4.0 5.0 6.0 7.0 8.0 9.0 10.0 11.0 12.0 13.0 14.0 15.0 16.0 17.0 18.0 19.0 20.0,20.0,0.0,typical,1 through 20
-stats_range_f64,1.0 2.0 3.0 4.0 5.0 6.0 7.0 8.0 9.0 10.0 11.0 12.0 13.0 14.0 15.0 16.0 17.0 18.0 19.0 20.0,19.0,0.0,typical,1 through 20
-stats_count,1.0 nan 3.0,3,0.0,nan,a NaN makes every result NaN
-stats_sum_f64,1.0 nan 3.0,nan,0.0,nan,a NaN makes every result NaN
-stats_mean_f64,1.0 nan 3.0,nan,0.0,nan,a NaN makes every result NaN
-stats_variance_pop_f64,1.0 nan 3.0,nan,0.0,nan,a NaN makes every result NaN
-stats_variance_sample_f64,1.0 nan 3.0,nan,0.0,nan,a NaN makes every result NaN
-stats_stddev_pop_f64,1.0 nan 3.0,nan,0.0,nan,a NaN makes every result NaN
-stats_stddev_sample_f64,1.0 nan 3.0,nan,0.0,nan,a NaN makes every result NaN
-stats_min_f64,1.0 nan 3.0,nan,0.0,nan,a NaN makes every result NaN
-stats_max_f64,1.0 nan 3.0,nan,0.0,nan,a NaN makes every result NaN
-stats_range_f64,1.0 nan 3.0,nan,0.0,nan,a NaN makes every result NaN
-stats_count,nan 1.0,2,0.0,nan,NaN first
-stats_sum_f64,nan 1.0,nan,0.0,nan,NaN first
-stats_mean_f64,nan 1.0,nan,0.0,nan,NaN first
-stats_variance_pop_f64,nan 1.0,nan,0.0,nan,NaN first
-stats_variance_sample_f64,nan 1.0,nan,0.0,nan,NaN first
-stats_stddev_pop_f64,nan 1.0,nan,0.0,nan,NaN first
-stats_stddev_sample_f64,nan 1.0,nan,0.0,nan,NaN first
-stats_min_f64,nan 1.0,nan,0.0,nan,NaN first
-stats_max_f64,nan 1.0,nan,0.0,nan,NaN first
-stats_range_f64,nan 1.0,nan,0.0,nan,NaN first
-stats_count,1.0 inf,2,0.0,infinity,sum/mean/max are +Infinity; variance NaN
-stats_sum_f64,1.0 inf,inf,0.0,infinity,sum/mean/max are +Infinity; variance NaN
-stats_mean_f64,1.0 inf,inf,0.0,infinity,sum/mean/max are +Infinity; variance NaN
-stats_variance_pop_f64,1.0 inf,nan,0.0,infinity,sum/mean/max are +Infinity; variance NaN
-stats_variance_sample_f64,1.0 inf,nan,0.0,infinity,sum/mean/max are +Infinity; variance NaN
-stats_stddev_pop_f64,1.0 inf,nan,0.0,infinity,sum/mean/max are +Infinity; variance NaN
-stats_stddev_sample_f64,1.0 inf,nan,0.0,infinity,sum/mean/max are +Infinity; variance NaN
-stats_min_f64,1.0 inf,1.0,0.0,infinity,sum/mean/max are +Infinity; variance NaN
-stats_max_f64,1.0 inf,inf,0.0,infinity,sum/mean/max are +Infinity; variance NaN
-stats_range_f64,1.0 inf,inf,0.0,infinity,sum/mean/max are +Infinity; variance NaN
-stats_count,inf 1.0,2,0.0,infinity,infinity first
-stats_sum_f64,inf 1.0,inf,0.0,infinity,infinity first
-stats_mean_f64,inf 1.0,inf,0.0,infinity,infinity first
-stats_variance_pop_f64,inf 1.0,nan,0.0,infinity,infinity first
-stats_variance_sample_f64,inf 1.0,nan,0.0,infinity,infinity first
-stats_stddev_pop_f64,inf 1.0,nan,0.0,infinity,infinity first
-stats_stddev_sample_f64,inf 1.0,nan,0.0,infinity,infinity first
-stats_min_f64,inf 1.0,1.0,0.0,infinity,infinity first
-stats_max_f64,inf 1.0,inf,0.0,infinity,infinity first
-stats_range_f64,inf 1.0,inf,0.0,infinity,infinity first
-stats_count,1.0 -inf,2,0.0,infinity,sum/mean/min are -Infinity; variance NaN
-stats_sum_f64,1.0 -inf,-inf,0.0,infinity,sum/mean/min are -Infinity; variance NaN
-stats_mean_f64,1.0 -inf,-inf,0.0,infinity,sum/mean/min are -Infinity; variance NaN
-stats_variance_pop_f64,1.0 -inf,nan,0.0,infinity,sum/mean/min are -Infinity; variance NaN
-stats_variance_sample_f64,1.0 -inf,nan,0.0,infinity,sum/mean/min are -Infinity; variance NaN
-stats_stddev_pop_f64,1.0 -inf,nan,0.0,infinity,sum/mean/min are -Infinity; variance NaN
-stats_stddev_sample_f64,1.0 -inf,nan,0.0,infinity,sum/mean/min are -Infinity; variance NaN
-stats_min_f64,1.0 -inf,-inf,0.0,infinity,sum/mean/min are -Infinity; variance NaN
-stats_max_f64,1.0 -inf,1.0,0.0,infinity,sum/mean/min are -Infinity; variance NaN
-stats_range_f64,1.0 -inf,inf,0.0,infinity,sum/mean/min are -Infinity; variance NaN
-stats_count,inf -inf,2,0.0,infinity,both signs: sum and mean NaN
-stats_sum_f64,inf -inf,nan,0.0,infinity,both signs: sum and mean NaN
-stats_mean_f64,inf -inf,nan,0.0,infinity,both signs: sum and mean NaN
-stats_variance_pop_f64,inf -inf,nan,0.0,infinity,both signs: sum and mean NaN
-stats_variance_sample_f64,inf -inf,nan,0.0,infinity,both signs: sum and mean NaN
-stats_stddev_pop_f64,inf -inf,nan,0.0,infinity,both signs: sum and mean NaN
-stats_stddev_sample_f64,inf -inf,nan,0.0,infinity,both signs: sum and mean NaN
-stats_min_f64,inf -inf,-inf,0.0,infinity,both signs: sum and mean NaN
-stats_max_f64,inf -inf,inf,0.0,infinity,both signs: sum and mean NaN
-stats_range_f64,inf -inf,inf,0.0,infinity,both signs: sum and mean NaN
+function,data,param,expected,tolerance,category,notes
+stats_count,,,0,0.0,boundary,empty: count 0; sum 0.0; everything else NaN
+stats_sum_f64,,,0.0,0.0,boundary,empty: count 0; sum 0.0; everything else NaN
+stats_mean_f64,,,nan,0.0,boundary,empty: count 0; sum 0.0; everything else NaN
+stats_variance_pop_f64,,,nan,0.0,boundary,empty: count 0; sum 0.0; everything else NaN
+stats_variance_sample_f64,,,nan,0.0,boundary,empty: count 0; sum 0.0; everything else NaN
+stats_stddev_pop_f64,,,nan,0.0,boundary,empty: count 0; sum 0.0; everything else NaN
+stats_stddev_sample_f64,,,nan,0.0,boundary,empty: count 0; sum 0.0; everything else NaN
+stats_min_f64,,,nan,0.0,boundary,empty: count 0; sum 0.0; everything else NaN
+stats_max_f64,,,nan,0.0,boundary,empty: count 0; sum 0.0; everything else NaN
+stats_range_f64,,,nan,0.0,boundary,empty: count 0; sum 0.0; everything else NaN
+stats_median_f64,,,nan,0.0,boundary,empty: count 0; sum 0.0; everything else NaN
+stats_percentile_f64,,0.0,nan,0.0,boundary,empty: count 0; sum 0.0; everything else NaN
+stats_percentile_f64,,25.0,nan,0.0,boundary,empty: count 0; sum 0.0; everything else NaN
+stats_percentile_f64,,90.0,nan,0.0,boundary,empty: count 0; sum 0.0; everything else NaN
+stats_percentile_f64,,100.0,nan,0.0,boundary,empty: count 0; sum 0.0; everything else NaN
+stats_count,5.0,,1,0.0,boundary,one observation: sample variance undefined
+stats_sum_f64,5.0,,5.0,0.000000000000008881784197001252,boundary,one observation: sample variance undefined
+stats_mean_f64,5.0,,5.0,0.000000000000008881784197001252,boundary,one observation: sample variance undefined
+stats_variance_pop_f64,5.0,,0.0,0.0,boundary,one observation: sample variance undefined
+stats_variance_sample_f64,5.0,,nan,0.0,boundary,one observation: sample variance undefined
+stats_stddev_pop_f64,5.0,,0.0,0.0,boundary,one observation: sample variance undefined
+stats_stddev_sample_f64,5.0,,nan,0.0,boundary,one observation: sample variance undefined
+stats_min_f64,5.0,,5.0,0.0,boundary,one observation: sample variance undefined
+stats_max_f64,5.0,,5.0,0.0,boundary,one observation: sample variance undefined
+stats_range_f64,5.0,,0.0,0.0,boundary,one observation: sample variance undefined
+stats_median_f64,5.0,,5.0,0.000000000000008881784197001252,boundary,one observation: sample variance undefined
+stats_percentile_f64,5.0,0.0,5.0,0.000000000000008881784197001252,boundary,one observation: sample variance undefined
+stats_percentile_f64,5.0,25.0,5.0,0.000000000000008881784197001252,boundary,one observation: sample variance undefined
+stats_percentile_f64,5.0,90.0,5.0,0.000000000000008881784197001252,boundary,one observation: sample variance undefined
+stats_percentile_f64,5.0,100.0,5.0,0.000000000000008881784197001252,boundary,one observation: sample variance undefined
+stats_count,2.0 4.0 9.0,,3,0.0,typical,mean 5; squared deviations sum to 26
+stats_sum_f64,2.0 4.0 9.0,,15.0,0.000000000000026645352591003757,typical,mean 5; squared deviations sum to 26
+stats_mean_f64,2.0 4.0 9.0,,5.0,0.000000000000008881784197001252,typical,mean 5; squared deviations sum to 26
+stats_variance_pop_f64,2.0 4.0 9.0,,8.666666666666666,0.000000000000015395092608135503,typical,mean 5; squared deviations sum to 26
+stats_variance_sample_f64,2.0 4.0 9.0,,13.0,0.000000000000023092638912203256,typical,mean 5; squared deviations sum to 26
+stats_stddev_pop_f64,2.0 4.0 9.0,,2.943920288775949,0.000000000000005229452939616317,typical,mean 5; squared deviations sum to 26
+stats_stddev_sample_f64,2.0 4.0 9.0,,3.605551275463989,0.000000000000006404745667978754,typical,mean 5; squared deviations sum to 26
+stats_min_f64,2.0 4.0 9.0,,2.0,0.0,typical,mean 5; squared deviations sum to 26
+stats_max_f64,2.0 4.0 9.0,,9.0,0.0,typical,mean 5; squared deviations sum to 26
+stats_range_f64,2.0 4.0 9.0,,7.0,0.0,typical,mean 5; squared deviations sum to 26
+stats_median_f64,2.0 4.0 9.0,,4.0,0.000000000000007105427357601002,typical,mean 5; squared deviations sum to 26
+stats_percentile_f64,2.0 4.0 9.0,0.0,2.0,0.000000000000003552713678800501,typical,mean 5; squared deviations sum to 26
+stats_percentile_f64,2.0 4.0 9.0,25.0,3.0,0.000000000000007105427357601002,typical,mean 5; squared deviations sum to 26
+stats_percentile_f64,2.0 4.0 9.0,90.0,8.0,0.000000000000015987211554602254,typical,mean 5; squared deviations sum to 26
+stats_percentile_f64,2.0 4.0 9.0,100.0,9.0,0.000000000000015987211554602254,typical,mean 5; squared deviations sum to 26
+stats_count,2.0 4.0 4.0 4.0 5.0 5.0 7.0 9.0,,8,0.0,typical,classic set: population variance 4; stddev 2
+stats_sum_f64,2.0 4.0 4.0 4.0 5.0 5.0 7.0 9.0,,40.0,0.000000000000071054273576010019,typical,classic set: population variance 4; stddev 2
+stats_mean_f64,2.0 4.0 4.0 4.0 5.0 5.0 7.0 9.0,,5.0,0.000000000000008881784197001252,typical,classic set: population variance 4; stddev 2
+stats_variance_pop_f64,2.0 4.0 4.0 4.0 5.0 5.0 7.0 9.0,,4.0,0.000000000000007105427357601002,typical,classic set: population variance 4; stddev 2
+stats_variance_sample_f64,2.0 4.0 4.0 4.0 5.0 5.0 7.0 9.0,,4.571428571428571,0.000000000000008120488408686859,typical,classic set: population variance 4; stddev 2
+stats_stddev_pop_f64,2.0 4.0 4.0 4.0 5.0 5.0 7.0 9.0,,2.0,0.000000000000003552713678800501,typical,classic set: population variance 4; stddev 2
+stats_stddev_sample_f64,2.0 4.0 4.0 4.0 5.0 5.0 7.0 9.0,,2.138089935299395,0.000000000000003798010679821920,typical,classic set: population variance 4; stddev 2
+stats_min_f64,2.0 4.0 4.0 4.0 5.0 5.0 7.0 9.0,,2.0,0.0,typical,classic set: population variance 4; stddev 2
+stats_max_f64,2.0 4.0 4.0 4.0 5.0 5.0 7.0 9.0,,9.0,0.0,typical,classic set: population variance 4; stddev 2
+stats_range_f64,2.0 4.0 4.0 4.0 5.0 5.0 7.0 9.0,,7.0,0.0,typical,classic set: population variance 4; stddev 2
+stats_median_f64,2.0 4.0 4.0 4.0 5.0 5.0 7.0 9.0,,4.5,0.000000000000008881784197001252,typical,classic set: population variance 4; stddev 2
+stats_percentile_f64,2.0 4.0 4.0 4.0 5.0 5.0 7.0 9.0,0.0,2.0,0.000000000000003552713678800501,typical,classic set: population variance 4; stddev 2
+stats_percentile_f64,2.0 4.0 4.0 4.0 5.0 5.0 7.0 9.0,25.0,4.0,0.000000000000007105427357601002,typical,classic set: population variance 4; stddev 2
+stats_percentile_f64,2.0 4.0 4.0 4.0 5.0 5.0 7.0 9.0,90.0,7.6,0.000000000000015987211554602254,typical,classic set: population variance 4; stddev 2
+stats_percentile_f64,2.0 4.0 4.0 4.0 5.0 5.0 7.0 9.0,100.0,9.0,0.000000000000015987211554602254,typical,classic set: population variance 4; stddev 2
+stats_count,10000000000000000.0 1.0 -10000000000000000.0,,3,0.0,cancellation,naive summation loses the 1.0; Neumaier keeps it
+stats_sum_f64,10000000000000000.0 1.0 -10000000000000000.0,,1.0,0.000000000000001776356839400250,cancellation,naive summation loses the 1.0; Neumaier keeps it
+stats_min_f64,10000000000000000.0 1.0 -10000000000000000.0,,-10000000000000000.0,0.0,cancellation,naive summation loses the 1.0; Neumaier keeps it
+stats_max_f64,10000000000000000.0 1.0 -10000000000000000.0,,10000000000000000.0,0.0,cancellation,naive summation loses the 1.0; Neumaier keeps it
+stats_range_f64,10000000000000000.0 1.0 -10000000000000000.0,,20000000000000000.0,0.0,cancellation,naive summation loses the 1.0; Neumaier keeps it
+stats_count,1000000004.0 1000000007.0 1000000013.0 1000000016.0,,4,0.0,stability,large common offset must not destroy the variance
+stats_sum_f64,1000000004.0 1000000007.0 1000000013.0 1000000016.0,,4000000040.0,0.000007105427428655275434721261,stability,large common offset must not destroy the variance
+stats_mean_f64,1000000004.0 1000000007.0 1000000013.0 1000000016.0,,1000000010.0,0.000001776356857163818858680315,stability,large common offset must not destroy the variance
+stats_variance_pop_f64,1000000004.0 1000000007.0 1000000013.0 1000000016.0,,22.5,0.000000000000039968028886505635,stability,large common offset must not destroy the variance
+stats_variance_sample_f64,1000000004.0 1000000007.0 1000000013.0 1000000016.0,,30.0,0.000000000000053290705182007514,stability,large common offset must not destroy the variance
+stats_stddev_pop_f64,1000000004.0 1000000007.0 1000000013.0 1000000016.0,,4.743416490252569,0.000000000000008426000324584083,stability,large common offset must not destroy the variance
+stats_stddev_sample_f64,1000000004.0 1000000007.0 1000000013.0 1000000016.0,,5.477225575051661,0.000000000000009729507111180988,stability,large common offset must not destroy the variance
+stats_min_f64,1000000004.0 1000000007.0 1000000013.0 1000000016.0,,1000000004.0,0.0,stability,large common offset must not destroy the variance
+stats_max_f64,1000000004.0 1000000007.0 1000000013.0 1000000016.0,,1000000016.0,0.0,stability,large common offset must not destroy the variance
+stats_range_f64,1000000004.0 1000000007.0 1000000013.0 1000000016.0,,12.0,0.0,stability,large common offset must not destroy the variance
+stats_median_f64,1000000004.0 1000000007.0 1000000013.0 1000000016.0,,1000000010.0,0.000001776356862492889376881067,stability,large common offset must not destroy the variance
+stats_percentile_f64,1000000004.0 1000000007.0 1000000013.0 1000000016.0,0.0,1000000004.0,0.000001776356846505677822278813,stability,large common offset must not destroy the variance
+stats_percentile_f64,1000000004.0 1000000007.0 1000000013.0 1000000016.0,25.0,1000000006.25,0.000001776356851834748340479564,stability,large common offset must not destroy the variance
+stats_percentile_f64,1000000004.0 1000000007.0 1000000013.0 1000000016.0,90.0,1000000015.1,0.000001776356867821959895081818,stability,large common offset must not destroy the variance
+stats_percentile_f64,1000000004.0 1000000007.0 1000000013.0 1000000016.0,100.0,1000000016.0,0.000001776356867821959895081818,stability,large common offset must not destroy the variance
+stats_count,-3.5 -1.25 0.0 2.75 8.0 -0.5,,6,0.0,typical,mixed signs
+stats_sum_f64,-3.5 -1.25 0.0 2.75 8.0 -0.5,,5.5,0.000000000000009769962616701378,typical,mixed signs
+stats_mean_f64,-3.5 -1.25 0.0 2.75 8.0 -0.5,,0.9166666666666666,0.000000000000001628327102783563,typical,mixed signs
+stats_variance_pop_f64,-3.5 -1.25 0.0 2.75 8.0 -0.5,,13.430555555555555,0.000000000000023857459218056141,typical,mixed signs
+stats_variance_sample_f64,-3.5 -1.25 0.0 2.75 8.0 -0.5,,16.116666666666667,0.000000000000028628951061667371,typical,mixed signs
+stats_stddev_pop_f64,-3.5 -1.25 0.0 2.75 8.0 -0.5,,3.66477223788267,0.000000000000006509943229607043,typical,mixed signs
+stats_stddev_sample_f64,-3.5 -1.25 0.0 2.75 8.0 -0.5,,4.014556845614054,0.000000000000007131285509867620,typical,mixed signs
+stats_min_f64,-3.5 -1.25 0.0 2.75 8.0 -0.5,,-3.5,0.0,typical,mixed signs
+stats_max_f64,-3.5 -1.25 0.0 2.75 8.0 -0.5,,8.0,0.0,typical,mixed signs
+stats_range_f64,-3.5 -1.25 0.0 2.75 8.0 -0.5,,11.5,0.0,typical,mixed signs
+stats_median_f64,-3.5 -1.25 0.0 2.75 8.0 -0.5,,-0.25,0.000000000000000888178419700125,typical,mixed signs
+stats_percentile_f64,-3.5 -1.25 0.0 2.75 8.0 -0.5,0.0,-3.5,0.000000000000006217248937900877,typical,mixed signs
+stats_percentile_f64,-3.5 -1.25 0.0 2.75 8.0 -0.5,25.0,-1.0625,0.000000000000002220446049250313,typical,mixed signs
+stats_percentile_f64,-3.5 -1.25 0.0 2.75 8.0 -0.5,90.0,5.375,0.000000000000014210854715202004,typical,mixed signs
+stats_percentile_f64,-3.5 -1.25 0.0 2.75 8.0 -0.5,100.0,8.0,0.000000000000014210854715202004,typical,mixed signs
+stats_count,0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 1.0,,10,0.0,typical,decimal fractions; none exactly representable
+stats_sum_f64,0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 1.0,,5.5,0.000000000000009769962616701378,typical,decimal fractions; none exactly representable
+stats_mean_f64,0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 1.0,,0.55,0.000000000000000976996261670138,typical,decimal fractions; none exactly representable
+stats_variance_pop_f64,0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 1.0,,0.0825,0.000000000000000146549439250521,typical,decimal fractions; none exactly representable
+stats_variance_sample_f64,0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 1.0,,0.09166666666666667,0.000000000000000162832710278356,typical,decimal fractions; none exactly representable
+stats_stddev_pop_f64,0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 1.0,,0.2872281323269014,0.000000000000000510219657327052,typical,decimal fractions; none exactly representable
+stats_stddev_sample_f64,0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 1.0,,0.3027650354097492,0.000000000000000537818741381367,typical,decimal fractions; none exactly representable
+stats_min_f64,0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 1.0,,0.1,0.0,typical,decimal fractions; none exactly representable
+stats_max_f64,0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 1.0,,1.0,0.0,typical,decimal fractions; none exactly representable
+stats_range_f64,0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 1.0,,0.9,0.0,typical,decimal fractions; none exactly representable
+stats_median_f64,0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 1.0,,0.55,0.000000000000001065814103640150,typical,decimal fractions; none exactly representable
+stats_percentile_f64,0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 1.0,0.0,0.1,0.000000000000000177635683940025,typical,decimal fractions; none exactly representable
+stats_percentile_f64,0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 1.0,25.0,0.325,0.000000000000000710542735760100,typical,decimal fractions; none exactly representable
+stats_percentile_f64,0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 1.0,90.0,0.91,0.000000000000001776356839400250,typical,decimal fractions; none exactly representable
+stats_percentile_f64,0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 1.0,100.0,1.0,0.000000000000001776356839400250,typical,decimal fractions; none exactly representable
+stats_count,7.0 7.0 7.0 7.0,,4,0.0,boundary,constant data: variance exactly 0
+stats_sum_f64,7.0 7.0 7.0 7.0,,28.0,0.000000000000049737991503207013,boundary,constant data: variance exactly 0
+stats_mean_f64,7.0 7.0 7.0 7.0,,7.0,0.000000000000012434497875801753,boundary,constant data: variance exactly 0
+stats_variance_pop_f64,7.0 7.0 7.0 7.0,,0.0,0.0,boundary,constant data: variance exactly 0
+stats_variance_sample_f64,7.0 7.0 7.0 7.0,,0.0,0.0,boundary,constant data: variance exactly 0
+stats_stddev_pop_f64,7.0 7.0 7.0 7.0,,0.0,0.0,boundary,constant data: variance exactly 0
+stats_stddev_sample_f64,7.0 7.0 7.0 7.0,,0.0,0.0,boundary,constant data: variance exactly 0
+stats_min_f64,7.0 7.0 7.0 7.0,,7.0,0.0,boundary,constant data: variance exactly 0
+stats_max_f64,7.0 7.0 7.0 7.0,,7.0,0.0,boundary,constant data: variance exactly 0
+stats_range_f64,7.0 7.0 7.0 7.0,,0.0,0.0,boundary,constant data: variance exactly 0
+stats_median_f64,7.0 7.0 7.0 7.0,,7.0,0.000000000000012434497875801753,boundary,constant data: variance exactly 0
+stats_percentile_f64,7.0 7.0 7.0 7.0,0.0,7.0,0.000000000000012434497875801753,boundary,constant data: variance exactly 0
+stats_percentile_f64,7.0 7.0 7.0 7.0,25.0,7.0,0.000000000000012434497875801753,boundary,constant data: variance exactly 0
+stats_percentile_f64,7.0 7.0 7.0 7.0,90.0,7.0,0.000000000000012434497875801753,boundary,constant data: variance exactly 0
+stats_percentile_f64,7.0 7.0 7.0 7.0,100.0,7.0,0.000000000000012434497875801753,boundary,constant data: variance exactly 0
+stats_count,1.0 2.0 3.0 4.0 5.0 6.0 7.0 8.0 9.0 10.0 11.0 12.0 13.0 14.0 15.0 16.0 17.0 18.0 19.0 20.0,,20,0.0,typical,1 through 20
+stats_sum_f64,1.0 2.0 3.0 4.0 5.0 6.0 7.0 8.0 9.0 10.0 11.0 12.0 13.0 14.0 15.0 16.0 17.0 18.0 19.0 20.0,,210.0,0.000000000000373034936274052598,typical,1 through 20
+stats_mean_f64,1.0 2.0 3.0 4.0 5.0 6.0 7.0 8.0 9.0 10.0 11.0 12.0 13.0 14.0 15.0 16.0 17.0 18.0 19.0 20.0,,10.5,0.000000000000018651746813702630,typical,1 through 20
+stats_variance_pop_f64,1.0 2.0 3.0 4.0 5.0 6.0 7.0 8.0 9.0 10.0 11.0 12.0 13.0 14.0 15.0 16.0 17.0 18.0 19.0 20.0,,33.25,0.000000000000059063864910058328,typical,1 through 20
+stats_variance_sample_f64,1.0 2.0 3.0 4.0 5.0 6.0 7.0 8.0 9.0 10.0 11.0 12.0 13.0 14.0 15.0 16.0 17.0 18.0 19.0 20.0,,35.0,0.000000000000062172489379008766,typical,1 through 20
+stats_stddev_pop_f64,1.0 2.0 3.0 4.0 5.0 6.0 7.0 8.0 9.0 10.0 11.0 12.0 13.0 14.0 15.0 16.0 17.0 18.0 19.0 20.0,,5.766281297335398,0.000000000000010242973220427484,typical,1 through 20
+stats_stddev_sample_f64,1.0 2.0 3.0 4.0 5.0 6.0 7.0 8.0 9.0 10.0 11.0 12.0 13.0 14.0 15.0 16.0 17.0 18.0 19.0 20.0,,5.916079783099616,0.000000000000010509068785146553,typical,1 through 20
+stats_min_f64,1.0 2.0 3.0 4.0 5.0 6.0 7.0 8.0 9.0 10.0 11.0 12.0 13.0 14.0 15.0 16.0 17.0 18.0 19.0 20.0,,1.0,0.0,typical,1 through 20
+stats_max_f64,1.0 2.0 3.0 4.0 5.0 6.0 7.0 8.0 9.0 10.0 11.0 12.0 13.0 14.0 15.0 16.0 17.0 18.0 19.0 20.0,,20.0,0.0,typical,1 through 20
+stats_range_f64,1.0 2.0 3.0 4.0 5.0 6.0 7.0 8.0 9.0 10.0 11.0 12.0 13.0 14.0 15.0 16.0 17.0 18.0 19.0 20.0,,19.0,0.0,typical,1 through 20
+stats_median_f64,1.0 2.0 3.0 4.0 5.0 6.0 7.0 8.0 9.0 10.0 11.0 12.0 13.0 14.0 15.0 16.0 17.0 18.0 19.0 20.0,,10.5,0.000000000000019539925233402755,typical,1 through 20
+stats_percentile_f64,1.0 2.0 3.0 4.0 5.0 6.0 7.0 8.0 9.0 10.0 11.0 12.0 13.0 14.0 15.0 16.0 17.0 18.0 19.0 20.0,0.0,1.0,0.000000000000001776356839400250,typical,1 through 20
+stats_percentile_f64,1.0 2.0 3.0 4.0 5.0 6.0 7.0 8.0 9.0 10.0 11.0 12.0 13.0 14.0 15.0 16.0 17.0 18.0 19.0 20.0,25.0,5.75,0.000000000000010658141036401503,typical,1 through 20
+stats_percentile_f64,1.0 2.0 3.0 4.0 5.0 6.0 7.0 8.0 9.0 10.0 11.0 12.0 13.0 14.0 15.0 16.0 17.0 18.0 19.0 20.0,90.0,18.1,0.000000000000033750779948604759,typical,1 through 20
+stats_percentile_f64,1.0 2.0 3.0 4.0 5.0 6.0 7.0 8.0 9.0 10.0 11.0 12.0 13.0 14.0 15.0 16.0 17.0 18.0 19.0 20.0,100.0,20.0,0.000000000000035527136788005009,typical,1 through 20
+stats_count,1.0 nan 3.0,,3,0.0,nan,a NaN makes every result NaN
+stats_sum_f64,1.0 nan 3.0,,nan,0.0,nan,a NaN makes every result NaN
+stats_mean_f64,1.0 nan 3.0,,nan,0.0,nan,a NaN makes every result NaN
+stats_variance_pop_f64,1.0 nan 3.0,,nan,0.0,nan,a NaN makes every result NaN
+stats_variance_sample_f64,1.0 nan 3.0,,nan,0.0,nan,a NaN makes every result NaN
+stats_stddev_pop_f64,1.0 nan 3.0,,nan,0.0,nan,a NaN makes every result NaN
+stats_stddev_sample_f64,1.0 nan 3.0,,nan,0.0,nan,a NaN makes every result NaN
+stats_min_f64,1.0 nan 3.0,,nan,0.0,nan,a NaN makes every result NaN
+stats_max_f64,1.0 nan 3.0,,nan,0.0,nan,a NaN makes every result NaN
+stats_range_f64,1.0 nan 3.0,,nan,0.0,nan,a NaN makes every result NaN
+stats_median_f64,1.0 nan 3.0,,nan,0.0,nan,a NaN makes every result NaN
+stats_percentile_f64,1.0 nan 3.0,0.0,nan,0.0,nan,a NaN makes every result NaN
+stats_percentile_f64,1.0 nan 3.0,25.0,nan,0.0,nan,a NaN makes every result NaN
+stats_percentile_f64,1.0 nan 3.0,90.0,nan,0.0,nan,a NaN makes every result NaN
+stats_percentile_f64,1.0 nan 3.0,100.0,nan,0.0,nan,a NaN makes every result NaN
+stats_count,nan 1.0,,2,0.0,nan,NaN first
+stats_sum_f64,nan 1.0,,nan,0.0,nan,NaN first
+stats_mean_f64,nan 1.0,,nan,0.0,nan,NaN first
+stats_variance_pop_f64,nan 1.0,,nan,0.0,nan,NaN first
+stats_variance_sample_f64,nan 1.0,,nan,0.0,nan,NaN first
+stats_stddev_pop_f64,nan 1.0,,nan,0.0,nan,NaN first
+stats_stddev_sample_f64,nan 1.0,,nan,0.0,nan,NaN first
+stats_min_f64,nan 1.0,,nan,0.0,nan,NaN first
+stats_max_f64,nan 1.0,,nan,0.0,nan,NaN first
+stats_range_f64,nan 1.0,,nan,0.0,nan,NaN first
+stats_median_f64,nan 1.0,,nan,0.0,nan,NaN first
+stats_percentile_f64,nan 1.0,0.0,nan,0.0,nan,NaN first
+stats_percentile_f64,nan 1.0,25.0,nan,0.0,nan,NaN first
+stats_percentile_f64,nan 1.0,90.0,nan,0.0,nan,NaN first
+stats_percentile_f64,nan 1.0,100.0,nan,0.0,nan,NaN first
+stats_count,1.0 inf,,2,0.0,infinity,sum/mean/max are +Infinity; variance NaN
+stats_sum_f64,1.0 inf,,inf,0.0,infinity,sum/mean/max are +Infinity; variance NaN
+stats_mean_f64,1.0 inf,,inf,0.0,infinity,sum/mean/max are +Infinity; variance NaN
+stats_variance_pop_f64,1.0 inf,,nan,0.0,infinity,sum/mean/max are +Infinity; variance NaN
+stats_variance_sample_f64,1.0 inf,,nan,0.0,infinity,sum/mean/max are +Infinity; variance NaN
+stats_stddev_pop_f64,1.0 inf,,nan,0.0,infinity,sum/mean/max are +Infinity; variance NaN
+stats_stddev_sample_f64,1.0 inf,,nan,0.0,infinity,sum/mean/max are +Infinity; variance NaN
+stats_min_f64,1.0 inf,,1.0,0.0,infinity,sum/mean/max are +Infinity; variance NaN
+stats_max_f64,1.0 inf,,inf,0.0,infinity,sum/mean/max are +Infinity; variance NaN
+stats_range_f64,1.0 inf,,inf,0.0,infinity,sum/mean/max are +Infinity; variance NaN
+stats_median_f64,1.0 inf,,inf,0.0,infinity,sum/mean/max are +Infinity; variance NaN
+stats_percentile_f64,1.0 inf,0.0,1.0,0.000000000000001776356839400250,infinity,sum/mean/max are +Infinity; variance NaN
+stats_percentile_f64,1.0 inf,25.0,inf,0.0,infinity,sum/mean/max are +Infinity; variance NaN
+stats_percentile_f64,1.0 inf,90.0,inf,0.0,infinity,sum/mean/max are +Infinity; variance NaN
+stats_percentile_f64,1.0 inf,100.0,inf,0.0,infinity,sum/mean/max are +Infinity; variance NaN
+stats_count,inf 1.0,,2,0.0,infinity,infinity first
+stats_sum_f64,inf 1.0,,inf,0.0,infinity,infinity first
+stats_mean_f64,inf 1.0,,inf,0.0,infinity,infinity first
+stats_variance_pop_f64,inf 1.0,,nan,0.0,infinity,infinity first
+stats_variance_sample_f64,inf 1.0,,nan,0.0,infinity,infinity first
+stats_stddev_pop_f64,inf 1.0,,nan,0.0,infinity,infinity first
+stats_stddev_sample_f64,inf 1.0,,nan,0.0,infinity,infinity first
+stats_min_f64,inf 1.0,,1.0,0.0,infinity,infinity first
+stats_max_f64,inf 1.0,,inf,0.0,infinity,infinity first
+stats_range_f64,inf 1.0,,inf,0.0,infinity,infinity first
+stats_median_f64,inf 1.0,,inf,0.0,infinity,infinity first
+stats_percentile_f64,inf 1.0,0.0,1.0,0.000000000000001776356839400250,infinity,infinity first
+stats_percentile_f64,inf 1.0,25.0,inf,0.0,infinity,infinity first
+stats_percentile_f64,inf 1.0,90.0,inf,0.0,infinity,infinity first
+stats_percentile_f64,inf 1.0,100.0,inf,0.0,infinity,infinity first
+stats_count,1.0 -inf,,2,0.0,infinity,sum/mean/min are -Infinity; variance NaN
+stats_sum_f64,1.0 -inf,,-inf,0.0,infinity,sum/mean/min are -Infinity; variance NaN
+stats_mean_f64,1.0 -inf,,-inf,0.0,infinity,sum/mean/min are -Infinity; variance NaN
+stats_variance_pop_f64,1.0 -inf,,nan,0.0,infinity,sum/mean/min are -Infinity; variance NaN
+stats_variance_sample_f64,1.0 -inf,,nan,0.0,infinity,sum/mean/min are -Infinity; variance NaN
+stats_stddev_pop_f64,1.0 -inf,,nan,0.0,infinity,sum/mean/min are -Infinity; variance NaN
+stats_stddev_sample_f64,1.0 -inf,,nan,0.0,infinity,sum/mean/min are -Infinity; variance NaN
+stats_min_f64,1.0 -inf,,-inf,0.0,infinity,sum/mean/min are -Infinity; variance NaN
+stats_max_f64,1.0 -inf,,1.0,0.0,infinity,sum/mean/min are -Infinity; variance NaN
+stats_range_f64,1.0 -inf,,inf,0.0,infinity,sum/mean/min are -Infinity; variance NaN
+stats_median_f64,1.0 -inf,,-inf,0.0,infinity,sum/mean/min are -Infinity; variance NaN
+stats_percentile_f64,1.0 -inf,0.0,-inf,0.0,infinity,sum/mean/min are -Infinity; variance NaN
+stats_percentile_f64,1.0 -inf,25.0,-inf,0.0,infinity,sum/mean/min are -Infinity; variance NaN
+stats_percentile_f64,1.0 -inf,90.0,-inf,0.0,infinity,sum/mean/min are -Infinity; variance NaN
+stats_percentile_f64,1.0 -inf,100.0,1.0,0.000000000000001776356839400250,infinity,sum/mean/min are -Infinity; variance NaN
+stats_count,inf -inf,,2,0.0,infinity,both signs: sum and mean NaN
+stats_sum_f64,inf -inf,,nan,0.0,infinity,both signs: sum and mean NaN
+stats_mean_f64,inf -inf,,nan,0.0,infinity,both signs: sum and mean NaN
+stats_variance_pop_f64,inf -inf,,nan,0.0,infinity,both signs: sum and mean NaN
+stats_variance_sample_f64,inf -inf,,nan,0.0,infinity,both signs: sum and mean NaN
+stats_stddev_pop_f64,inf -inf,,nan,0.0,infinity,both signs: sum and mean NaN
+stats_stddev_sample_f64,inf -inf,,nan,0.0,infinity,both signs: sum and mean NaN
+stats_min_f64,inf -inf,,-inf,0.0,infinity,both signs: sum and mean NaN
+stats_max_f64,inf -inf,,inf,0.0,infinity,both signs: sum and mean NaN
+stats_range_f64,inf -inf,,inf,0.0,infinity,both signs: sum and mean NaN
+stats_median_f64,inf -inf,,nan,0.0,infinity,both signs: sum and mean NaN
+stats_percentile_f64,inf -inf,0.0,-inf,0.0,infinity,both signs: sum and mean NaN
+stats_percentile_f64,inf -inf,25.0,nan,0.0,infinity,both signs: sum and mean NaN
+stats_percentile_f64,inf -inf,90.0,nan,0.0,infinity,both signs: sum and mean NaN
+stats_percentile_f64,inf -inf,100.0,inf,0.0,infinity,both signs: sum and mean NaN

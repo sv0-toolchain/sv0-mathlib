@@ -1,0 +1,133 @@
+/* TEST-001 unit test for the order statistics in module::stats: sorting,
+ * median, percentile, and the Vec<f64> feed into a Stats accumulator.
+ * Not tied to a SPEC.md requirement ID (beyond-spec; docs/deviations.md #12). */
+use stats::Stats;
+use stats::stats_from_vec;
+use stats::stats_mean_f64;
+use stats::stats_count;
+use stats::stats_sorted_f64;
+use stats::stats_median_f64;
+use stats::stats_percentile_f64;
+use arith::abs_f64;
+
+fn is_nan(x: f64) -> bool { return x != x; }
+
+fn near(a: f64, b: f64) -> bool { return abs_f64(a - b) <= 0.000000000001; }
+
+fn v5() -> Vec<f64> {
+    let v: Vec<f64> = vec_new();
+    vec_push_f64(v, 9.0);
+    vec_push_f64(v, 1.0);
+    vec_push_f64(v, 5.0);
+    vec_push_f64(v, 3.0);
+    vec_push_f64(v, 7.0);
+    return v;
+}
+
+fn main() -> i32 {
+    /* Empty sample: everything is NaN, from_vec is an empty accumulator. */
+    let e: Vec<f64> = vec_new();
+    if !is_nan(stats_median_f64(e)) { return 1; }
+    if !is_nan(stats_percentile_f64(e, 50.0)) { return 2; }
+    if stats_count(stats_from_vec(e)) != 0 { return 3; }
+    if vec_len(stats_sorted_f64(e)) != 0 { return 4; }
+
+    /* One element: it is every percentile and the median. */
+    let one: Vec<f64> = vec_new();
+    vec_push_f64(one, 4.5);
+    if stats_median_f64(one) != 4.5 { return 5; }
+    if stats_percentile_f64(one, 0.0) != 4.5 { return 6; }
+    if stats_percentile_f64(one, 37.5) != 4.5 { return 7; }
+    if stats_percentile_f64(one, 100.0) != 4.5 { return 8; }
+
+    /* Odd count {9,1,5,3,7}: sorted 1 3 5 7 9. */
+    let a: Vec<f64> = v5();
+    if stats_median_f64(a) != 5.0 { return 10; }
+    if stats_percentile_f64(a, 0.0) != 1.0 { return 11; }
+    if stats_percentile_f64(a, 25.0) != 3.0 { return 12; }
+    if stats_percentile_f64(a, 50.0) != 5.0 { return 13; }
+    if stats_percentile_f64(a, 75.0) != 7.0 { return 14; }
+    if stats_percentile_f64(a, 100.0) != 9.0 { return 15; }
+    /* Between ranks: position 0.4 -> 1 + 0.4 * (3 - 1). */
+    if !near(stats_percentile_f64(a, 10.0), 1.8) { return 16; }
+    if !near(stats_percentile_f64(a, 90.0), 8.2) { return 17; }
+
+    /* The caller's vector is not modified, and the sorted copy is ascending. */
+    if vec_get_f64(a, 0) != 9.0 { return 20; }
+    if vec_get_f64(a, 4) != 7.0 { return 21; }
+    let s: Vec<f64> = stats_sorted_f64(a);
+    if vec_len(s) != 5 { return 22; }
+    if vec_get_f64(s, 0) != 1.0 { return 23; }
+    if vec_get_f64(s, 1) != 3.0 { return 24; }
+    if vec_get_f64(s, 2) != 5.0 { return 25; }
+    if vec_get_f64(s, 3) != 7.0 { return 26; }
+    if vec_get_f64(s, 4) != 9.0 { return 27; }
+
+    /* Even count: the median is the midpoint of the middle pair. */
+    vec_push_f64(a, 11.0);
+    if stats_median_f64(a) != 6.0 { return 30; }
+    let two: Vec<f64> = vec_new();
+    vec_push_f64(two, 1.0);
+    vec_push_f64(two, 2.0);
+    if stats_median_f64(two) != 1.5 { return 31; }
+    if stats_percentile_f64(two, 50.0) != 1.5 { return 32; }
+
+    /* Duplicates and negatives sort correctly. */
+    let d: Vec<f64> = vec_new();
+    vec_push_f64(d, 2.0);
+    vec_push_f64(d, 0.0 - 3.0);
+    vec_push_f64(d, 2.0);
+    vec_push_f64(d, 0.0 - 3.0);
+    vec_push_f64(d, 2.0);
+    if stats_median_f64(d) != 2.0 { return 40; }
+    if stats_percentile_f64(d, 0.0) != 0.0 - 3.0 { return 41; }
+    if stats_percentile_f64(d, 25.0) != 0.0 - 3.0 { return 42; }
+
+    /* A 200-element pseudo-random-order sample: sorted output is ascending
+     * and the median matches the closed form. Values (k * 37) mod 200. */
+    let big: Vec<f64> = vec_new();
+    let mut k: i32 = 0;
+    while k < 200 loop_invariant(k >= 0) {
+        let r: i32 = (k * 37) % 200;
+        let rf: f64 = r;
+        vec_push_f64(big, rf);
+        k = k + 1;
+    }
+    let bs: Vec<f64> = stats_sorted_f64(big);
+    let mut j: i32 = 0;
+    while j < 200 loop_invariant(j >= 0) {
+        let jf: f64 = j;
+        if vec_get_f64(bs, j) != jf { return 50; }
+        j = j + 1;
+    }
+    if stats_median_f64(big) != 99.5 { return 51; }
+    if !near(stats_percentile_f64(big, 90.0), 179.1) { return 52; }
+
+    /* NaN anywhere makes the order statistics NaN; so does a bad p. */
+    let nan: f64 = 0.0 / 0.0;
+    let bad: Vec<f64> = v5();
+    vec_push_f64(bad, nan);
+    if !is_nan(stats_median_f64(bad)) { return 60; }
+    if !is_nan(stats_percentile_f64(bad, 50.0)) { return 61; }
+    let ok: Vec<f64> = v5();
+    if !is_nan(stats_percentile_f64(ok, nan)) { return 62; }
+    if !is_nan(stats_percentile_f64(ok, 0.0 - 0.5)) { return 63; }
+    if !is_nan(stats_percentile_f64(ok, 100.5)) { return 64; }
+
+    /* Infinities sort to the ends and interpolate as IEEE says. */
+    let inf: f64 = 1.0 / 0.0;
+    let f: Vec<f64> = vec_new();
+    vec_push_f64(f, inf);
+    vec_push_f64(f, 1.0);
+    vec_push_f64(f, 0.0 - inf);
+    if stats_median_f64(f) != 1.0 { return 70; }
+    if stats_percentile_f64(f, 0.0) != 0.0 - inf { return 71; }
+    if stats_percentile_f64(f, 100.0) != inf { return 72; }
+    if stats_percentile_f64(f, 75.0) != inf { return 73; }
+
+    /* from_vec agrees with pushing by hand. */
+    let sv: Stats = stats_from_vec(v5());
+    if stats_count(sv) != 5 { return 80; }
+    if stats_mean_f64(sv) != 5.0 { return 81; }
+    return 0;
+}

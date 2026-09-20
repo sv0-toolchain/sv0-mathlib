@@ -142,25 +142,29 @@ toolchain and the spec disagree — write down the deviation and why).
       `2^64 - 1`, which rounds the highest states to exactly `1.0`.
       `uniform_f64` is closed at the top (`[lo, hi]`), because
       `lo + u * (hi - lo)` can round up to `hi`.
-12. **`math::stats` is beyond SPEC.md, and is a streaming accumulator, not
-    a function over a sample.** SPEC.md has no statistics section. The
-    module cannot take a `Vec<f64>`, array or slice of observations,
-    because the toolchain stores collection elements in integer slots and
-    silently truncates `f64` (BUGS.md #20). A `Stats` value is instead
-    threaded by value: `s = stats_push(s, x);`. Consequences:
-    - Provided: count, sum (Neumaier compensated), mean, population and
+12. **`math::stats` is beyond SPEC.md.** SPEC.md has no statistics section.
+    The module has two entry points. A `Stats` accumulator is threaded by
+    value (`s = stats_push(s, x);`) for the reductions that need only running
+    state. A `Vec<f64>` sample (built with `vec_push_f64`; the generic
+    `vec_push` truncates a float and is refused, BUGS.md #20) answers the
+    order statistics. Consequences:
+    - Provided: count, sum (Neumaier compensated), mean and population and
       sample variance and standard deviation (Welford with a double-double
-      running mean), min, max, range; accuracy measured in `docs/accuracy.md`.
-    - **Not provided:** median and percentiles, which need the whole
-      sample. They wait on the upstream fix for BUGS.md #20.
-    - Total functions with no panics. An undefined result (no observations,
-      or fewer than two for sample variance) is NaN, so callers should
-      check `stats_count` first. This is the CONV-005(b) style already used
-      elsewhere in the library, not a `requires` clause, because a contract
-      on a struct-field access trips BUGS.md #19.
-    - A NaN observation makes every result NaN. Infinite observations are
-      counted and reflected: sum and mean are +/-infinity (NaN if both
-      signs appear), min/max see them, and variance and standard deviation
-      are NaN.
+      running mean), min, max, range; and, over a `Vec<f64>`, `stats_median_f64`,
+      `stats_percentile_f64` (linear interpolation between closest ranks,
+      numpy's default), `stats_sorted_f64` and `stats_from_vec`. The order
+      statistics sort a private copy (heapsort) and never modify the caller's
+      vector. Accuracy is in `docs/accuracy.md`.
+    - Total functions with no panics. An undefined result is NaN: an empty
+      input, a percentile outside `[0, 100]`, fewer than two observations for
+      sample variance. Callers should check `stats_count` / `vec_len` first.
+      This is the CONV-005(b) style already used elsewhere in the library, not
+      a `requires` clause, because a contract on a struct-field access trips
+      BUGS.md #19.
+    - A NaN observation makes every result NaN, including the median and
+      percentiles. Infinite observations are counted and reflected: sum and
+      mean are +/-infinity (NaN if both signs appear), min/max and the order
+      statistics see them (percentiles interpolate as IEEE says), and variance
+      and standard deviation are NaN.
     - Like `random`, it has no requirement IDs; `test/unit/stats_test.sv0`
-      covers it on both backends.
+      and `test/unit/stats_order_test.sv0` cover it on both backends.

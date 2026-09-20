@@ -13,6 +13,7 @@ floor, or if a fixture is missing from (or extra to) the manifest.
 | FZ-MOD-INVERSE-001 | `test/property/modular_inverse_property.sv0` | MOD-006 | 2685821657736338717 | 20 | 20 | c,vm |
 | FZ-COMPLEX-ALGEBRA-001 | `test/property/complex_algebra_property.sv0` | CPLX-002 | 4101842887655102017 | 20 | 20 | c,vm |
 | FZ-STATS-001 | `test/property/stats_property.sv0` | - | 3935559000370003845 | 12 | 12 | c,vm |
+| FZ-STATS-ORDER-001 | `test/property/stats_order_property.sv0` | - | 7301642928516474937 | 12 | 12 | c,vm |
 
 ## Invariants
 
@@ -21,6 +22,7 @@ floor, or if a fixture is missing from (or extra to) the manifest.
 - **FZ-MOD-INVERSE-001**: for coprime (a, m), mul_mod(a, mod_inverse(a, m), m) == 1; at least 15 coprime draws actually checked (oracle: the identity itself (no separate reference))
 - **FZ-COMPLEX-ALGEBRA-001**: complex addition and multiplication are commutative and associative within tolerance (oracle: the identities themselves (no separate reference))
 - **FZ-STATS-001**: min <= mean <= max; variance >= 0; sample >= population variance; sum == mean*n; variance shift-invariant and x9 under x3; mean shifts and scales (oracle: the identities themselves (no separate reference))
+- **FZ-STATS-ORDER-001**: sorted copy ascending and input untouched; p0 = min, p100 = max; min <= median <= max; percentiles non-decreasing in p; median == p50 for odd n; reversing the sample changes nothing (oracle: the identities themselves (no separate reference))
 
 ## Adding or changing a property
 

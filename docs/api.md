@@ -7,7 +7,7 @@ would name it. Non-exact (ULP-budgeted) functions link their own doc
 comment's `docs/accuracy.md` cross-reference inline; see that file for
 the measured error tables themselves.
 
-**129 public functions across 8 modules.**
+**136 public functions across 8 modules.**
 
 ---
 
@@ -1120,6 +1120,23 @@ fn stats_count(s: Stats) -> i64 { return s.n; }
 
 Number of observations pushed (finite or not).
 
+### `stats_from_vec`
+
+```sv0
+fn stats_from_vec(xs: Vec<f64>) -> Stats
+```
+
+Feeds every element of `xs` into a fresh accumulator, in order.
+
+### `stats_heap_sift_down`
+
+```sv0
+fn stats_heap_sift_down(v: Vec<f64>, root0: i32, n: i32) -> i32
+```
+
+Restores the max-heap property below `root` within the first `n` elements
+of `v` (the standard heapsort sift-down).
+
 ### `stats_max_f64`
 
 ```sv0
@@ -1136,6 +1153,16 @@ fn stats_mean_f64(s: Stats) -> f64
 
 Arithmetic mean of all observations; NaN when empty (see the module
 header for how NaN and infinite observations propagate).
+
+### `stats_median_f64`
+
+```sv0
+fn stats_median_f64(xs: Vec<f64>) -> f64
+```
+
+Median of the sample; NaN when empty or if any element is NaN. An even
+count returns the midpoint of the two middle values (`a/2 + b/2`, which
+cannot overflow).
 
 ### `stats_min_f64`
 
@@ -1161,6 +1188,18 @@ fn stats_new() -> Stats
 
 An empty accumulator (no observations).
 
+### `stats_percentile_f64`
+
+```sv0
+fn stats_percentile_f64(xs: Vec<f64>, p: f64) -> f64
+```
+
+The `p`-th percentile (p in [0, 100]) by linear interpolation between the
+closest ranks: the value at position `p * (n - 1) / 100` in the sorted
+sample (numpy's default). `p == 0` is the minimum and `p == 100` the
+maximum. NaN when the sample is empty or holds a NaN, or when `p` is NaN or
+outside [0, 100].
+
 ### `stats_push`
 
 ```sv0
@@ -1177,6 +1216,16 @@ fn stats_range_f64(s: Stats) -> f64
 ```
 
 `max - min`; NaN when empty or if a NaN was seen.
+
+### `stats_sorted_f64`
+
+```sv0
+fn stats_sorted_f64(xs: Vec<f64>) -> Vec<f64>
+```
+
+A new vector holding the elements of `xs` in ascending order (heapsort of a
+private copy; `xs` is untouched). Undefined ordering if `xs` holds a NaN:
+callers screen for NaN first (the order statistics below do).
 
 ### `stats_sqrt_nonneg`
 
@@ -1232,6 +1281,22 @@ fn stats_variance_sample_f64(s: Stats) -> f64
 
 Sample variance (divides by n - 1); NaN with fewer than two
 observations or when non-finite input was seen.
+
+### `stats_vec_has_nan`
+
+```sv0
+fn stats_vec_has_nan(xs: Vec<f64>) -> bool
+```
+
+True if any element of `xs` is NaN.
+
+### `stats_vec_swap`
+
+```sv0
+fn stats_vec_swap(v: Vec<f64>, i: i32, j: i32) -> i32
+```
+
+Swaps elements `i` and `j` of `v` in place.
 
 ---
 
