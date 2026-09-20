@@ -145,9 +145,9 @@ toolchain and the spec disagree — write down the deviation and why).
 12. **`math::stats` is beyond SPEC.md.** SPEC.md has no statistics section.
     The module has two entry points. A `Stats` accumulator is threaded by
     value (`s = stats_push(s, x);`) for the reductions that need only running
-    state. A `Vec<f64>` sample (built with `vec_push_f64`; the generic
-    `vec_push` truncates a float and is refused, BUGS.md #20) answers the
-    order statistics. Consequences:
+    state. A `Vec<f64>` sample (declared as such, so the toolchain selects the
+    f64 element accessors for `vec_push` / `vec_get` / `vec_set`, BUGS.md #20)
+    answers the order statistics. Consequences:
     - Provided: count, sum (Neumaier compensated), mean and population and
       sample variance and standard deviation (Welford with a double-double
       running mean), min, max, range; and, over a `Vec<f64>`, `stats_median_f64`,

@@ -9,6 +9,9 @@ strengthened or weakened. Versions follow [Semantic Versioning](https://semver.o
 
 ### Added
 
+- `stats` order statistics now use the generic `vec_push` / `vec_get` /
+  `vec_set` on a declared `Vec<f64>`; the toolchain infers the f64 element
+  accessors (BUGS.md #20 follow-up). The typed `_f64` forms still work.
 - `lib/random.sv0`: deterministic, seedable `next_u64` / `unit_f64`,
   extracted from the property test. `unit_f64` now uses the top 53 bits,
   so it is strictly in `[0.0, 1.0)`; the old full-`u64` division could

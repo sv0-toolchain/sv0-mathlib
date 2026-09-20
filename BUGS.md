@@ -1374,13 +1374,24 @@ x)`, `vec_get_f64(v, i)` (returns `f64`) and `vec_set_f64(v, i, x)`;
 `vec_new` / `vec_len` are shared. The C runtime stores the double's bits
 exactly in the word slot, and the VM keeps each f64 element in a real pool
 (NaN and `-0.0` survive). Regression: `sv0c/test/behavior/cases/vec_f64.sv0`
-(native + VM parity). The generic `vec_push` / `vec_set` given a float, an
-array literal of float literals, and a `[f64; N]` annotation are still
-refused (`E0447`, with a message pointing at the `_f64` accessors), because
-they would store a truncated value. Still unsupported: an f64 form of arrays
+(native + VM parity). **Follow-up (`sv0c` `41b96cef`): the generic
+`vec_push` / `vec_get` / `vec_set` now infer the f64 accessors** from a
+declared `Vec<f64>`: a parameter or `let` annotation, a `let v = f(..)` whose
+callee is declared `-> Vec<f64>`, or a struct field reached as `s.data`.
+Diagnostics: `E0451` (the same name is declared as `Vec<f64>` and as another
+type in one function), `E0452` (a non-f64 element into a `Vec<f64>`),
+`E0453` (a `_f64` accessor on a `Vec<T>` with `T` not f64). A float given to
+the generic accessors on a vec with no visible declaration, an array literal
+of float literals, and a `[f64; N]` annotation are still refused (`E0447`),
+because they would store a truncated value. Regression:
+`sv0c/test/behavior/cases/vec_f64_generic.sv0` and four diagnostics cases.
+Remaining limit: the vec must be named directly (`v` or `s.field`); an
+unannotated `let v = vec_new()` or a vec taken from an arbitrary expression
+has no visible element type, and a float `let` still needs an annotation
+(`let x: f64 = vec_get(v, i);`, as for every f64 `let`). Still unsupported: an f64 form of arrays
 and slices (`a[i]` and `&v[..]` over an f64 Vec read raw storage, not
-values). `stats` uses the typed accessors for `stats_median_f64` and
-`stats_percentile_f64`.
+values). `stats` uses the generic accessors on its declared `Vec<f64>` values for
+`stats_median_f64` and `stats_percentile_f64`.
 
 ```sv0
 fn main() -> i32 {

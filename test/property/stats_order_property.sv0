@@ -26,28 +26,28 @@ fn main() -> i32 {
         while i < 33 loop_invariant(i >= 0) {
             state = next_u64(state);
             let x: f64 = (unit_f64(state) - 0.5) * 1000.0;
-            vec_push_f64(xs, x);
+            vec_push(xs, x);
             i = i + 1;
         }
         let mut r: i32 = 32;
         while r >= 0 loop_invariant(r >= 0 - 1) {
-            let y: f64 = vec_get_f64(xs, r);
-            vec_push_f64(rev, y);
+            let y: f64 = vec_get(xs, r);
+            vec_push(rev, y);
             r = r - 1;
         }
-        let first: f64 = vec_get_f64(xs, 0);
+        let first: f64 = vec_get(xs, 0);
         let s: Vec<f64> = stats_sorted_f64(xs);
         if vec_len(s) != 33 { return 10; }
-        if vec_get_f64(xs, 0) != first { return 11; }
+        if vec_get(xs, 0) != first { return 11; }
         let mut k: i32 = 1;
         while k < 33 loop_invariant(k >= 1) {
-            let a: f64 = vec_get_f64(s, k - 1);
-            let b: f64 = vec_get_f64(s, k);
+            let a: f64 = vec_get(s, k - 1);
+            let b: f64 = vec_get(s, k);
             if a > b { return 12; }
             k = k + 1;
         }
-        let lo: f64 = vec_get_f64(s, 0);
-        let hi: f64 = vec_get_f64(s, 32);
+        let lo: f64 = vec_get(s, 0);
+        let hi: f64 = vec_get(s, 32);
         if stats_percentile_f64(xs, 0.0) != lo { return 13; }
         if stats_percentile_f64(xs, 100.0) != hi { return 14; }
         let med: f64 = stats_median_f64(xs);

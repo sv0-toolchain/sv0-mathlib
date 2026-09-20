@@ -4,8 +4,9 @@
  * DESIGN: two ways in. A `Stats` accumulator is threaded by value, one
  * observation at a time (`s = stats_push(s, x);`), and answers count, sum,
  * mean, variance, standard deviation, min, max and range from running state.
- * A `Vec<f64>` sample (built with `vec_push_f64`) additionally answers the
- * order statistics, which need the whole sample: `stats_median_f64` and
+ * A `Vec<f64>` sample (declared as such, so the toolchain selects the f64
+ * element accessors for `vec_push` / `vec_get` / `vec_set`) additionally
+ * answers the order statistics, which need the whole sample: `stats_median_f64` and
  * `stats_percentile_f64` sort a private copy (heapsort, O(n log n)) and never
  * modify the caller's vector. `stats_from_vec` feeds a whole sample into an
  * accumulator.
@@ -256,7 +257,7 @@ fn stats_from_vec(xs: Vec<f64>) -> Stats {
     let mut s: Stats = stats_new();
     let mut i: i32 = 0;
     while i < n loop_invariant(i >= 0) {
-        let x: f64 = vec_get_f64(xs, i);
+        let x: f64 = vec_get(xs, i);
         s = stats_push(s, x);
         i = i + 1;
     }
@@ -268,7 +269,7 @@ fn stats_vec_has_nan(xs: Vec<f64>) -> bool {
     let n: i32 = vec_len(xs);
     let mut i: i32 = 0;
     while i < n loop_invariant(i >= 0) {
-        let x: f64 = vec_get_f64(xs, i);
+        let x: f64 = vec_get(xs, i);
         if x != x { return true; }
         i = i + 1;
     }
@@ -277,10 +278,10 @@ fn stats_vec_has_nan(xs: Vec<f64>) -> bool {
 
 /* Swaps elements `i` and `j` of `v` in place. */
 fn stats_vec_swap(v: Vec<f64>, i: i32, j: i32) -> i32 {
-    let a: f64 = vec_get_f64(v, i);
-    let b: f64 = vec_get_f64(v, j);
-    vec_set_f64(v, i, b);
-    vec_set_f64(v, j, a);
+    let a: f64 = vec_get(v, i);
+    let b: f64 = vec_get(v, j);
+    vec_set(v, i, b);
+    vec_set(v, j, a);
     return 0;
 }
 
@@ -296,12 +297,12 @@ fn stats_heap_sift_down(v: Vec<f64>, root0: i32, n: i32) -> i32 {
         } else {
             let mut big: i32 = child;
             if child + 1 < n {
-                let right: f64 = vec_get_f64(v, child + 1);
-                let left: f64 = vec_get_f64(v, child);
+                let right: f64 = vec_get(v, child + 1);
+                let left: f64 = vec_get(v, child);
                 if right > left { big = child + 1; }
             }
-            let bv: f64 = vec_get_f64(v, big);
-            let rv: f64 = vec_get_f64(v, root);
+            let bv: f64 = vec_get(v, big);
+            let rv: f64 = vec_get(v, root);
             if bv > rv {
                 let _sw: i32 = stats_vec_swap(v, root, big);
                 root = big;
@@ -321,8 +322,8 @@ fn stats_sorted_f64(xs: Vec<f64>) -> Vec<f64> {
     let v: Vec<f64> = vec_new();
     let mut i: i32 = 0;
     while i < n loop_invariant(i >= 0) {
-        let x: f64 = vec_get_f64(xs, i);
-        vec_push_f64(v, x);
+        let x: f64 = vec_get(xs, i);
+        vec_push(v, x);
         i = i + 1;
     }
     let mut start: i32 = n / 2 - 1;
@@ -348,9 +349,9 @@ fn stats_median_f64(xs: Vec<f64>) -> f64 {
     if stats_vec_has_nan(xs) { return stats_nan(); }
     let v: Vec<f64> = stats_sorted_f64(xs);
     let mid: i32 = n / 2;
-    let hi: f64 = vec_get_f64(v, mid);
+    let hi: f64 = vec_get(v, mid);
     if n % 2 == 1 { return hi; }
-    let lo: f64 = vec_get_f64(v, mid - 1);
+    let lo: f64 = vec_get(v, mid - 1);
     return lo * 0.5 + hi * 0.5;
 }
 
@@ -382,11 +383,11 @@ fn stats_percentile_f64(xs: Vec<f64>, p: f64) -> f64 {
             if kp1f <= pos { k = k + 1; } else { going = false; }
         }
     }
-    let lo: f64 = vec_get_f64(v, k);
+    let lo: f64 = vec_get(v, k);
     if k >= nm1 { return lo; }
     let kf: f64 = k;
     let frac: f64 = pos - kf;
     if frac == 0.0 { return lo; }
-    let hi: f64 = vec_get_f64(v, k + 1);
+    let hi: f64 = vec_get(v, k + 1);
     return lo * (1.0 - frac) + hi * frac;
 }
