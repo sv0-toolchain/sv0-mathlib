@@ -9,6 +9,9 @@ strengthened or weakened. Versions follow [Semantic Versioning](https://semver.o
 
 ### Added
 
+- Toolchain: f64 arrays and slices (`[f64; N]`, float array literals, `a[i]`,
+  `&[f64]`), and element-type inference for an unannotated `vec_new()` local
+  (BUGS.md #20). This library does not use them; its behavior is unchanged.
 - Toolchain: an unannotated `let x = 2.5;` (or any wide-integer / f64
   initializer) is typed from its initializer on the C backend instead of
   declaring `int` (BUGS.md #23). This library annotated every such `let`, so

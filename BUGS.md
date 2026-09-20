@@ -1385,13 +1385,22 @@ the generic accessors on a vec with no visible declaration, an array literal
 of float literals, and a `[f64; N]` annotation are still refused (`E0447`),
 because they would store a truncated value. Regression:
 `sv0c/test/behavior/cases/vec_f64_generic.sv0` and four diagnostics cases.
-Remaining limit: the vec must be named directly (`v` or `s.field`); an
-unannotated `let v = vec_new()` or a vec taken from an arbitrary expression
-has no visible element type, and the annotation on a float `let` is no longer
-required (BUGS.md #23). Still unsupported: an f64 form of arrays
-and slices (`a[i]` and `&v[..]` over an f64 Vec read raw storage, not
-values). `stats` uses the generic accessors on its declared `Vec<f64>` values for
-`stats_median_f64` and `stats_percentile_f64`.
+**Second follow-up (2026-09-20): the remaining limits are closed.** An
+unannotated `let v = vec_new();` is typed from its uses (a float or integer
+literal element, `let x: f64 = vec_get(v, ..)`, being passed to a `Vec<f64>`
+parameter, `return v;` in a fn declared `-> Vec<f64>`, or `field: v` in a
+struct literal); f64 and word-sized evidence together is `E0451`. **f64
+arrays and slices work**: `[f64; N]` locals, float array literals, `a[i]` and
+`a[i] = x`, `&a[lo..hi]`, and `&[f64]` / `&mut [f64]` parameters, lowered to
+`sv0_idx_get_f64` / `sv0_idx_set_f64` (builtins 41/42; the VM stores a pool
+index per element, as for Vec). Regression:
+`sv0c/test/behavior/cases/vec_f64_infer.sv0` and `array_f64.sv0` (native + VM
+parity). Still not visible to the checker: a vec that is not a declared name
+(the result of a call used directly, `vec_get(make(), 0)`), and an f64 array
+*parameter* `[f64; N]` (array parameters of any element type do not compile
+at all, a separate pre-existing gap). A float `let` no longer needs an
+annotation (BUGS.md #23). `stats` uses the generic accessors on its declared
+`Vec<f64>` values for `stats_median_f64` and `stats_percentile_f64`.
 
 ```sv0
 fn main() -> i32 {

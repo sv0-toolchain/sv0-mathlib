@@ -30,7 +30,6 @@ Non-waivable requirements (never registrable): COMPAT-001, PERF-002, TEST-004.
 | MX-020 | - | toolchain-gap | BUGS.md#17 | open | fixed upstream (no fixed date) |
 | MX-021 | - | toolchain-gap | BUGS.md#18 | open | fixed upstream (no fixed date) |
 | MX-022 | - | toolchain-gap | BUGS.md#19 | open | fixed upstream (no fixed date) |
-| MX-023 | - | toolchain-gap | BUGS.md#20 | open | arrays / slices gain an f64 form (no fixed date) |
 | MX-025 | - | deviation | deviations.md#2 | open | the toolchain defines an `sv0.toml` project root this library can adopt (no fixed date) |
 
 ## Rationale
@@ -56,5 +55,4 @@ Non-waivable requirements (never registrable): COMPAT-001, PERF-002, TEST-004.
 - **MX-020** (toolchain-gap, open): `--project` discovery silently fails (exit 2, no diagnostics) when a top-level entry sorts before `lib`. Worked around in the test runners by naming entries `zzz_*` or `under_test`.
 - **MX-021** (toolchain-gap, open): `let x: Struct = <plain variable of that struct type>;` mistypes the new local as int. Worked around by routing the copy through an identity call.
 - **MX-022** (toolchain-gap, open): A struct-literal field initializer or a `requires`/`ensures` clause that is a binop over a struct-field access mistypes as int. Worked around by using locals, and by keeping such contracts off struct fields (so `stats` returns NaN instead of using `requires`).
-- **MX-023** (toolchain-gap, open): The generic `vec_push` / `vec_get` / `vec_set` and array literals store integer-sized words, so an f64 element was silently truncated by the C backend and rejected by the VM. A declared `Vec<f64>` (parameter, let annotation, fn return, struct field) now selects f64 element accessors for the generic `vec_push` / `vec_get` / `vec_set`; the generic accessors given a float on an undeclared vec are refused (E0447). `[f64; N]` arrays and slices of f64 remain unsupported, as does a vec whose element type is not visible in a declaration.
 - **MX-025** (deviation, open): The project is driven by `--project <dir>` paths from an sv0-toolchain checkout rather than an `sv0.toml` root, because deviation 2 records that no such project convention existed to root it a different way. It stays its own repository with its own history, tags and releases.
