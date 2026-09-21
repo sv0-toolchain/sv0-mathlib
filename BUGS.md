@@ -1399,9 +1399,16 @@ parity). A vec taken from a call (`vec_get(make(), 0)`, typed from the callee's
 declared return) or a multi-level field chain (`a.b.v`) is resolved too.
 Element assignment through any place (`s.v[i] = x`, `a[i][j] = x`) and
 every compound operator (`a[i] += x`) now parse; before they were parser
-errors (E0100). Still not visible to the checker: a vec produced by
-anything other than a name, a field chain or a call to a fn with a declared
-`Vec` return, and nothing else in this family. Array *parameters*, returns and struct fields
+errors (E0100). `mk()[i]` (an index straight on a call to a fn declared to return an f64
+array or `Vec<f64>`) is resolved too, and a fn with a `[T; N]` return type no
+longer drops its `let`s from the scan. An annotated `let y: S = t.s;` of a
+user struct or enum type is typed from the annotation for any initializer
+(it declared a C `int` before). Still not visible to the checker: a vec
+produced by anything other than a name, a field chain or a call to a fn with
+a declared `Vec` / array return. Nested struct VALUE fields (`t.s.a`) work
+on the C backend but are not laid out on the VM: a struct's width there is
+its field count, one word per field, so the VM emitter now stops with an
+explicit `E0554` instead of a bare exit status. Array *parameters*, returns and struct fields
 (`[T; N]`, any element type) used to fail with no message (exit 4) or crash
 the compiler; they now compile (`sv0c` `array_param.sv0`), an array being an
 int handle so a callee mutates the caller's array through it. A float `let` no longer needs an

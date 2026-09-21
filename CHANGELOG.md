@@ -9,6 +9,9 @@ strengthened or weakened. Versions follow [Semantic Versioning](https://semver.o
 
 ### Added
 
+- Toolchain: `mk()[i]` on an f64-array-returning call, annotated struct/enum
+  `let` typing from any initializer, and an explicit error (E0554) when the VM
+  cannot lay out a construct such as a nested struct field. Not used here.
 - Toolchain: `s.v[i] = x`, `a[i][j] = x` and `a[i] op= x` now parse and
   compile (they were parser errors), and a vec taken from a call or a field
   chain gets its element type inferred. Not used by this library.
