@@ -1395,9 +1395,13 @@ arrays and slices work**: `[f64; N]` locals, float array literals, `a[i]` and
 `sv0_idx_get_f64` / `sv0_idx_set_f64` (builtins 41/42; the VM stores a pool
 index per element, as for Vec). Regression:
 `sv0c/test/behavior/cases/vec_f64_infer.sv0` and `array_f64.sv0` (native + VM
-parity). Still not visible to the checker: a vec that is not a declared name
-(the result of a call used directly, `vec_get(make(), 0)`), and nothing
-else in this family. Array *parameters*, returns and struct fields
+parity). A vec taken from a call (`vec_get(make(), 0)`, typed from the callee's
+declared return) or a multi-level field chain (`a.b.v`) is resolved too.
+Element assignment through any place (`s.v[i] = x`, `a[i][j] = x`) and
+every compound operator (`a[i] += x`) now parse; before they were parser
+errors (E0100). Still not visible to the checker: a vec produced by
+anything other than a name, a field chain or a call to a fn with a declared
+`Vec` return, and nothing else in this family. Array *parameters*, returns and struct fields
 (`[T; N]`, any element type) used to fail with no message (exit 4) or crash
 the compiler; they now compile (`sv0c` `array_param.sv0`), an array being an
 int handle so a callee mutates the caller's array through it. A float `let` no longer needs an

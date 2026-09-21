@@ -9,6 +9,9 @@ strengthened or weakened. Versions follow [Semantic Versioning](https://semver.o
 
 ### Added
 
+- Toolchain: `s.v[i] = x`, `a[i][j] = x` and `a[i] op= x` now parse and
+  compile (they were parser errors), and a vec taken from a call or a field
+  chain gets its element type inferred. Not used by this library.
 - Toolchain: array parameters, returns and struct fields (`[T; N]`) now
   compile; before, indexing an array parameter failed silently. Not used by
   this library.
