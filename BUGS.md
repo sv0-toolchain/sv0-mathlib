@@ -1405,10 +1405,16 @@ longer drops its `let`s from the scan. An annotated `let y: S = t.s;` of a
 user struct or enum type is typed from the annotation for any initializer
 (it declared a C `int` before). Still not visible to the checker: a vec
 produced by anything other than a name, a field chain or a call to a fn with
-a declared `Vec` / array return. Nested struct VALUE fields (`t.s.a`) work
-on the C backend but are not laid out on the VM: a struct's width there is
-its field count, one word per field, so the VM emitter now stops with an
-explicit `E0554` instead of a bare exit status. Array *parameters*, returns and struct fields
+a declared `Vec` / array return. Nested struct VALUE fields work on both backends: `t.u.s.a` reads and
+`t.u.s.a = v` / `t.u.k *= 2` stores (lowered to a read-modify-write through
+struct temporaries), unannotated `let z = t.s;` copies, whole-field stores
+(`t.s = u`), and nested structs passed to and returned from functions. On the
+VM a struct's width is now its leaf words (it was its field count, one word
+per field), its per-slot field run is expanded with nested sub-runs, and a
+member path resolves to a word offset and width. Regression:
+`sv0c/test/behavior/cases/nested_struct.sv0` and `struct_let_copy.sv0`
+(native + VM parity). When the VM emitter still cannot lay out a construct it
+stops with an explicit `E0554` instead of a bare exit status. Array *parameters*, returns and struct fields
 (`[T; N]`, any element type) used to fail with no message (exit 4) or crash
 the compiler; they now compile (`sv0c` `array_param.sv0`), an array being an
 int handle so a callee mutates the caller's array through it. A float `let` no longer needs an

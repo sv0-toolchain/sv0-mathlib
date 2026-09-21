@@ -9,6 +9,9 @@ strengthened or weakened. Versions follow [Semantic Versioning](https://semver.o
 
 ### Added
 
+- Toolchain: struct values nested in struct values work on both the C and VM
+  backends, including nested field stores and compound stores (`t.u.s.a += 1`).
+  Not used by this library.
 - Toolchain: `mk()[i]` on an f64-array-returning call, annotated struct/enum
   `let` typing from any initializer, and an explicit error (E0554) when the VM
   cannot lay out a construct such as a nested struct field. Not used here.
