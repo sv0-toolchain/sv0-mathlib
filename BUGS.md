@@ -1412,8 +1412,12 @@ struct temporaries), unannotated `let z = t.s;` copies, whole-field stores
 VM a struct's width is now its leaf words (it was its field count, one word
 per field), its per-slot field run is expanded with nested sub-runs, and a
 member path resolves to a word offset and width. Regression:
-`sv0c/test/behavior/cases/nested_struct.sv0` and `struct_let_copy.sv0`
-(native + VM parity). When the VM emitter still cannot lay out a construct it
+`sv0c/test/behavior/cases/nested_struct.sv0`, `struct_let_copy.sv0` and
+`struct_decl_order.sv0` (native + VM parity). A struct may also use a struct or
+enum declared LATER in the file (C typedefs are now emitted in dependency
+order). Known limit: a `match` whose scrutinee is a struct member
+(`match h.shape { .. }`) is not typed on either backend; copy it into an
+annotated `let` first. When the VM emitter still cannot lay out a construct it
 stops with an explicit `E0554` instead of a bare exit status. Array *parameters*, returns and struct fields
 (`[T; N]`, any element type) used to fail with no message (exit 4) or crash
 the compiler; they now compile (`sv0c` `array_param.sv0`), an array being an
