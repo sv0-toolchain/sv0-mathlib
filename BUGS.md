@@ -1415,9 +1415,10 @@ member path resolves to a word offset and width. Regression:
 `sv0c/test/behavior/cases/nested_struct.sv0`, `struct_let_copy.sv0` and
 `struct_decl_order.sv0` (native + VM parity). A struct may also use a struct or
 enum declared LATER in the file (C typedefs are now emitted in dependency
-order). Known limit: a `match` whose scrutinee is a struct member
-(`match h.shape { .. }`) is not typed on either backend; copy it into an
-annotated `let` first. When the VM emitter still cannot lay out a construct it
+order). A `match` on a struct member (`match h.shape { .. }`, `match o.h.second { .. }`,
+a struct pattern on a member) works on both backends: an untyped scrutinee is
+typed from its arm patterns, and on the VM an enum-typed struct field takes
+the enum's width (`sv0c/test/behavior/cases/match_member.sv0`). When the VM emitter still cannot lay out a construct it
 stops with an explicit `E0554` instead of a bare exit status. Array *parameters*, returns and struct fields
 (`[T; N]`, any element type) used to fail with no message (exit 4) or crash
 the compiler; they now compile (`sv0c` `array_param.sv0`), an array being an

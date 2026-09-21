@@ -9,6 +9,8 @@ strengthened or weakened. Versions follow [Semantic Versioning](https://semver.o
 
 ### Added
 
+- Toolchain: `match` on a struct member, and enum-typed struct fields on the VM.
+  Not used by this library.
 - Toolchain: struct values nested in struct values work on both the C and VM
   backends, including nested field stores and compound stores (`t.u.s.a += 1`).
   Not used by this library.
