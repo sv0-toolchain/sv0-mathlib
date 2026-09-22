@@ -7,6 +7,12 @@ strengthened or weakened. Versions follow [Semantic Versioning](https://semver.o
 
 ## [Unreleased]
 
+## [0.2.0] — 2026-09-22
+
+Two new modules beyond SPEC.md (`random`, `stats`, deviations 11/12), plus the
+toolchain follow-up work each of them surfaced. No API, contract, or accuracy
+bound on the R1-gated modules changed.
+
 ### Added
 
 - Toolchain: `match` on a struct member, and enum-typed struct fields on the VM.

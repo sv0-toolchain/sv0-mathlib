@@ -6,10 +6,11 @@ coordinates, complex numbers, streaming descriptive statistics, and a
 small seedable test PRNG, built contract-first per
 [SPEC.md](https://github.com/sv4u/project-specs/blob/main/sv0-mathlib/SPEC.md).
 
-**Status: `v0.1.0`, released 2026-08-30.** The full SPEC.md ladder (F0
+**Status: `v0.2.0`, released 2026-09-22.** The full SPEC.md ladder (F0
 through the R1 gate, §21.5) is implemented, contract-checked,
 accuracy-audited, and covered by a generated requirement-to-test matrix.
-See [CHANGELOG.md](CHANGELOG.md) for the release history and
+`random` and `stats` are two further modules beyond SPEC.md (deviations
+11/12). See [CHANGELOG.md](CHANGELOG.md) for the release history and
 [docs/deviations.md](docs/deviations.md) for where this implementation
 and the spec disagree, and why.
 
